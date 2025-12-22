@@ -3,19 +3,7 @@ node_modules/
 
 # Build output
 dist/
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+build/
 
 # Environment files
 .env
@@ -30,6 +18,19 @@ npm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# TypeScript cache
+*.tsbuildinfo
 
 # Local development
 *.local
