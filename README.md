@@ -29,7 +29,19 @@ npm run dev
 
 ## Server
 
-Backend implementation coming soon.
+Backend API lives in `server/` (Express + Prisma + PostgreSQL).
+
+### Run the Server
+
+```bash
+cd server
+npm install
+
+# Create server/.env (see server/env.example)
+# Then run migrations + start dev server
+npm run db:migrate
+npm run dev
+```
 
 ## Features
 
@@ -41,4 +53,5 @@ Backend implementation coming soon.
 ## License
 
 Private - All rights reserved
+
 

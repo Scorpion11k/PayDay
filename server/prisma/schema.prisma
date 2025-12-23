@@ -1,0 +1,224 @@
+// PayDay Database Schema
+// PostgreSQL with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum CustomerStatus {
+  active
+  do_not_contact
+  blocked
+}
+
+enum DebtStatus {
+  open
+  in_collection
+  settled
+  written_off
+  disputed
+}
+
+enum InstallmentStatus {
+  due
+  overdue
+  partially_paid
+  paid
+  canceled
+}
+
+enum PaymentStatus {
+  received
+  reversed
+  failed
+}
+
+enum PaymentMethod {
+  bank_transfer
+  card
+  cash
+  check
+  other
+}
+
+enum NotificationChannel {
+  sms
+  email
+  whatsapp
+  call_task
+}
+
+enum DeliveryStatus {
+  queued
+  sent
+  delivered
+  failed
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+/// Represents a person/company being collected from
+model Customer {
+  id          String         @id @default(uuid()) @db.Uuid
+  externalRef String?        @unique @map("external_ref")
+  fullName    String         @map("full_name")
+  phone       String?
+  email       String?
+  status      CustomerStatus @default(active)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  debts         Debt[]
+  payments      Payment[]
+  notifications Notification[]
+
+  @@index([phone])
+  @@index([email])
+  @@index([status])
+  @@map("customers")
+}
+
+/// Represents one obligation (invoice/loan/contract) for a customer
+model Debt {
+  id             String     @id @default(uuid()) @db.Uuid
+  customerId     String     @map("customer_id") @db.Uuid
+  originalAmount Decimal    @map("original_amount") @db.Decimal(12, 2)
+  currency       String     @db.Char(3)
+  currentBalance Decimal    @map("current_balance") @db.Decimal(12, 2)
+  status         DebtStatus @default(open)
+  openedAt       DateTime   @default(now()) @map("opened_at") @db.Timestamptz
+  closedAt       DateTime?  @map("closed_at") @db.Timestamptz
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  installments  Installment[]
+  payments      Payment[]
+  notifications Notification[]
+
+  @@index([customerId])
+  @@index([status])
+  @@map("debts")
+}
+
+/// Each row is a scheduled due item under a debt
+model Installment {
+  id         String            @id @default(uuid()) @db.Uuid
+  debtId     String            @map("debt_id") @db.Uuid
+  sequenceNo Int               @map("sequence_no")
+  dueDate    DateTime          @map("due_date") @db.Date
+  amountDue  Decimal           @map("amount_due") @db.Decimal(12, 2)
+  amountPaid Decimal           @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  status     InstallmentStatus @default(due)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  debt               Debt                @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  paymentAllocations PaymentAllocation[]
+  notifications      Notification[]
+
+  @@unique([debtId, sequenceNo])
+  @@index([dueDate])
+  @@index([status])
+  @@map("installments")
+}
+
+/// Actual payment transactions received
+model Payment {
+  id                 String        @id @default(uuid()) @db.Uuid
+  customerId         String        @map("customer_id") @db.Uuid
+  debtId             String?       @map("debt_id") @db.Uuid
+  receivedAt         DateTime      @map("received_at") @db.Timestamptz
+  amount             Decimal       @db.Decimal(12, 2)
+  currency           String        @db.Char(3)
+  method             PaymentMethod
+  providerTxnId      String?       @unique @map("provider_txn_id")
+  status             PaymentStatus @default(received)
+  rawProviderPayload Json?         @map("raw_provider_payload")
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  customer    Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  debt        Debt?               @relation(fields: [debtId], references: [id], onDelete: SetNull)
+  allocations PaymentAllocation[]
+
+  @@index([customerId])
+  @@index([debtId])
+  @@index([receivedAt])
+  @@map("payments")
+}
+
+/// Maps payments to installments (supports partial + multi-installment payments)
+model PaymentAllocation {
+  id            String   @id @default(uuid()) @db.Uuid
+  paymentId     String   @map("payment_id") @db.Uuid
+  installmentId String   @map("installment_id") @db.Uuid
+  amountApplied Decimal  @map("amount_applied") @db.Decimal(12, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  payment     Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  installment Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, installmentId])
+  @@map("payment_allocations")
+}
+
+/// Represents the intent/message definition for outreach
+model Notification {
+  id              String              @id @default(uuid()) @db.Uuid
+  customerId      String              @map("customer_id") @db.Uuid
+  debtId          String?             @map("debt_id") @db.Uuid
+  installmentId   String?             @map("installment_id") @db.Uuid
+  channel         NotificationChannel
+  templateKey     String              @map("template_key")
+  payloadSnapshot Json                @map("payload_snapshot")
+  createdBy       String              @map("created_by")
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  customer    Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  debt        Debt?                    @relation(fields: [debtId], references: [id], onDelete: SetNull)
+  installment Installment?             @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+  deliveries  NotificationDelivery[]
+
+  @@index([customerId])
+  @@index([debtId])
+  @@map("notifications")
+}
+
+/// Stores send attempts + provider result + retry history
+model NotificationDelivery {
+  id                String         @id @default(uuid()) @db.Uuid
+  notificationId    String         @map("notification_id") @db.Uuid
+  attemptNo         Int            @map("attempt_no")
+  provider          String
+  providerMessageId String?        @unique @map("provider_message_id")
+  status            DeliveryStatus @default(queued)
+  errorCode         String?        @map("error_code")
+  errorMessage      String?        @map("error_message")
+  sentAt            DateTime?      @map("sent_at") @db.Timestamptz
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([status])
+  @@map("notification_deliveries")
+}
