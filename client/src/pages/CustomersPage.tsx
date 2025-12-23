@@ -27,7 +27,12 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  DialogContentText,
   Snackbar,
+  Menu,
+  ListItemIcon,
+  ListItemText,
+  Divider,
 } from '@mui/material';
 import {
   People as CustomersIcon,
@@ -37,6 +42,10 @@ import {
   Phone as PhoneIcon,
   Add as AddIcon,
   Close as CloseIcon,
+  MoreVert as MoreVertIcon,
+  Delete as DeleteIcon,
+  Send as SendIcon,
+  WhatsApp as WhatsAppIcon,
 } from '@mui/icons-material';
 
 interface Customer {
@@ -114,11 +123,24 @@ export default function CustomersPage() {
   const [formData, setFormData] = useState<NewCustomerForm>(initialFormState);
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof NewCustomerForm, string>>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
     severity: 'success',
   });
+
+  // Actions Menu State
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // Delete Confirmation Dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Send Notification Dialog
+  const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
+  const [notificationType, setNotificationType] = useState<'email' | 'whatsapp' | null>(null);
+  const [sendingNotification, setSendingNotification] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -146,7 +168,7 @@ export default function CustomersPage() {
         params.set('status', statusFilter);
       }
 
-      const response = await fetch(`/api/customers?${params}`);
+      const response = await fetch(`http://localhost:3001/api/customers?${params}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -213,7 +235,6 @@ export default function CustomersPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { value: string } }
   ) => {
     setFormData((prev) => ({ ...prev, [field]: e.target.value }));
-    // Clear error when user starts typing
     if (formErrors[field]) {
       setFormErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -245,16 +266,13 @@ export default function CustomersPage() {
         status: formData.status,
       };
 
-      // Only include optional fields if they have values
       if (formData.email.trim()) payload.email = formData.email.trim();
       if (formData.phone.trim()) payload.phone = formData.phone.trim();
       if (formData.externalRef.trim()) payload.externalRef = formData.externalRef.trim();
 
-      const response = await fetch('/api/customers', {
+      const response = await fetch('http://localhost:3001/api/customers', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
@@ -264,14 +282,9 @@ export default function CustomersPage() {
         throw new Error(data.message || 'Failed to create customer');
       }
 
-      setSnackbar({
-        open: true,
-        message: 'Customer created successfully!',
-        severity: 'success',
-      });
-
+      setSnackbar({ open: true, message: 'Customer created successfully!', severity: 'success' });
       handleCloseDialog();
-      fetchCustomers(); // Refresh the list
+      fetchCustomers();
     } catch (err) {
       setSnackbar({
         open: true,
@@ -280,6 +293,104 @@ export default function CustomersPage() {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Actions Menu Handlers
+  const handleActionsClick = (event: React.MouseEvent<HTMLElement>, customer: Customer) => {
+    event.stopPropagation();
+    setAnchorEl(event.currentTarget);
+    setSelectedCustomer(customer);
+  };
+
+  const handleActionsClose = () => {
+    setAnchorEl(null);
+  };
+
+  // Delete Customer
+  const handleDeleteClick = () => {
+    handleActionsClose();
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedCustomer) return;
+
+    setDeleting(true);
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/customers/${selectedCustomer.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to delete customer');
+      }
+
+      setSnackbar({ open: true, message: 'Customer deleted successfully!', severity: 'success' });
+      setDeleteDialogOpen(false);
+      setSelectedCustomer(null);
+      fetchCustomers();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'Failed to delete customer',
+        severity: 'error',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Send Notification
+  const handleSendNotification = (type: 'email' | 'whatsapp') => {
+    handleActionsClose();
+    setNotificationType(type);
+    setNotificationDialogOpen(true);
+  };
+
+  const handleSendNotificationConfirm = async () => {
+    if (!selectedCustomer || !notificationType) return;
+
+    setSendingNotification(true);
+
+    try {
+      // Use the messaging API to actually send the reminder
+      const response = await fetch('http://localhost:3001/api/messaging/send-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: selectedCustomer.id,
+          channel: notificationType,
+          templateKey: 'debt_reminder',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to send notification');
+      }
+
+      const notificationTypeLabel = notificationType === 'email' ? 'Email' : 'WhatsApp';
+      setSnackbar({
+        open: true,
+        message: `${notificationTypeLabel} reminder sent to ${selectedCustomer.fullName}!`,
+        severity: 'success',
+      });
+
+      setNotificationDialogOpen(false);
+      setNotificationType(null);
+      setSelectedCustomer(null);
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'Failed to send notification',
+        severity: 'error',
+      });
+    } finally {
+      setSendingNotification(false);
     }
   };
 
@@ -297,20 +408,11 @@ export default function CustomersPage() {
             Customers
           </Typography>
           {!loading && (
-            <Chip
-              label={`${pagination.total} total`}
-              size="small"
-              sx={{ bgcolor: 'primary.light', color: 'white' }}
-            />
+            <Chip label={`${pagination.total} total`} size="small" sx={{ bgcolor: 'primary.light', color: 'white' }} />
           )}
         </Box>
         <Stack direction="row" spacing={1}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleOpenDialog}
-            sx={{ textTransform: 'none' }}
-          >
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenDialog} sx={{ textTransform: 'none' }}>
             Add Customer
           </Button>
           <Tooltip title="Refresh">
@@ -340,11 +442,7 @@ export default function CustomersPage() {
           />
           <FormControl size="small" sx={{ minWidth: 150 }}>
             <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Status"
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
+            <Select value={statusFilter} label="Status" onChange={(e) => setStatusFilter(e.target.value)}>
               <MenuItem value="">All</MenuItem>
               <MenuItem value="active">Active</MenuItem>
               <MenuItem value="do_not_contact">Do Not Contact</MenuItem>
@@ -374,12 +472,13 @@ export default function CustomersPage() {
                 <TableCell sx={{ fontWeight: 600 }} align="center">Debts</TableCell>
                 <TableCell sx={{ fontWeight: 600 }} align="center">Payments</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
+                <TableCell sx={{ fontWeight: 600 }} align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
                     <CircularProgress size={40} />
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                       Loading customers...
@@ -388,10 +487,8 @@ export default function CustomersPage() {
                 </TableRow>
               ) : customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
-                    <Typography variant="body1" color="text.secondary">
-                      No customers found
-                    </Typography>
+                  <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                    <Typography variant="body1" color="text.secondary">No customers found</Typography>
                     {(search || statusFilter) && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                         Try adjusting your search or filters
@@ -401,53 +498,34 @@ export default function CustomersPage() {
                 </TableRow>
               ) : (
                 customers.map((customer) => (
-                  <TableRow
-                    key={customer.id}
-                    hover
-                    sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
-                  >
+                  <TableRow key={customer.id} hover sx={{ '&:last-child td': { border: 0 } }}>
                     <TableCell>
-                      <Typography variant="body1" fontWeight={500}>
-                        {customer.fullName}
-                      </Typography>
+                      <Typography variant="body1" fontWeight={500}>{customer.fullName}</Typography>
                     </TableCell>
                     <TableCell>
                       <Stack spacing={0.5}>
                         {customer.email && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <EmailIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">
-                              {customer.email}
-                            </Typography>
+                            <Typography variant="body2" color="text.secondary">{customer.email}</Typography>
                           </Box>
                         )}
                         {customer.phone && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">
-                              {customer.phone}
-                            </Typography>
+                            <Typography variant="body2" color="text.secondary">{customer.phone}</Typography>
                           </Box>
                         )}
                         {!customer.email && !customer.phone && (
-                          <Typography variant="body2" color="text.disabled">
-                            No contact info
-                          </Typography>
+                          <Typography variant="body2" color="text.disabled">No contact info</Typography>
                         )}
                       </Stack>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {customer.externalRef || '—'}
-                      </Typography>
+                      <Typography variant="body2" color="text.secondary">{customer.externalRef || '—'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={statusLabels[customer.status]}
-                        color={statusColors[customer.status]}
-                        size="small"
-                        variant="outlined"
-                      />
+                      <Chip label={statusLabels[customer.status]} color={statusColors[customer.status]} size="small" variant="outlined" />
                     </TableCell>
                     <TableCell align="center">
                       <Chip
@@ -472,9 +550,14 @@ export default function CustomersPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {formatDate(customer.createdAt)}
-                      </Typography>
+                      <Typography variant="body2" color="text.secondary">{formatDate(customer.createdAt)}</Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="Actions">
+                        <IconButton size="small" onClick={(e) => handleActionsClick(e, customer)}>
+                          <MoreVertIcon />
+                        </IconButton>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))
@@ -493,15 +576,111 @@ export default function CustomersPage() {
         />
       </Paper>
 
+      {/* Actions Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleActionsClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem
+          onClick={() => handleSendNotification('email')}
+          disabled={!selectedCustomer?.email}
+        >
+          <ListItemIcon>
+            <EmailIcon fontSize="small" sx={{ color: '#1976d2' }} />
+          </ListItemIcon>
+          <ListItemText primary="Send Email Reminder" secondary={!selectedCustomer?.email ? 'No email address' : undefined} />
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleSendNotification('whatsapp')}
+          disabled={!selectedCustomer?.phone}
+        >
+          <ListItemIcon>
+            <WhatsAppIcon fontSize="small" sx={{ color: '#25D366' }} />
+          </ListItemIcon>
+          <ListItemText primary="Send WhatsApp Reminder" secondary={!selectedCustomer?.phone ? 'No phone number' : undefined} />
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText primary="Delete Customer" />
+        </MenuItem>
+      </Menu>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>Delete Customer</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete <strong>{selectedCustomer?.fullName}</strong>? This action cannot be undone and will also delete all associated debts, payments, and notifications.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            variant="contained"
+            color="error"
+            disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={18} color="inherit" /> : <DeleteIcon />}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Send Notification Dialog */}
+      <Dialog open={notificationDialogOpen} onClose={() => setNotificationDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>
+          Send {notificationType === 'email' ? 'Email' : 'WhatsApp'} Reminder
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Send a payment reminder to <strong>{selectedCustomer?.fullName}</strong>?
+          </DialogContentText>
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+            <Typography variant="subtitle2" gutterBottom>Reminder Preview:</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Dear {selectedCustomer?.fullName},<br /><br />
+              This is a friendly reminder about your outstanding debt. Please make your payment at your earliest convenience to avoid any additional fees.<br /><br />
+              If you have already made the payment, please disregard this message.<br /><br />
+              Best regards,<br />
+              PayDay AI Collection Team
+            </Typography>
+          </Paper>
+          <Box sx={{ mt: 2, p: 2, bgcolor: notificationType === 'email' ? '#e3f2fd' : '#e8f5e9', borderRadius: 1 }}>
+            <Typography variant="body2">
+              <strong>Sending to:</strong>{' '}
+              {notificationType === 'email' ? selectedCustomer?.email : selectedCustomer?.phone}
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setNotificationDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button
+            onClick={handleSendNotificationConfirm}
+            variant="contained"
+            disabled={sendingNotification}
+            startIcon={sendingNotification ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
+            sx={{
+              bgcolor: notificationType === 'email' ? '#1976d2' : '#25D366',
+              '&:hover': { bgcolor: notificationType === 'email' ? '#1565c0' : '#128C7E' },
+            }}
+          >
+            {sendingNotification ? 'Sending...' : `Send ${notificationType === 'email' ? 'Email' : 'WhatsApp'}`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Add Customer Dialog */}
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="h6" fontWeight={600}>
-            Add New Customer
-          </Typography>
-          <IconButton onClick={handleCloseDialog} size="small">
-            <CloseIcon />
-          </IconButton>
+          <Typography variant="h6" fontWeight={600}>Add New Customer</Typography>
+          <IconButton onClick={handleCloseDialog} size="small"><CloseIcon /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2.5} sx={{ pt: 1 }}>
@@ -524,12 +703,7 @@ export default function CustomersPage() {
               helperText={formErrors.email}
               fullWidth
             />
-            <TextField
-              label="Phone"
-              value={formData.phone}
-              onChange={handleFormChange('phone')}
-              fullWidth
-            />
+            <TextField label="Phone" value={formData.phone} onChange={handleFormChange('phone')} fullWidth />
             <TextField
               label="External Reference"
               value={formData.externalRef}
@@ -552,9 +726,7 @@ export default function CustomersPage() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleCloseDialog} color="inherit">
-            Cancel
-          </Button>
+          <Button onClick={handleCloseDialog} color="inherit">Cancel</Button>
           <Button
             onClick={handleSubmit}
             variant="contained"
@@ -567,12 +739,7 @@ export default function CustomersPage() {
       </Dialog>
 
       {/* Success/Error Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled">
           {snackbar.message}
         </Alert>
