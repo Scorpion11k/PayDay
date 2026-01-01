@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Box,
   Drawer,
@@ -139,7 +139,7 @@ export default function AppShell({ children }: AppShellProps) {
             flex: 1,
             overflow: 'auto',
             position: 'relative',
-            pb: '120px', // Space for chat panel
+            pb: '200px', // Space for chat panel (input + suggestions)
           }}
         >
           {children}

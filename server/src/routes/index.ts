@@ -6,6 +6,7 @@ import paymentsRoutes from './payments.routes';
 import notificationsRoutes from './notifications.routes';
 import importRoutes from './import.routes';
 import messagingRoutes from './messaging.routes';
+import aiRoutes from './ai.routes';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use('/payments', paymentsRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/import', importRoutes);
 router.use('/messaging', messagingRoutes);
+router.use('/ai', aiRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -31,6 +33,7 @@ router.get('/', (req, res) => {
       notifications: '/api/notifications',
       import: '/api/import',
       messaging: '/api/messaging',
+      ai: '/api/ai',
     },
   });
 });

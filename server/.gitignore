@@ -4,6 +4,10 @@ node_modules/
 # Build output
 dist/
 
+# Environment variables (NEVER commit these!)
+.env
+.env.local
+.env.*.local
 
 # Prisma generated client
 /generated/prisma

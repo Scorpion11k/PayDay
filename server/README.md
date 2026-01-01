@@ -49,6 +49,9 @@ GMAIL_APP_PASSWORD=your-app-password
 TWILIO_ACCOUNT_SID=your-account-sid
 TWILIO_AUTH_TOKEN=your-auth-token
 TWILIO_WHATSAPP_NUMBER=+14155238886
+
+# Google Gemini - Optional (for AI queries)
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
 ### 3. Set up the database
@@ -99,6 +102,38 @@ curl -X POST http://localhost:3001/api/messaging/test-email \
   -H "Content-Type: application/json" \
   -d '{"email": "test@example.com"}'
 ```
+
+## AI Query Setup (Google Gemini)
+
+To use natural language queries about your data, configure Google Gemini:
+
+1. **Sign up** at https://aistudio.google.com
+2. **Get an API key** from Google AI Studio
+3. **Add to `.env`**:
+   ```env
+   GEMINI_API_KEY=your-gemini-api-key
+   ```
+
+### Example AI Queries
+
+```bash
+# Query: Show all customers overdue by 30 days
+curl -X POST http://localhost:3001/api/ai/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Show all customers overdue by 30 days"}'
+
+# Get suggested queries
+curl http://localhost:3001/api/ai/suggestions
+```
+
+**Supported query examples:**
+- "Show all customers overdue by 30 days"
+- "List top 10 customers with highest outstanding balance"
+- "How many payments were received this month?"
+- "Show customers who have never made a payment"
+- "What is the total amount collected this year?"
+- "List all debts in dispute status"
+- "Find installments due in the next 7 days"
 
 ## WhatsApp Setup (Twilio)
 
@@ -184,6 +219,12 @@ curl -X POST http://localhost:3001/api/messaging/test-whatsapp \
 | POST | `/api/messaging/send-reminder` | Send payment reminder to customer |
 | POST | `/api/messaging/test-email` | Test email configuration |
 | POST | `/api/messaging/test-whatsapp` | Test WhatsApp configuration |
+
+### AI Queries
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/ai/query` | Process natural language query about data |
+| GET | `/api/ai/suggestions` | Get suggested queries |
 
 ### Data Import
 | Method | Endpoint | Description |
@@ -271,6 +312,7 @@ server/
 │   │   ├── payments.service.ts
 │   │   ├── notifications.service.ts
 │   │   ├── import.service.ts
+│   │   ├── ai.service.ts         # OpenAI natural language queries
 │   │   ├── email.service.ts      # Gmail/Nodemailer
 │   │   └── whatsapp.service.ts   # Twilio
 │   ├── middleware/        # Error handling

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import {
   Box,
   TextField,
@@ -8,26 +8,306 @@ import {
   CircularProgress,
   useMediaQuery,
   useTheme,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Collapse,
+  Tooltip,
 } from '@mui/material';
-import { Send as SendIcon } from '@mui/icons-material';
+import {
+  Send as SendIcon,
+  AutoAwesome as SparkleIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  ContentCopy as CopyIcon,
+  Check as CheckIcon,
+  KeyboardArrowDown as MinimizeIcon,
+  Close as CloseIcon,
+} from '@mui/icons-material';
+import { queryAI, getAISuggestions } from '../../services/api';
 
 interface Message {
   id: string;
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
+  data?: {
+    explanation: string;
+    results: unknown;
+    resultCount: number;
+  };
+  error?: string;
 }
 
-// Mock responses for the AI assistant
-const mockResponses = [
-  "I've analyzed your request. Based on the current data, I can help you with that. Would you like me to provide more details?",
-  "Great question! Let me pull up the relevant information for you. Your collection metrics are showing positive trends this month.",
-  "I understand. I'll process this request and prepare a detailed report. Is there anything specific you'd like me to focus on?",
-  "Done! I've updated the system with your requirements. You can view the changes in the Dashboard section.",
-  "I've identified 47 customers matching your criteria. Would you like me to export this data or create a targeted campaign?",
-];
-
 const DRAWER_WIDTH = 220;
+
+// Helper to format values for display
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') {
+    if (value instanceof Date) return value.toLocaleDateString();
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+// Helper to format field names
+function formatFieldName(field: string): string {
+  return field
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .replace(/^./, (str) => str.toUpperCase())
+    .trim();
+}
+
+// Get display columns from data
+function getDisplayColumns(data: Record<string, unknown>[]): string[] {
+  if (data.length === 0) return [];
+  
+  // Get all keys from first item, excluding nested objects and internal fields
+  const keys = Object.keys(data[0]).filter((key) => {
+    const value = data[0][key];
+    // Exclude deeply nested objects but keep simple values
+    if (key.startsWith('_')) return false;
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      // Allow simple objects but exclude complex nested ones
+      return Object.keys(value).length <= 3;
+    }
+    return true;
+  });
+
+  // Prioritize certain columns
+  const priority = ['id', 'fullName', 'full_name', 'name', 'email', 'phone', 'status', 'amount', 'currentBalance', 'dueDate'];
+  const sorted = keys.sort((a, b) => {
+    const aIdx = priority.indexOf(a);
+    const bIdx = priority.indexOf(b);
+    if (aIdx === -1 && bIdx === -1) return 0;
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+
+  // Limit to reasonable number of columns
+  return sorted.slice(0, 8);
+}
+
+// Results display component
+function ResultsDisplay({ results, resultCount }: { results: unknown; resultCount: number }) {
+  const [expanded, setExpanded] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(JSON.stringify(results, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Handle aggregate results (single object with _sum, _count, etc.)
+  if (results && typeof results === 'object' && !Array.isArray(results)) {
+    const obj = results as Record<string, unknown>;
+    return (
+      <Box sx={{ mt: 1.5 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            bgcolor: 'rgba(33, 150, 243, 0.04)',
+            border: '1px solid rgba(33, 150, 243, 0.2)',
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{
+              px: 2,
+              py: 1,
+              bgcolor: 'rgba(33, 150, 243, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+              Result
+            </Typography>
+            <Tooltip title={copied ? 'Copied!' : 'Copy JSON'}>
+              <IconButton size="small" onClick={handleCopy}>
+                {copied ? <CheckIcon fontSize="small" /> : <CopyIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <Box sx={{ p: 2 }}>
+            {Object.entries(obj).map(([key, value]) => (
+              <Box key={key} sx={{ display: 'flex', gap: 2, py: 0.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 120 }}>
+                  {formatFieldName(key)}:
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {typeof value === 'object' ? JSON.stringify(value) : formatValue(value)}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Paper>
+      </Box>
+    );
+  }
+
+  // Handle array results (list of records)
+  if (Array.isArray(results)) {
+    if (results.length === 0) {
+      return (
+        <Box sx={{ mt: 1.5 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              bgcolor: 'rgba(0, 0, 0, 0.02)',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: 2,
+              textAlign: 'center',
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              No results found
+            </Typography>
+          </Paper>
+        </Box>
+      );
+    }
+
+    const columns = getDisplayColumns(results as Record<string, unknown>[]);
+
+    return (
+      <Box sx={{ mt: 1.5 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            bgcolor: 'rgba(33, 150, 243, 0.04)',
+            border: '1px solid rgba(33, 150, 243, 0.2)',
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{
+              px: 2,
+              py: 1,
+              bgcolor: 'rgba(33, 150, 243, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+            onClick={() => setExpanded(!expanded)}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                {resultCount} {resultCount === 1 ? 'Result' : 'Results'}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Tooltip title={copied ? 'Copied!' : 'Copy JSON'}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopy();
+                  }}
+                >
+                  {copied ? <CheckIcon fontSize="small" /> : <CopyIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+              {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </Box>
+          </Box>
+          <Collapse in={expanded}>
+            <TableContainer sx={{ maxHeight: 300 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    {columns.map((col) => (
+                      <TableCell
+                        key={col}
+                        sx={{
+                          fontWeight: 600,
+                          bgcolor: 'background.paper',
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        {formatFieldName(col)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(results as Record<string, unknown>[]).slice(0, 50).map((row, idx) => (
+                    <TableRow key={idx} hover>
+                      {columns.map((col) => (
+                        <TableCell
+                          key={col}
+                          sx={{
+                            fontSize: '0.813rem',
+                            maxWidth: 200,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {formatValue(row[col])}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {results.length > 50 && (
+              <Box sx={{ p: 1, textAlign: 'center', borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary">
+                  Showing 50 of {results.length} results
+                </Typography>
+              </Box>
+            )}
+          </Collapse>
+        </Paper>
+      </Box>
+    );
+  }
+
+  // Fallback for other types
+  return (
+    <Box sx={{ mt: 1.5 }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          bgcolor: 'rgba(0, 0, 0, 0.02)',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          borderRadius: 2,
+        }}
+      >
+        <Typography
+          variant="body2"
+          component="pre"
+          sx={{
+            fontFamily: 'monospace',
+            fontSize: '0.75rem',
+            overflow: 'auto',
+            maxHeight: 200,
+          }}
+        >
+          {JSON.stringify(results, null, 2)}
+        </Typography>
+      </Paper>
+    </Box>
+  );
+}
 
 export default function ChatPanel() {
   const theme = useTheme();
@@ -35,8 +315,10 @@ export default function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,16 +328,33 @@ export default function ChatPanel() {
     scrollToBottom();
   }, [messages]);
 
-  const generateMockResponse = (): string => {
-    return mockResponses[Math.floor(Math.random() * mockResponses.length)];
-  };
+  // Load suggestions on mount
+  useEffect(() => {
+    getAISuggestions()
+      .then((res) => {
+        if (res.success) {
+          setSuggestions(res.data);
+        }
+      })
+      .catch(() => {
+        // Use fallback suggestions
+        setSuggestions([
+          'Show all customers overdue by 30 days',
+          'List top 10 customers with highest outstanding balance',
+          'How many payments were received this month?',
+          'Show customers who have never made a payment',
+          'List all debts in dispute status',
+        ]);
+      });
+  }, []);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  const handleSend = async (queryText?: string) => {
+    const query = queryText || input.trim();
+    if (!query) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: input.trim(),
+      content: query,
       role: 'user',
       timestamp: new Date(),
     };
@@ -63,18 +362,35 @@ export default function ChatPanel() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsTyping(true);
+    setShowSuggestions(false);
 
-    // Simulate AI response delay
-    setTimeout(() => {
+    try {
+      const response = await queryAI(query);
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: generateMockResponse(),
+        content: response.data.explanation,
         role: 'assistant',
         timestamp: new Date(),
+        data: {
+          explanation: response.data.explanation,
+          results: response.data.results,
+          resultCount: response.data.resultCount,
+        },
       };
       setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: 'Sorry, I encountered an error processing your query.',
+        role: 'assistant',
+        timestamp: new Date(),
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1000 + Math.random() * 1000);
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -83,6 +399,42 @@ export default function ChatPanel() {
       handleSend();
     }
   };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    handleSend(suggestion);
+  };
+
+  // Minimized state - just show a small button
+  if (isMinimized) {
+    return (
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 1000,
+        }}
+      >
+        <Tooltip title="Open AI Assistant">
+          <IconButton
+            onClick={() => setIsMinimized(false)}
+            sx={{
+              bgcolor: '#1e3a5f',
+              color: '#fff',
+              width: 56,
+              height: 56,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              '&:hover': {
+                bgcolor: '#2c4a6f',
+              },
+            }}
+          >
+            <SparkleIcon />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -97,18 +449,69 @@ export default function ChatPanel() {
         zIndex: 1000,
       }}
     >
-      {/* Messages Display (only show when there are messages) */}
+      {/* Minimize Button */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: -40,
+          right: 16,
+          display: 'flex',
+          gap: 0.5,
+        }}
+      >
+        <Tooltip title="Minimize chat">
+          <IconButton
+            size="small"
+            onClick={() => setIsMinimized(true)}
+            sx={{
+              bgcolor: 'background.paper',
+              border: '1px solid',
+              borderColor: 'divider',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              '&:hover': {
+                bgcolor: 'grey.100',
+              },
+            }}
+          >
+            <MinimizeIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        {messages.length > 0 && (
+          <Tooltip title="Clear chat">
+            <IconButton
+              size="small"
+              onClick={() => {
+                setMessages([]);
+                setShowSuggestions(true);
+              }}
+              sx={{
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                '&:hover': {
+                  bgcolor: 'grey.100',
+                },
+              }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+
+      {/* Messages Display */}
       {messages.length > 0 && (
         <Box
           sx={{
-            maxHeight: '300px',
+            maxHeight: '400px',
             overflowY: 'auto',
             px: 3,
             py: 2,
             display: 'flex',
             flexDirection: 'column',
-            gap: 1.5,
-            maxWidth: 900,
+            gap: 2,
+            maxWidth: 1000,
             mx: 'auto',
           }}
         >
@@ -117,7 +520,8 @@ export default function ChatPanel() {
               key={message.id}
               sx={{
                 display: 'flex',
-                justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                flexDirection: 'column',
+                alignItems: message.role === 'user' ? 'flex-end' : 'flex-start',
               }}
             >
               <Paper
@@ -125,29 +529,96 @@ export default function ChatPanel() {
                 sx={{
                   px: 2,
                   py: 1.5,
-                  maxWidth: '80%',
+                  maxWidth: message.role === 'user' ? '80%' : '100%',
+                  width: message.role === 'assistant' && message.data ? '100%' : 'auto',
                   bgcolor: message.role === 'user' ? '#1e3a5f' : '#f0f4f8',
                   color: message.role === 'user' ? '#fff' : 'text.primary',
-                  borderRadius: message.role === 'user' 
-                    ? '16px 16px 4px 16px' 
-                    : '16px 16px 16px 4px',
+                  borderRadius:
+                    message.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                 }}
               >
+                {message.role === 'assistant' && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <SparkleIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                    <Typography
+                      variant="caption"
+                      sx={{ fontWeight: 600, color: 'primary.main' }}
+                    >
+                      PayDay AI
+                    </Typography>
+                  </Box>
+                )}
                 <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                   {message.content}
                 </Typography>
+                {message.error && (
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'error.main', display: 'block', mt: 1 }}
+                  >
+                    Error: {message.error}
+                  </Typography>
+                )}
+                {message.data && (
+                  <ResultsDisplay
+                    results={message.data.results}
+                    resultCount={message.data.resultCount}
+                  />
+                )}
               </Paper>
             </Box>
           ))}
           {isTyping && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CircularProgress size={16} sx={{ color: 'text.secondary' }} />
+              <CircularProgress size={16} sx={{ color: 'primary.main' }} />
               <Typography variant="body2" color="text.secondary">
-                PayDay AI is typing...
+                PayDay AI is thinking...
               </Typography>
             </Box>
           )}
           <div ref={messagesEndRef} />
+        </Box>
+      )}
+
+      {/* Suggestions (show when no messages) */}
+      {showSuggestions && messages.length === 0 && suggestions.length > 0 && (
+        <Box
+          sx={{
+            px: 3,
+            py: 2,
+            maxWidth: 900,
+            mx: 'auto',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <SparkleIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+              Try asking:
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {suggestions.slice(0, 5).map((suggestion, idx) => (
+              <Chip
+                key={idx}
+                label={suggestion}
+                onClick={() => handleSuggestionClick(suggestion)}
+                sx={{
+                  bgcolor: 'rgba(33, 150, 243, 0.08)',
+                  color: 'primary.main',
+                  border: '1px solid rgba(33, 150, 243, 0.2)',
+                  '&:hover': {
+                    bgcolor: 'rgba(33, 150, 243, 0.15)',
+                  },
+                  cursor: 'pointer',
+                  height: 'auto',
+                  '& .MuiChip-label': {
+                    py: 1,
+                    whiteSpace: 'normal',
+                  },
+                }}
+              />
+            ))}
+          </Box>
         </Box>
       )}
 
@@ -159,6 +630,9 @@ export default function ChatPanel() {
           flexDirection: 'column',
           alignItems: 'center',
           gap: 0.5,
+          bgcolor: 'background.paper',
+          borderTop: messages.length > 0 ? '1px solid' : 'none',
+          borderColor: 'divider',
         }}
       >
         <Box
@@ -171,14 +645,14 @@ export default function ChatPanel() {
           }}
         >
           <TextField
-            ref={inputRef}
             fullWidth
             multiline
             maxRows={4}
-            placeholder="Type your command here... (e.g., 'Show all clients overdue by 30+ days')"
+            placeholder="Ask anything about your data... (e.g., 'Show all customers overdue by 30 days')"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            disabled={isTyping}
             variant="outlined"
             sx={{
               '& .MuiOutlinedInput-root': {
@@ -202,7 +676,7 @@ export default function ChatPanel() {
             }}
           />
           <IconButton
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || isTyping}
             sx={{
               bgcolor: '#1e3a5f',
@@ -221,14 +695,10 @@ export default function ChatPanel() {
             <SendIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Box>
-        <Typography
-          variant="caption"
-          sx={{ color: 'text.secondary', fontSize: '0.75rem' }}
-        >
-          Press Enter to send • Shift + Enter for new line
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+          Press Enter to send • Shift + Enter for new line • Powered by Google Gemini AI
         </Typography>
       </Box>
     </Box>
   );
 }
-
