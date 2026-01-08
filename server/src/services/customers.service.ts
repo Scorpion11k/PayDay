@@ -23,8 +23,17 @@ export interface CustomerFilters {
   search?: string;
 }
 
+export type SortField = 'fullName' | 'email' | 'status' | 'createdAt' | 'totalDebtAmount' | 'isOverdue' | 'payments';
+export type SortOrder = 'asc' | 'desc';
+
 class CustomersService {
-  async findAll(filters: CustomerFilters = {}, page = 1, limit = 20) {
+  async findAll(
+    filters: CustomerFilters = {},
+    page = 1,
+    limit = 20,
+    sortBy?: SortField,
+    sortOrder: SortOrder = 'desc'
+  ) {
     const where: Prisma.CustomerWhereInput = {};
 
     if (filters.status) {
@@ -40,23 +49,99 @@ class CustomersService {
       ];
     }
 
+    // Determine if we can sort at database level or need to sort after fetching
+    const computedFields = ['totalDebtAmount', 'isOverdue', 'payments'];
+    const isComputedSort = sortBy && computedFields.includes(sortBy);
+
+    // Build orderBy for database-level sorting
+    let orderBy: Prisma.CustomerOrderByWithRelationInput = { createdAt: 'desc' };
+    if (sortBy && !isComputedSort) {
+      orderBy = { [sortBy]: sortOrder };
+    }
+
+    // For computed fields, we need to fetch all matching records first, then sort and paginate
+    const skipPagination = isComputedSort;
+
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
+        skip: skipPagination ? 0 : (page - 1) * limit,
+        take: skipPagination ? undefined : limit,
+        orderBy,
         include: {
           _count: {
             select: { debts: true, payments: true },
+          },
+          debts: {
+            select: {
+              currentBalance: true,
+              installments: {
+                where: {
+                  status: 'overdue',
+                },
+                select: {
+                  id: true,
+                },
+              },
+            },
           },
         },
       }),
       prisma.customer.count({ where }),
     ]);
 
+    // Calculate total debt amount and overdue status for each customer
+    let customersWithStats = customers.map((customer) => {
+      const totalDebtAmount = customer.debts.reduce(
+        (sum, debt) => sum + Number(debt.currentBalance),
+        0
+      );
+      const hasOverdueInstallments = customer.debts.some(
+        (debt) => debt.installments.length > 0
+      );
+
+      // Remove the full debts array from response, keep only stats
+      const { debts, ...customerWithoutDebts } = customer;
+
+      return {
+        ...customerWithoutDebts,
+        totalDebtAmount,
+        isOverdue: hasOverdueInstallments,
+      };
+    });
+
+    // Sort by computed fields if needed
+    if (isComputedSort && sortBy) {
+      customersWithStats.sort((a, b) => {
+        let aVal: number | boolean;
+        let bVal: number | boolean;
+
+        if (sortBy === 'totalDebtAmount') {
+          aVal = a.totalDebtAmount;
+          bVal = b.totalDebtAmount;
+        } else if (sortBy === 'isOverdue') {
+          aVal = a.isOverdue ? 1 : 0;
+          bVal = b.isOverdue ? 1 : 0;
+        } else if (sortBy === 'payments') {
+          aVal = a._count.payments;
+          bVal = b._count.payments;
+        } else {
+          return 0;
+        }
+
+        if (sortOrder === 'asc') {
+          return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        } else {
+          return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+        }
+      });
+
+      // Apply pagination after sorting
+      customersWithStats = customersWithStats.slice((page - 1) * limit, page * limit);
+    }
+
     return {
-      data: customers,
+      data: customersWithStats,
       pagination: {
         page,
         limit,

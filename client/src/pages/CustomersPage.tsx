@@ -10,6 +10,7 @@ import {
   TableHead,
   TableRow,
   TablePagination,
+  TableSortLabel,
   TextField,
   InputAdornment,
   Chip,
@@ -46,6 +47,8 @@ import {
   Delete as DeleteIcon,
   Send as SendIcon,
   WhatsApp as WhatsAppIcon,
+  Edit as EditIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
 
 interface Customer {
@@ -61,6 +64,8 @@ interface Customer {
     debts: number;
     payments: number;
   };
+  totalDebtAmount: number;
+  isOverdue: boolean;
 }
 
 interface PaginationInfo {
@@ -104,6 +109,9 @@ const statusLabels: Record<Customer['status'], string> = {
   blocked: 'Blocked',
 };
 
+type SortField = 'fullName' | 'email' | 'status' | 'createdAt' | 'totalDebtAmount' | 'isOverdue' | 'payments';
+type SortOrder = 'asc' | 'desc';
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,6 +125,8 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [searchDebounce, setSearchDebounce] = useState('');
+  const [sortBy, setSortBy] = useState<SortField>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   // Add Customer Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -141,6 +151,12 @@ export default function CustomersPage() {
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
   const [notificationType, setNotificationType] = useState<'email' | 'whatsapp' | null>(null);
   const [sendingNotification, setSendingNotification] = useState(false);
+
+  // Edit Customer Dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState<NewCustomerForm>(initialFormState);
+  const [editFormErrors, setEditFormErrors] = useState<Partial<Record<keyof NewCustomerForm, string>>>({});
+  const [updating, setUpdating] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -168,6 +184,11 @@ export default function CustomersPage() {
         params.set('status', statusFilter);
       }
 
+      if (sortBy) {
+        params.set('sortBy', sortBy);
+        params.set('sortOrder', sortOrder);
+      }
+
       const response = await fetch(`http://localhost:3001/api/customers?${params}`);
       
       if (!response.ok) {
@@ -187,7 +208,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, searchDebounce, statusFilter]);
+  }, [pagination.page, pagination.limit, searchDebounce, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchCustomers();
@@ -208,6 +229,19 @@ export default function CustomersPage() {
       limit: parseInt(event.target.value, 10),
       page: 1,
     }));
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortBy === field) {
+      // Toggle sort order if same field
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with descending order
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+    // Reset to first page when sorting changes
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   const formatDate = (dateString: string) => {
@@ -343,6 +377,88 @@ export default function CustomersPage() {
     }
   };
 
+  // Edit Customer
+  const handleEditClick = () => {
+    if (selectedCustomer) {
+      setEditFormData({
+        fullName: selectedCustomer.fullName,
+        email: selectedCustomer.email || '',
+        phone: selectedCustomer.phone || '',
+        externalRef: selectedCustomer.externalRef || '',
+        status: selectedCustomer.status,
+      });
+      setEditFormErrors({});
+      handleActionsClose();
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleEditFormChange = (field: keyof NewCustomerForm) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { value: string } }
+  ) => {
+    setEditFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    if (editFormErrors[field]) {
+      setEditFormErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const validateEditForm = (): boolean => {
+    const errors: Partial<Record<keyof NewCustomerForm, string>> = {};
+
+    if (!editFormData.fullName.trim()) {
+      errors.fullName = 'Full name is required';
+    }
+
+    if (editFormData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editFormData.email)) {
+      errors.email = 'Invalid email format';
+    }
+
+    setEditFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleEditSubmit = async () => {
+    if (!selectedCustomer || !validateEditForm()) return;
+
+    setUpdating(true);
+
+    try {
+      const payload: Record<string, string | null> = {
+        fullName: editFormData.fullName.trim(),
+        status: editFormData.status,
+      };
+
+      payload.email = editFormData.email.trim() || null;
+      payload.phone = editFormData.phone.trim() || null;
+      payload.externalRef = editFormData.externalRef.trim() || null;
+
+      const response = await fetch(`http://localhost:3001/api/customers/${selectedCustomer.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update customer');
+      }
+
+      setSnackbar({ open: true, message: 'Customer updated successfully!', severity: 'success' });
+      setEditDialogOpen(false);
+      setSelectedCustomer(null);
+      fetchCustomers();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'Failed to update customer',
+        severity: 'error',
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // Send Notification
   const handleSendNotification = (type: 'email' | 'whatsapp') => {
     handleActionsClose();
@@ -465,20 +581,77 @@ export default function CustomersPage() {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'fullName'}
+                    direction={sortBy === 'fullName' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('fullName')}
+                  >
+                    Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'email'}
+                    direction={sortBy === 'email' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('email')}
+                  >
+                    Contact
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>External Ref</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="center">Debts</TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="center">Payments</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'status'}
+                    direction={sortBy === 'status' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600 }} align="center">
+                  <TableSortLabel
+                    active={sortBy === 'isOverdue'}
+                    direction={sortBy === 'isOverdue' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('isOverdue')}
+                  >
+                    Overdue
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600 }} align="right">
+                  <TableSortLabel
+                    active={sortBy === 'totalDebtAmount'}
+                    direction={sortBy === 'totalDebtAmount' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('totalDebtAmount')}
+                  >
+                    Total Debt
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600 }} align="center">
+                  <TableSortLabel
+                    active={sortBy === 'payments'}
+                    direction={sortBy === 'payments' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('payments')}
+                  >
+                    Payments
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'createdAt'}
+                    direction={sortBy === 'createdAt' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('createdAt')}
+                  >
+                    Created
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell sx={{ fontWeight: 600 }} align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
                     <CircularProgress size={40} />
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                       Loading customers...
@@ -487,7 +660,7 @@ export default function CustomersPage() {
                 </TableRow>
               ) : customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
                     <Typography variant="body1" color="text.secondary">No customers found</Typography>
                     {(search || statusFilter) && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -528,15 +701,32 @@ export default function CustomersPage() {
                       <Chip label={statusLabels[customer.status]} color={statusColors[customer.status]} size="small" variant="outlined" />
                     </TableCell>
                     <TableCell align="center">
-                      <Chip
-                        label={customer._count.debts}
-                        size="small"
-                        sx={{
-                          bgcolor: customer._count.debts > 0 ? 'error.light' : 'grey.200',
-                          color: customer._count.debts > 0 ? 'error.dark' : 'text.secondary',
-                          fontWeight: 500,
-                        }}
-                      />
+                      {customer.isOverdue ? (
+                        <Chip
+                          icon={<WarningIcon sx={{ fontSize: 16 }} />}
+                          label="Overdue"
+                          size="small"
+                          sx={{
+                            bgcolor: 'error.light',
+                            color: 'error.dark',
+                            fontWeight: 500,
+                            '& .MuiChip-icon': { color: 'error.dark' },
+                          }}
+                        />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography
+                        variant="body2"
+                        fontWeight={customer.totalDebtAmount > 0 ? 600 : 400}
+                        color={customer.totalDebtAmount > 0 ? 'error.main' : 'text.secondary'}
+                      >
+                        {customer.totalDebtAmount > 0
+                          ? `₪${customer.totalDebtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : '₪0.00'}
+                      </Typography>
                     </TableCell>
                     <TableCell align="center">
                       <Chip
@@ -584,6 +774,13 @@ export default function CustomersPage() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
+        <MenuItem onClick={handleEditClick}>
+          <ListItemIcon>
+            <EditIcon fontSize="small" sx={{ color: '#1976d2' }} />
+          </ListItemIcon>
+          <ListItemText primary="Edit Customer" />
+        </MenuItem>
+        <Divider />
         <MenuItem
           onClick={() => handleSendNotification('email')}
           disabled={!selectedCustomer?.email}
@@ -734,6 +931,68 @@ export default function CustomersPage() {
             startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <AddIcon />}
           >
             {submitting ? 'Creating...' : 'Create Customer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6" fontWeight={600}>Edit Customer</Typography>
+          <IconButton onClick={() => setEditDialogOpen(false)} size="small"><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2.5} sx={{ pt: 1 }}>
+            <TextField
+              label="Full Name"
+              value={editFormData.fullName}
+              onChange={handleEditFormChange('fullName')}
+              error={!!editFormErrors.fullName}
+              helperText={editFormErrors.fullName}
+              required
+              fullWidth
+              autoFocus
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={editFormData.email}
+              onChange={handleEditFormChange('email')}
+              error={!!editFormErrors.email}
+              helperText={editFormErrors.email}
+              fullWidth
+            />
+            <TextField label="Phone" value={editFormData.phone} onChange={handleEditFormChange('phone')} fullWidth />
+            <TextField
+              label="External Reference"
+              value={editFormData.externalRef}
+              onChange={handleEditFormChange('externalRef')}
+              fullWidth
+              helperText="Optional identifier from external systems"
+            />
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={editFormData.status}
+                label="Status"
+                onChange={(e) => handleEditFormChange('status')({ target: { value: e.target.value } })}
+              >
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="do_not_contact">Do Not Contact</MenuItem>
+                <MenuItem value="blocked">Blocked</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setEditDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button
+            onClick={handleEditSubmit}
+            variant="contained"
+            disabled={updating}
+            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <EditIcon />}
+          >
+            {updating ? 'Updating...' : 'Update Customer'}
           </Button>
         </DialogActions>
       </Dialog>

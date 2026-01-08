@@ -25,6 +25,8 @@ const querySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
   status: z.enum(['active', 'do_not_contact', 'blocked']).optional(),
   search: z.string().optional(),
+  sortBy: z.enum(['fullName', 'email', 'status', 'createdAt', 'totalDebtAmount', 'isOverdue', 'payments']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
 });
 
 class CustomersController {
@@ -34,7 +36,9 @@ class CustomersController {
     const result = await customersService.findAll(
       { status: query.status as CustomerStatus, search: query.search },
       query.page,
-      query.limit
+      query.limit,
+      query.sortBy,
+      query.sortOrder
     );
 
     res.json({
