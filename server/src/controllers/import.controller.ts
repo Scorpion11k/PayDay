@@ -29,7 +29,7 @@ class ImportController {
       throw new ValidationError('No file uploaded');
     }
 
-    const { headers, rows } = importService.parseExcel(req.file.buffer);
+    const { headers, rows } = await importService.parseExcel(req.file.buffer);
     const detectedMapping = importService.detectMappings(headers);
 
     res.json({
@@ -52,14 +52,13 @@ class ImportController {
     }
 
     const options = importOptionsSchema.parse(req.body);
-    const { rows } = importService.parseExcel(req.file.buffer);
+    const { headers, rows } = await importService.parseExcel(req.file.buffer);
     
     // Use provided mapping or auto-detect
     let mapping: ColumnMapping;
     if (options.mapping && Object.keys(options.mapping).length > 0) {
       mapping = options.mapping;
     } else {
-      const { headers } = importService.parseExcel(req.file.buffer);
       mapping = importService.detectMappings(headers);
     }
 
@@ -96,7 +95,7 @@ class ImportController {
       }
     }
 
-    const { headers, rows } = importService.parseExcel(req.file.buffer);
+    const { headers, rows } = await importService.parseExcel(req.file.buffer);
     
     // Use provided mapping or auto-detect
     let mapping: ColumnMapping;

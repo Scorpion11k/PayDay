@@ -33,7 +33,7 @@ import {
   CloudUpload as UploadIcon,
   CheckCircle as SuccessIcon,
 } from '@mui/icons-material';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 // Tab panel component
 interface TabPanelProps {
@@ -142,6 +142,36 @@ function DataImportTab() {
   } | null>(null);
   const [step, setStep] = useState<'upload' | 'mapping' | 'complete'>('upload');
 
+  // Helper function to extract actual cell value from Excel cells (handles formulas, rich text, etc.)
+  const extractCellValue = (cell: ExcelJS.Cell): string | number | Date | undefined => {
+    const value = cell.value;
+    
+    if (value == null) return undefined;
+    if (value instanceof Date) return value;
+    if (typeof value !== 'object') return value;
+    
+    // Handle formula cells - get the calculated result
+    if ('result' in value) {
+      const result = (value as { result: unknown }).result;
+      if (result instanceof Date) return result;
+      return result != null ? result : undefined;
+    }
+    
+    // Handle rich text cells - concatenate all text parts
+    if ('richText' in value) {
+      const richText = (value as { richText: Array<{ text: string }> }).richText;
+      return richText.map(part => part.text).join('');
+    }
+    
+    // Handle hyperlink cells - get the text value
+    if ('text' in value) {
+      return (value as { text: string }).text;
+    }
+    
+    // Fallback to cell.text or string representation
+    return cell.text || String(value);
+  };
+
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
@@ -152,17 +182,56 @@ function DataImportTab() {
     try {
       // Parse file locally for preview
       const buffer = await selectedFile.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.worksheets[0];
 
-      if (jsonData.length === 0) {
+      if (!worksheet || worksheet.rowCount === 0) {
         setImportResult({ success: false, message: 'Excel file is empty' });
         return;
       }
 
-      const fileHeaders = Object.keys(jsonData[0]);
+      // Get headers from first row
+      const headerRow = worksheet.getRow(1);
+      const fileHeaders: string[] = [];
+      headerRow.eachCell((cell, colNumber) => {
+        const value = extractCellValue(cell);
+        fileHeaders[colNumber - 1] = value != null ? String(value) : '';
+      });
+
+      // Get data rows (skip header)
+      const jsonData: Record<string, unknown>[] = [];
+      for (let rowNum = 2; rowNum <= worksheet.rowCount; rowNum++) {
+        const row = worksheet.getRow(rowNum);
+        const rowData: Record<string, unknown> = {};
+        let hasAnyValue = false;
+        
+        fileHeaders.forEach((header, idx) => {
+          const cell = row.getCell(idx + 1);
+          const value = extractCellValue(cell);
+          
+          if (value instanceof Date) {
+            rowData[header] = value;
+            hasAnyValue = true;
+          } else if (value != null && value !== '') {
+            rowData[header] = typeof value === 'number' ? value : String(value);
+            hasAnyValue = true;
+          } else {
+            rowData[header] = '';
+          }
+        });
+        
+        // Only add rows that have at least one non-empty value
+        if (hasAnyValue) {
+          jsonData.push(rowData);
+        }
+      }
+
+      if (jsonData.length === 0) {
+        setImportResult({ success: false, message: 'Excel file has no data rows' });
+        return;
+      }
+
       setHeaders(fileHeaders);
       setSampleRows(jsonData.slice(0, 5));
 

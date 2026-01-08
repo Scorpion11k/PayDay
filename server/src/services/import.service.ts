@@ -1,5 +1,5 @@
 import prisma from '../config/database';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { ValidationError } from '../types';
 import { Prisma } from '@prisma/client';
 
@@ -71,26 +71,119 @@ const DEFAULT_MAPPINGS: Record<string, keyof ColumnMapping> = {
 
 class ImportService {
   /**
+   * Extract the actual value from an Excel cell, handling formulas, rich text, and hyperlinks
+   */
+  private extractCellValue(cell: ExcelJS.Cell): string | number | Date | undefined {
+    const value = cell.value;
+    
+    if (value == null) {
+      return undefined;
+    }
+    
+    // Handle Date objects directly
+    if (value instanceof Date) {
+      return value;
+    }
+    
+    // Handle primitive types (string, number, boolean)
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'boolean') {
+      return String(value);
+    }
+    
+    // Handle formula cells - get the calculated result
+    if (typeof value === 'object' && 'result' in value) {
+      const result = (value as { result: unknown }).result;
+      if (result instanceof Date) {
+        return result;
+      }
+      if (typeof result === 'string' || typeof result === 'number') {
+        return result;
+      }
+      if (result != null) {
+        return String(result);
+      }
+      return undefined;
+    }
+    
+    // Handle rich text cells - concatenate all text parts
+    if (typeof value === 'object' && 'richText' in value) {
+      const richText = (value as { richText: Array<{ text: string }> }).richText;
+      return richText.map(part => part.text).join('');
+    }
+    
+    // Handle hyperlink cells - get the text value
+    if (typeof value === 'object' && 'text' in value) {
+      return (value as { text: string }).text;
+    }
+    
+    // Handle shared string or other object types - use cell.text as fallback
+    if (cell.text) {
+      return cell.text;
+    }
+    
+    // Last resort - try to get string representation
+    return String(value);
+  }
+
+  /**
    * Parse Excel file buffer and return rows
    */
-  parseExcel(buffer: Buffer): { headers: string[]; rows: ExcelRow[] } {
-    const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    
-    // Convert to JSON with headers
-    const jsonData = XLSX.utils.sheet_to_json<ExcelRow>(sheet, { 
-      defval: '',
-      raw: false,
-    });
+  async parseExcel(buffer: Buffer): Promise<{ headers: string[]; rows: ExcelRow[] }> {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    const worksheet = workbook.worksheets[0];
 
-    if (jsonData.length === 0) {
+    if (!worksheet || worksheet.rowCount === 0) {
       throw new ValidationError('Excel file is empty');
     }
 
-    const headers = Object.keys(jsonData[0]);
+    // Get headers from first row
+    const headerRow = worksheet.getRow(1);
+    const headers: string[] = [];
+    headerRow.eachCell((cell, colNumber) => {
+      const value = this.extractCellValue(cell);
+      headers[colNumber - 1] = value != null ? String(value) : '';
+    });
+
+    // Get data rows (skip header)
+    const rows: ExcelRow[] = [];
+    for (let rowNum = 2; rowNum <= worksheet.rowCount; rowNum++) {
+      const row = worksheet.getRow(rowNum);
+      const rowData: ExcelRow = {};
+      let hasAnyValue = false;
+      
+      headers.forEach((header, idx) => {
+        const cell = row.getCell(idx + 1);
+        const value = this.extractCellValue(cell);
+        
+        if (value instanceof Date) {
+          rowData[header] = value;
+          hasAnyValue = true;
+        } else if (value != null && value !== '') {
+          rowData[header] = typeof value === 'number' ? value : String(value);
+          hasAnyValue = true;
+        } else {
+          rowData[header] = '';
+        }
+      });
+      
+      // Only add rows that have at least one non-empty value
+      if (hasAnyValue) {
+        rows.push(rowData);
+      }
+    }
+
+    if (rows.length === 0) {
+      throw new ValidationError('Excel file has no data rows');
+    }
     
-    return { headers, rows: jsonData };
+    return { headers, rows };
   }
 
   /**
