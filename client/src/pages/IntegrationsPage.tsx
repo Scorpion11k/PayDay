@@ -153,6 +153,7 @@ function DataImportTab() {
   const [sampleRows, setSampleRows] = useState<Record<string, unknown>[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
+  const [detectingMapping, setDetectingMapping] = useState(false);
   const [importResult, setImportResult] = useState<{
     success: boolean;
     message: string;
@@ -191,7 +192,6 @@ function DataImportTab() {
   };
 
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    debugger;
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
 
@@ -254,35 +254,63 @@ function DataImportTab() {
       setHeaders(fileHeaders);
       setSampleRows(jsonData.slice(0, 5));
 
-      // Auto-detect mappings
-      const autoMapping: Record<string, string> = {};
-      const defaultMappings: Record<string, string[]> = {
-        customerName: ['customer name', 'name', 'full name', 'שם לקוח', 'שם'],
-        customerEmail: ['email', 'אימייל', 'דוא"ל'],
-        customerPhone: ['phone', 'telephone', 'טלפון'],
-        externalRef: ['external ref', 'reference', 'id', 'מזהה'],
-        debtAmount: ['amount', 'debt amount', 'total', 'סכום', 'סכום חוב'],
-        currency: ['currency', 'מטבע'],
-        dueDate: ['due date', 'date', 'תאריך', 'תאריך פירעון'],
-        installmentAmount: ['installment', 'payment', 'תשלום'],
-      };
-
-      for (const header of fileHeaders) {
-        const normalized = header.toLowerCase().trim();
-        for (const [field, patterns] of Object.entries(defaultMappings)) {
-          if (patterns.some(p => normalized.includes(p))) {
-            autoMapping[field] = header;
-            break;
-          }
+      // Use AI to detect column mappings
+      setDetectingMapping(true);
+      try {
+        const response = await fetch('/api/ai/detect-mapping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ headers: fileHeaders }),
+        });
+        
+        const result = await response.json();
+        if (result.success && result.data?.mapping) {
+          setMapping(result.data.mapping);
+        } else {
+          // Fallback to pattern-based detection if AI fails
+          const fallbackMapping = detectMappingsFallback(fileHeaders);
+          setMapping(fallbackMapping);
         }
+      } catch (aiError) {
+        console.warn('AI mapping detection failed, using fallback:', aiError);
+        // Fallback to pattern-based detection
+        const fallbackMapping = detectMappingsFallback(fileHeaders);
+        setMapping(fallbackMapping);
+      } finally {
+        setDetectingMapping(false);
       }
 
-      setMapping(autoMapping);
       setStep('mapping');
     } catch (error) {
       setImportResult({ success: false, message: t('integrations.dataImport.errors.parseFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error') });
     }
   }, [t]);
+
+  // Fallback pattern-based mapping detection
+  const detectMappingsFallback = (fileHeaders: string[]): Record<string, string> => {
+    const autoMapping: Record<string, string> = {};
+    const defaultMappings: Record<string, string[]> = {
+      customerName: ['customer name', 'name', 'full name', 'שם לקוח', 'שם'],
+      customerEmail: ['email', 'אימייל', 'דוא"ל'],
+      customerPhone: ['phone', 'telephone', 'טלפון'],
+      externalRef: ['external ref', 'reference', 'id', 'מזהה'],
+      debtAmount: ['amount', 'debt amount', 'total', 'סכום', 'סכום חוב'],
+      currency: ['currency', 'מטבע'],
+      dueDate: ['due date', 'date', 'תאריך', 'תאריך פירעון'],
+      installmentAmount: ['installment', 'payment', 'תשלום'],
+    };
+
+    for (const header of fileHeaders) {
+      const normalized = header.toLowerCase().trim();
+      for (const [field, patterns] of Object.entries(defaultMappings)) {
+        if (patterns.some(p => normalized.includes(p))) {
+          autoMapping[field] = header;
+          break;
+        }
+      }
+    }
+    return autoMapping;
+  };
 
   const handleMappingChange = (field: string, value: string) => {
     setMapping(prev => ({ ...prev, [field]: value }));
@@ -369,9 +397,19 @@ function DataImportTab() {
           </Box>
 
           {/* Column Mapping */}
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>{t('integrations.dataImport.mapping.columnMapping')}</Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+          <Paper sx={{ p: 3, mb: 3, position: 'relative' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{t('integrations.dataImport.mapping.columnMapping')}</Typography>
+              {detectingMapping && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="caption" color="text.secondary">
+                    {t('integrations.dataImport.mapping.aiDetecting') || 'AI detecting mappings...'}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, opacity: detectingMapping ? 0.5 : 1, pointerEvents: detectingMapping ? 'none' : 'auto' }}>
               {MAPPING_FIELDS.map(field => (
                 <FormControl key={field.key} size="small" fullWidth>
                   <InputLabel>{t(field.labelKey)}{field.required ? ' *' : ''}</InputLabel>

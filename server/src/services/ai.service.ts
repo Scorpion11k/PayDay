@@ -199,6 +199,59 @@ interface PrismaQueryResponse {
   explanation: string;
 }
 
+// Column mapping interfaces
+export interface ColumnMapping {
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  externalRef?: string;
+  debtAmount?: string;
+  currency?: string;
+  dueDate?: string;
+  installmentAmount?: string;
+  sequenceNo?: string;
+}
+
+export interface ColumnMappingResponse {
+  mapping: ColumnMapping;
+  confidence: Record<string, number>;
+  explanation: string;
+}
+
+const MAPPING_SYSTEM_PROMPT = `You are a data mapping assistant for a debt collection system. Your task is to map Excel column headers to database fields.
+
+TARGET DATABASE FIELDS:
+- customerName: Customer's full name (required)
+- customerEmail: Customer's email address
+- customerPhone: Customer's phone number
+- externalRef: External reference ID, customer ID, or account number
+- debtAmount: Total debt amount, balance, or amount owed (required)
+- currency: Currency code (USD, EUR, ILS, etc.)
+- dueDate: Payment due date, deadline, or maturity date
+- installmentAmount: Individual installment or payment amount
+- sequenceNo: Installment sequence number or payment number
+
+RULES:
+1. Return ONLY valid JSON - no explanations, no markdown
+2. Map based on SEMANTIC MEANING, not just text matching
+3. Headers can be in ANY language (English, Hebrew, Spanish, etc.)
+4. If no good match exists, do NOT include that field
+5. Each header can only map to ONE target field
+6. Include confidence scores (0-1) for each mapping
+
+RESPONSE FORMAT:
+{
+  "mapping": {
+    "customerName": "Excel Column Name",
+    "debtAmount": "Excel Column Name"
+  },
+  "confidence": {
+    "customerName": 0.95,
+    "debtAmount": 0.87
+  },
+  "explanation": "Brief explanation of the mappings"
+}`;
+
 class AIService {
   /**
    * Process a natural language query about the data
@@ -371,6 +424,92 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
       'Show recent payments over $1000',
       'List customers with multiple open debts',
     ];
+  }
+
+  /**
+   * Detect column mapping from Excel headers using AI
+   */
+  async detectColumnMapping(headers: string[]): Promise<ColumnMappingResponse> {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new AppError('Gemini API key not configured', 500);
+    }
+
+    const startTime = Date.now();
+
+    // Compact prompt for faster response
+    const prompt = `Map these Excel column headers to database fields. Headers: ${JSON.stringify(headers)}
+
+Target fields:
+- customerName: Customer's full name (required)
+- customerEmail: Email address
+- customerPhone: Phone number
+- externalRef: External ID/reference
+- debtAmount: Debt/amount owed (required)
+- currency: Currency code
+- dueDate: Due date
+- installmentAmount: Installment amount
+- sequenceNo: Sequence number
+
+Return JSON: {"mapping": {"fieldName": "Excel Header"}, "confidence": {"fieldName": 0.9}, "explanation": "brief"}
+Map by semantic meaning. Headers can be any language. Only include fields with matches.`;
+
+    try {
+      const model = genAI.getGenerativeModel({ 
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+          responseMimeType: 'application/json',
+          // @ts-expect-error - thinkingConfig is valid for Gemini 2.5 models
+          thinkingConfig: { thinkingBudget: 0 }, // Disable thinking mode for faster response
+        },
+      });
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      console.log(`AI mapping completed in ${Date.now() - startTime}ms`); // Performance log
+
+      if (!responseText) {
+        throw new AppError('No response from AI model', 500);
+      }
+
+      // Parse response - clean up any potential markdown formatting
+      let cleanedResponse = responseText.trim();
+      if (cleanedResponse.startsWith('```json')) {
+        cleanedResponse = cleanedResponse.slice(7);
+      } else if (cleanedResponse.startsWith('```')) {
+        cleanedResponse = cleanedResponse.slice(3);
+      }
+      if (cleanedResponse.endsWith('```')) {
+        cleanedResponse = cleanedResponse.slice(0, -3);
+      }
+      cleanedResponse = cleanedResponse.trim();
+
+      let mappingResult: ColumnMappingResponse;
+      try {
+        mappingResult = JSON.parse(cleanedResponse) as ColumnMappingResponse;
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', cleanedResponse);
+        throw new AppError(`Failed to parse AI response as valid JSON: ${cleanedResponse.substring(0, 500)}`, 500);
+      }
+
+      // Validate mapped headers exist in input
+      if (mappingResult.mapping) {
+        const validMapping: ColumnMapping = {};
+        for (const [key, value] of Object.entries(mappingResult.mapping)) {
+          if (value && headers.includes(value)) {
+            validMapping[key as keyof ColumnMapping] = value;
+          }
+        }
+        mappingResult.mapping = validMapping;
+      }
+
+      return mappingResult;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(`Failed to detect column mapping: ${(error as Error).message}`, 500);
+    }
   }
 }
 

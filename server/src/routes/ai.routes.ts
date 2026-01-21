@@ -23,5 +23,16 @@ router.get('/suggestions', (req, res, next) => {
   aiController.getSuggestions(req, res).catch(next);
 });
 
+/**
+ * @route   POST /api/ai/detect-mapping
+ * @desc    Detect column mapping from Excel headers using AI
+ * @access  Public
+ * @body    { headers: string[] }
+ * @example { "headers": ["Customer Name", "Amount Due", "Due Date"] }
+ */
+router.post('/detect-mapping', (req, res, next) => {
+  aiController.detectMapping(req, res).catch(next);
+});
+
 export default router;
 

@@ -8,6 +8,10 @@ const querySchema = z.object({
   query: z.string().min(3, 'Query must be at least 3 characters').max(500, 'Query must be at most 500 characters'),
 });
 
+const detectMappingSchema = z.object({
+  headers: z.array(z.string()).min(1, 'At least one header is required'),
+});
+
 class AIController {
   /**
    * Process a natural language query about the data
@@ -38,6 +42,25 @@ class AIController {
     res.json({
       success: true,
       data: suggestions,
+    });
+  }
+
+  /**
+   * Detect column mapping from Excel headers using AI
+   * POST /api/ai/detect-mapping
+   */
+  async detectMapping(req: Request, res: Response) {
+    const validation = detectMappingSchema.safeParse(req.body);
+    
+    if (!validation.success) {
+      throw new ValidationError(validation.error.issues[0].message);
+    }
+
+    const result = await aiService.detectColumnMapping(validation.data.headers);
+
+    res.json({
+      success: true,
+      data: result,
     });
   }
 }
