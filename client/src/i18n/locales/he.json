@@ -227,20 +227,41 @@
         "title": "מיפוי עמודות",
         "fileInfo": "קובץ: {{fileName}} (תצוגה מקדימה של {{rowCount}} שורות)",
         "columnMapping": "מיפוי עמודות",
-        "notMapped": "-- לא ממופה --"
+        "notMapped": "-- לא ממופה --",
+        "aiDetecting": "הבינה המלאכותית מנתחת את הקובץ שלך...",
+        "aiDetectingDesc": "מזהה מיפוי עמודות אוטומטית",
+        "requiredMissing": "שדות חובה חסרים",
+        "pleaseMap": "נא למפות את השדות הנדרשים הבאים:",
+        "mapped": "ממופים",
+        "cannotImport": "לא ניתן לייבא: שדות חובה לא ממופים"
+      },
+      "aiMapping": {
+        "title": "מיפוי AI זוהה",
+        "description": "זיהינו מיפוי עמודות אפשרי. האם ברצונך להחיל מיפוי אוטומטי?",
+        "detected": "מיפויים שזוהו",
+        "fieldsDetected": "שדות זוהו אוטומטית",
+        "accept": "קבל הכל",
+        "edit": "ערוך מיפויים",
+        "reject": "מפה ידנית"
       },
       "fields": {
-        "customerName": "שם לקוח",
+        "customerName": "שם מלא",
         "email": "דוא\"ל",
-        "phone": "טלפון",
+        "phone": "מספר טלפון",
+        "gender": "מין",
+        "dateOfBirth": "תאריך לידה",
+        "region": "אזור",
+        "religion": "דת",
         "externalRef": "מזהה חיצוני",
         "debtAmount": "סכום חוב",
         "currency": "מטבע",
         "dueDate": "תאריך פירעון",
-        "installmentAmount": "סכום תשלום"
+        "installmentAmount": "סכום תשלום",
+        "sequenceNo": "מספר רצף"
       },
       "preview": {
-        "title": "תצוגה מקדימה של הנתונים"
+        "title": "תצוגה מקדימה של הנתונים",
+        "rows": "שורות"
       },
       "importing": "מייבא...",
       "importData": "ייבא נתונים",
@@ -256,7 +277,9 @@
         "noDataRows": "אין שורות נתונים בקובץ ה-Excel",
         "parseFailed": "ניתוח הקובץ נכשל",
         "importFailed": "הייבוא נכשל",
-        "serverConnection": "החיבור לשרת נכשל"
+        "serverConnection": "החיבור לשרת נכשל",
+        "missingRequired": "חסרים מיפויי שדות חובה",
+        "validationFailed": "שגיאות אימות"
       }
     }
   },

@@ -3,6 +3,13 @@ import ExcelJS from 'exceljs';
 import { ValidationError } from '../types';
 import { Prisma } from '@prisma/client';
 
+export interface RowValidationError {
+  row: number;
+  field: string;
+  value: string;
+  message: string;
+}
+
 export interface ImportResult {
   success: boolean;
   imported: {
@@ -11,6 +18,7 @@ export interface ImportResult {
     installments: number;
   };
   errors: string[];
+  validationErrors: RowValidationError[];
   skipped: number;
 }
 
@@ -20,10 +28,16 @@ export interface ExcelRow {
 
 // Column mapping for flexible import
 export interface ColumnMapping {
+  // Customer fields
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  region?: string;
+  religion?: string;
   externalRef?: string;
+  // Debt/Payment fields
   debtAmount?: string;
   currency?: string;
   dueDate?: string;
@@ -31,43 +45,121 @@ export interface ColumnMapping {
   sequenceNo?: string;
 }
 
+// Required fields for import
+export const REQUIRED_FIELDS: (keyof ColumnMapping)[] = ['customerName', 'debtAmount'];
+
+// Field definitions with validation info
+export const FIELD_DEFINITIONS: Record<keyof ColumnMapping, { 
+  label: string; 
+  required: boolean; 
+  validation?: 'email' | 'phone' | 'date' | 'number';
+}> = {
+  customerName: { label: 'Full Name', required: true },
+  customerEmail: { label: 'Email', required: false, validation: 'email' },
+  customerPhone: { label: 'Phone Number', required: false, validation: 'phone' },
+  gender: { label: 'Gender', required: false },
+  dateOfBirth: { label: 'Date of Birth', required: false, validation: 'date' },
+  region: { label: 'Region', required: false },
+  religion: { label: 'Religion', required: false },
+  externalRef: { label: 'External Reference', required: false },
+  debtAmount: { label: 'Debt Amount', required: true, validation: 'number' },
+  currency: { label: 'Currency', required: false },
+  dueDate: { label: 'Payment Due Date', required: false, validation: 'date' },
+  installmentAmount: { label: 'Installment Amount', required: false, validation: 'number' },
+  sequenceNo: { label: 'Sequence Number', required: false, validation: 'number' },
+};
+
 // Default column mappings (Hebrew translated headers)
 const DEFAULT_MAPPINGS: Record<string, keyof ColumnMapping> = {
-  // English
+  // English - Customer fields
   'customer name': 'customerName',
   'name': 'customerName',
   'full name': 'customerName',
   'email': 'customerEmail',
+  'e-mail': 'customerEmail',
   'phone': 'customerPhone',
+  'phone number': 'customerPhone',
   'telephone': 'customerPhone',
+  'mobile': 'customerPhone',
+  'gender': 'gender',
+  'sex': 'gender',
+  'date of birth': 'dateOfBirth',
+  'dob': 'dateOfBirth',
+  'birth date': 'dateOfBirth',
+  'birthday': 'dateOfBirth',
+  'region': 'region',
+  'area': 'region',
+  'location': 'region',
+  'religion': 'religion',
   'external ref': 'externalRef',
   'external reference': 'externalRef',
   'reference': 'externalRef',
+  'customer id': 'externalRef',
+  'id': 'externalRef',
+  // English - Debt/Payment fields
   'amount': 'debtAmount',
   'debt amount': 'debtAmount',
   'total amount': 'debtAmount',
   'original amount': 'debtAmount',
+  'balance': 'debtAmount',
   'currency': 'currency',
   'due date': 'dueDate',
   'payment date': 'dueDate',
+  'payment due date': 'dueDate',
   'installment': 'installmentAmount',
   'installment amount': 'installmentAmount',
   'payment amount': 'installmentAmount',
   'sequence': 'sequenceNo',
   'seq': 'sequenceNo',
   '#': 'sequenceNo',
-  // Hebrew (transliterated)
+  // Hebrew
   'שם לקוח': 'customerName',
   'שם': 'customerName',
+  'שם מלא': 'customerName',
   'אימייל': 'customerEmail',
   'דוא"ל': 'customerEmail',
   'טלפון': 'customerPhone',
+  'מספר טלפון': 'customerPhone',
+  'מין': 'gender',
+  'תאריך לידה': 'dateOfBirth',
+  'אזור': 'region',
+  'דת': 'religion',
   'סכום': 'debtAmount',
   'סכום חוב': 'debtAmount',
   'מטבע': 'currency',
   'תאריך פירעון': 'dueDate',
+  'תאריך תשלום': 'dueDate',
   'תשלום': 'installmentAmount',
 };
+
+// Validation helper functions
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^[\d\s\-+()]{7,20}$/;
+
+function validateEmail(value: string): boolean {
+  return EMAIL_REGEX.test(value.trim());
+}
+
+function validatePhone(value: string): boolean {
+  const cleaned = value.replace(/[\s\-()]/g, '');
+  return PHONE_REGEX.test(value) && cleaned.length >= 7;
+}
+
+function validateDate(value: string | number | Date): boolean {
+  if (value instanceof Date) return !isNaN(value.getTime());
+  if (typeof value === 'number') return true; // Excel serial number
+  const date = new Date(value);
+  return !isNaN(date.getTime());
+}
+
+function parseGender(value: string): 'male' | 'female' | 'other' | 'prefer_not_to_say' | null {
+  const normalized = value.toLowerCase().trim();
+  if (['male', 'm', 'זכר', 'ז'].includes(normalized)) return 'male';
+  if (['female', 'f', 'נקבה', 'נ'].includes(normalized)) return 'female';
+  if (['other', 'אחר'].includes(normalized)) return 'other';
+  if (['prefer not to say', 'לא רוצה לציין'].includes(normalized)) return 'prefer_not_to_say';
+  return null;
+}
 
 class ImportService {
   /**
@@ -205,6 +297,104 @@ class ImportService {
   }
 
   /**
+   * Validate rows before import
+   */
+  validateRows(rows: ExcelRow[], mapping: ColumnMapping): RowValidationError[] {
+    const errors: RowValidationError[] = [];
+
+    rows.forEach((row, index) => {
+      const rowNum = index + 2; // +2 because row 1 is headers, and we're 0-indexed
+
+      // Validate email if mapped
+      if (mapping.customerEmail && row[mapping.customerEmail]) {
+        const email = String(row[mapping.customerEmail]).trim();
+        if (email && !validateEmail(email)) {
+          errors.push({
+            row: rowNum,
+            field: 'customerEmail',
+            value: email,
+            message: `Invalid email format: "${email}"`,
+          });
+        }
+      }
+
+      // Validate phone if mapped
+      if (mapping.customerPhone && row[mapping.customerPhone]) {
+        const phone = String(row[mapping.customerPhone]).trim();
+        if (phone && !validatePhone(phone)) {
+          errors.push({
+            row: rowNum,
+            field: 'customerPhone',
+            value: phone,
+            message: `Invalid phone number format: "${phone}"`,
+          });
+        }
+      }
+
+      // Validate due date if mapped
+      if (mapping.dueDate && row[mapping.dueDate]) {
+        const dateValue = row[mapping.dueDate];
+        if (dateValue && !validateDate(dateValue)) {
+          errors.push({
+            row: rowNum,
+            field: 'dueDate',
+            value: String(dateValue),
+            message: `Invalid date format: "${dateValue}"`,
+          });
+        }
+      }
+
+      // Validate date of birth if mapped
+      if (mapping.dateOfBirth && row[mapping.dateOfBirth]) {
+        const dateValue = row[mapping.dateOfBirth];
+        if (dateValue && !validateDate(dateValue)) {
+          errors.push({
+            row: rowNum,
+            field: 'dateOfBirth',
+            value: String(dateValue),
+            message: `Invalid date of birth format: "${dateValue}"`,
+          });
+        }
+      }
+
+      // Validate debt amount
+      if (mapping.debtAmount && row[mapping.debtAmount]) {
+        const value = row[mapping.debtAmount];
+        const cleaned = String(value).replace(/[^\d.-]/g, '');
+        const amount = parseFloat(cleaned);
+        if (isNaN(amount) || amount < 0) {
+          errors.push({
+            row: rowNum,
+            field: 'debtAmount',
+            value: String(value),
+            message: `Invalid amount: "${value}"`,
+          });
+        }
+      }
+    });
+
+    return errors;
+  }
+
+  /**
+   * Check if all required fields are mapped
+   */
+  checkRequiredMappings(mapping: ColumnMapping): { valid: boolean; missingFields: string[] } {
+    const missingFields: string[] = [];
+    
+    for (const field of REQUIRED_FIELDS) {
+      if (!mapping[field]) {
+        missingFields.push(FIELD_DEFINITIONS[field].label);
+      }
+    }
+
+    return {
+      valid: missingFields.length === 0,
+      missingFields,
+    };
+  }
+
+  /**
    * Import data from Excel rows into database
    */
   async importData(
@@ -216,8 +406,27 @@ class ImportService {
       success: true,
       imported: { customers: 0, debts: 0, installments: 0 },
       errors: [],
+      validationErrors: [],
       skipped: 0,
     };
+
+    // Validate all rows first
+    result.validationErrors = this.validateRows(rows, mapping);
+    
+    // If there are validation errors, don't proceed with import
+    if (result.validationErrors.length > 0) {
+      result.success = false;
+      result.errors.push(`${result.validationErrors.length} validation error(s) found. Please fix them before importing.`);
+      return result;
+    }
+
+    // Check required mappings
+    const { valid, missingFields } = this.checkRequiredMappings(mapping);
+    if (!valid) {
+      result.success = false;
+      result.errors.push(`Missing required field mappings: ${missingFields.join(', ')}`);
+      return result;
+    }
 
     // Group rows by customer (based on name/email)
     const customerGroups = new Map<string, ExcelRow[]>();
@@ -252,6 +461,18 @@ class ImportService {
               : undefined,
             phone: mapping.customerPhone
               ? String(firstRow[mapping.customerPhone] || '').trim() || undefined
+              : undefined,
+            gender: mapping.gender && firstRow[mapping.gender]
+              ? parseGender(String(firstRow[mapping.gender])) || undefined
+              : undefined,
+            dateOfBirth: mapping.dateOfBirth && firstRow[mapping.dateOfBirth]
+              ? this.parseDateValue(firstRow[mapping.dateOfBirth])
+              : undefined,
+            region: mapping.region
+              ? String(firstRow[mapping.region] || '').trim() || undefined
+              : undefined,
+            religion: mapping.religion
+              ? String(firstRow[mapping.religion] || '').trim() || undefined
               : undefined,
             externalRef: mapping.externalRef
               ? String(firstRow[mapping.externalRef] || '').trim() || undefined
@@ -377,7 +598,16 @@ class ImportService {
   private parseDueDate(row: ExcelRow, mapping: ColumnMapping): Date | null {
     if (!mapping.dueDate) return null;
     const value = row[mapping.dueDate];
+    return this.parseDateValue(value);
+  }
+
+  private parseDateValue(value: string | number | Date | undefined): Date | null {
     if (!value) return null;
+
+    // Handle Date objects
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value;
+    }
 
     // Handle Excel date serial numbers
     if (typeof value === 'number') {

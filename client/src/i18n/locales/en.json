@@ -227,20 +227,41 @@
         "title": "Map Columns",
         "fileInfo": "File: {{fileName}} ({{rowCount}} rows preview)",
         "columnMapping": "Column Mapping",
-        "notMapped": "-- Not Mapped --"
+        "notMapped": "-- Not Mapped --",
+        "aiDetecting": "AI is analyzing your file...",
+        "aiDetectingDesc": "Detecting column mappings automatically",
+        "requiredMissing": "Required Fields Missing",
+        "pleaseMap": "Please map the following required fields:",
+        "mapped": "mapped",
+        "cannotImport": "Cannot import: required fields not mapped"
+      },
+      "aiMapping": {
+        "title": "AI Detected Mappings",
+        "description": "We detected possible column mappings. Would you like to apply automatic mapping?",
+        "detected": "Detected Mappings",
+        "fieldsDetected": "fields automatically detected",
+        "accept": "Accept All",
+        "edit": "Edit Mappings",
+        "reject": "Map Manually"
       },
       "fields": {
-        "customerName": "Customer Name",
+        "customerName": "Full Name",
         "email": "Email",
-        "phone": "Phone",
+        "phone": "Phone Number",
+        "gender": "Gender",
+        "dateOfBirth": "Date of Birth",
+        "region": "Region",
+        "religion": "Religion",
         "externalRef": "External Reference",
         "debtAmount": "Debt Amount",
         "currency": "Currency",
-        "dueDate": "Due Date",
-        "installmentAmount": "Installment Amount"
+        "dueDate": "Payment Due Date",
+        "installmentAmount": "Installment Amount",
+        "sequenceNo": "Sequence Number"
       },
       "preview": {
-        "title": "Data Preview"
+        "title": "Data Preview",
+        "rows": "rows"
       },
       "importing": "Importing...",
       "importData": "Import Data",
@@ -256,7 +277,9 @@
         "noDataRows": "Excel file has no data rows",
         "parseFailed": "Failed to parse file",
         "importFailed": "Import failed",
-        "serverConnection": "Failed to connect to server"
+        "serverConnection": "Failed to connect to server",
+        "missingRequired": "Missing required field mappings",
+        "validationFailed": "Validation Errors"
       }
     }
   },

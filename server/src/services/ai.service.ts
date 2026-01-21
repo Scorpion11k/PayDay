@@ -199,12 +199,18 @@ interface PrismaQueryResponse {
   explanation: string;
 }
 
-// Column mapping interfaces
+// Column mapping interfaces - re-export from import service for consistency
 export interface ColumnMapping {
+  // Customer fields
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  region?: string;
+  religion?: string;
   externalRef?: string;
+  // Debt/Payment fields
   debtAmount?: string;
   currency?: string;
   dueDate?: string;
@@ -218,39 +224,34 @@ export interface ColumnMappingResponse {
   explanation: string;
 }
 
-const MAPPING_SYSTEM_PROMPT = `You are a data mapping assistant for a debt collection system. Your task is to map Excel column headers to database fields.
+const MAPPING_SYSTEM_PROMPT = `You are a data mapping assistant for a debt collection system. Map Excel headers to database fields.
 
-TARGET DATABASE FIELDS:
-- customerName: Customer's full name (required)
-- customerEmail: Customer's email address
-- customerPhone: Customer's phone number
-- externalRef: External reference ID, customer ID, or account number
-- debtAmount: Total debt amount, balance, or amount owed (required)
-- currency: Currency code (USD, EUR, ILS, etc.)
-- dueDate: Payment due date, deadline, or maturity date
-- installmentAmount: Individual installment or payment amount
-- sequenceNo: Installment sequence number or payment number
+TARGET FIELDS:
+Customer Info:
+- customerName: Full name (REQUIRED)
+- customerEmail: Email address
+- customerPhone: Phone/mobile number
+- gender: Gender (male/female/other)
+- dateOfBirth: Date of birth, birthday, DOB
+- region: Region, area, location
+- religion: Religion
+- externalRef: External ID, customer ID, reference number
+
+Payment Info:
+- debtAmount: Debt amount, balance, total owed (REQUIRED)
+- currency: Currency code (USD, EUR, ILS)
+- dueDate: Payment due date
+- installmentAmount: Installment/payment amount
+- sequenceNo: Sequence/payment number
 
 RULES:
-1. Return ONLY valid JSON - no explanations, no markdown
-2. Map based on SEMANTIC MEANING, not just text matching
-3. Headers can be in ANY language (English, Hebrew, Spanish, etc.)
-4. If no good match exists, do NOT include that field
-5. Each header can only map to ONE target field
-6. Include confidence scores (0-1) for each mapping
+1. Return ONLY valid JSON
+2. Map by SEMANTIC MEANING (any language)
+3. One header → one field only
+4. Skip fields with no match
+5. Include confidence (0-1)
 
-RESPONSE FORMAT:
-{
-  "mapping": {
-    "customerName": "Excel Column Name",
-    "debtAmount": "Excel Column Name"
-  },
-  "confidence": {
-    "customerName": 0.95,
-    "debtAmount": 0.87
-  },
-  "explanation": "Brief explanation of the mappings"
-}`;
+FORMAT: {"mapping":{"field":"Header"},"confidence":{"field":0.9},"explanation":"brief"}`;
 
 class AIService {
   /**
@@ -437,21 +438,25 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
     const startTime = Date.now();
 
     // Compact prompt for faster response
-    const prompt = `Map these Excel column headers to database fields. Headers: ${JSON.stringify(headers)}
+    const prompt = `Map Excel headers to database fields. Headers: ${JSON.stringify(headers)}
 
-Target fields:
-- customerName: Customer's full name (required)
-- customerEmail: Email address
+Fields:
+- customerName: Full name (REQUIRED)
+- customerEmail: Email
 - customerPhone: Phone number
-- externalRef: External ID/reference
-- debtAmount: Debt/amount owed (required)
+- gender: Gender (male/female)
+- dateOfBirth: Birth date, DOB
+- region: Region, area
+- religion: Religion
+- externalRef: External ID, customer ID
+- debtAmount: Debt amount, balance (REQUIRED)
 - currency: Currency code
-- dueDate: Due date
+- dueDate: Payment due date
 - installmentAmount: Installment amount
 - sequenceNo: Sequence number
 
-Return JSON: {"mapping": {"fieldName": "Excel Header"}, "confidence": {"fieldName": 0.9}, "explanation": "brief"}
-Map by semantic meaning. Headers can be any language. Only include fields with matches.`;
+Return JSON: {"mapping":{"field":"Header"},"confidence":{"field":0.9},"explanation":"brief"}
+Map semantically. Any language. Only matched fields.`;
 
     try {
       const model = genAI.getGenerativeModel({ 

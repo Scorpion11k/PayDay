@@ -25,6 +25,12 @@ import {
   FormControl,
   InputLabel,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tooltip,
+  AlertTitle,
 } from '@mui/material';
 import {
   Extension as IntegrationsIcon,
@@ -34,6 +40,9 @@ import {
   Delete as DeleteIcon,
   CloudUpload as UploadIcon,
   CheckCircle as SuccessIcon,
+  Warning as WarningIcon,
+  Error as ErrorIcon,
+  AutoAwesome as AIIcon,
 } from '@mui/icons-material';
 import ExcelJS from 'exceljs';
 
@@ -132,17 +141,33 @@ function EmptyTabContent({ tabName }: { tabName: string }) {
   );
 }
 
-// Column mapping fields
+// Column mapping fields with validation types
 const MAPPING_FIELDS = [
   { key: 'customerName', labelKey: 'integrations.dataImport.fields.customerName', required: true },
-  { key: 'customerEmail', labelKey: 'integrations.dataImport.fields.email', required: false },
-  { key: 'customerPhone', labelKey: 'integrations.dataImport.fields.phone', required: false },
+  { key: 'customerEmail', labelKey: 'integrations.dataImport.fields.email', required: false, validation: 'email' },
+  { key: 'customerPhone', labelKey: 'integrations.dataImport.fields.phone', required: false, validation: 'phone' },
+  { key: 'gender', labelKey: 'integrations.dataImport.fields.gender', required: false },
+  { key: 'dateOfBirth', labelKey: 'integrations.dataImport.fields.dateOfBirth', required: false, validation: 'date' },
+  { key: 'region', labelKey: 'integrations.dataImport.fields.region', required: false },
+  { key: 'religion', labelKey: 'integrations.dataImport.fields.religion', required: false },
   { key: 'externalRef', labelKey: 'integrations.dataImport.fields.externalRef', required: false },
-  { key: 'debtAmount', labelKey: 'integrations.dataImport.fields.debtAmount', required: true },
+  { key: 'debtAmount', labelKey: 'integrations.dataImport.fields.debtAmount', required: true, validation: 'number' },
   { key: 'currency', labelKey: 'integrations.dataImport.fields.currency', required: false },
-  { key: 'dueDate', labelKey: 'integrations.dataImport.fields.dueDate', required: false },
-  { key: 'installmentAmount', labelKey: 'integrations.dataImport.fields.installmentAmount', required: false },
+  { key: 'dueDate', labelKey: 'integrations.dataImport.fields.dueDate', required: false, validation: 'date' },
+  { key: 'installmentAmount', labelKey: 'integrations.dataImport.fields.installmentAmount', required: false, validation: 'number' },
+  { key: 'sequenceNo', labelKey: 'integrations.dataImport.fields.sequenceNo', required: false, validation: 'number' },
 ];
+
+// Validation error interface
+interface ValidationError {
+  row: number;
+  field: string;
+  value: string;
+  message: string;
+}
+
+// Required fields for import
+const REQUIRED_FIELDS = ['customerName', 'debtAmount'];
 
 // Data Import Component
 function DataImportTab() {
@@ -152,8 +177,11 @@ function DataImportTab() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [sampleRows, setSampleRows] = useState<Record<string, unknown>[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [aiSuggestedMapping, setAiSuggestedMapping] = useState<Record<string, string>>({});
+  const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [importing, setImporting] = useState(false);
   const [detectingMapping, setDetectingMapping] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [importResult, setImportResult] = useState<{
     success: boolean;
     message: string;
@@ -252,7 +280,8 @@ function DataImportTab() {
       }
 
       setHeaders(fileHeaders);
-      setSampleRows(jsonData.slice(0, 5));
+      setSampleRows(jsonData.slice(0, 10)); // Show up to 10 rows for preview
+      setValidationErrors([]);
 
       // Use AI to detect column mappings
       setDetectingMapping(true);
@@ -265,39 +294,83 @@ function DataImportTab() {
         
         const result = await response.json();
         if (result.success && result.data?.mapping) {
-          setMapping(result.data.mapping);
+          const suggestedMapping = result.data.mapping;
+          setAiSuggestedMapping(suggestedMapping);
+          // Show dialog to let user choose
+          setShowMappingDialog(true);
         } else {
           // Fallback to pattern-based detection if AI fails
           const fallbackMapping = detectMappingsFallback(fileHeaders);
           setMapping(fallbackMapping);
+          setStep('mapping');
         }
       } catch (aiError) {
         console.warn('AI mapping detection failed, using fallback:', aiError);
         // Fallback to pattern-based detection
         const fallbackMapping = detectMappingsFallback(fileHeaders);
         setMapping(fallbackMapping);
+        setStep('mapping');
       } finally {
         setDetectingMapping(false);
       }
-
-      setStep('mapping');
     } catch (error) {
       setImportResult({ success: false, message: t('integrations.dataImport.errors.parseFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error') });
     }
   }, [t]);
 
+  // Handle AI mapping dialog actions
+  const handleAcceptAIMapping = () => {
+    setMapping(aiSuggestedMapping);
+    setShowMappingDialog(false);
+    setStep('mapping');
+  };
+
+  const handleRejectAIMapping = () => {
+    setMapping({});
+    setShowMappingDialog(false);
+    setStep('mapping');
+  };
+
+  const handleEditAIMapping = () => {
+    setMapping(aiSuggestedMapping);
+    setShowMappingDialog(false);
+    setStep('mapping');
+  };
+
+  // Check if all required fields are mapped
+  const checkRequiredMappings = (): { valid: boolean; missing: string[] } => {
+    const missing: string[] = [];
+    for (const field of REQUIRED_FIELDS) {
+      if (!mapping[field]) {
+        const fieldDef = MAPPING_FIELDS.find(f => f.key === field);
+        missing.push(fieldDef ? t(fieldDef.labelKey) : field);
+      }
+    }
+    return { valid: missing.length === 0, missing };
+  };
+
+  // Get the number of mapped fields for AI suggestion count
+  const getMappedFieldsCount = (mappingObj: Record<string, string>): number => {
+    return Object.values(mappingObj).filter(v => v && v.length > 0).length;
+  };
+
   // Fallback pattern-based mapping detection
   const detectMappingsFallback = (fileHeaders: string[]): Record<string, string> => {
     const autoMapping: Record<string, string> = {};
     const defaultMappings: Record<string, string[]> = {
-      customerName: ['customer name', 'name', 'full name', 'שם לקוח', 'שם'],
-      customerEmail: ['email', 'אימייל', 'דוא"ל'],
-      customerPhone: ['phone', 'telephone', 'טלפון'],
-      externalRef: ['external ref', 'reference', 'id', 'מזהה'],
-      debtAmount: ['amount', 'debt amount', 'total', 'סכום', 'סכום חוב'],
+      customerName: ['customer name', 'name', 'full name', 'שם לקוח', 'שם', 'שם מלא'],
+      customerEmail: ['email', 'e-mail', 'אימייל', 'דוא"ל'],
+      customerPhone: ['phone', 'telephone', 'mobile', 'טלפון', 'מספר טלפון'],
+      gender: ['gender', 'sex', 'מין'],
+      dateOfBirth: ['date of birth', 'dob', 'birth date', 'birthday', 'תאריך לידה'],
+      region: ['region', 'area', 'location', 'אזור'],
+      religion: ['religion', 'דת'],
+      externalRef: ['external ref', 'reference', 'id', 'customer id', 'מזהה'],
+      debtAmount: ['amount', 'debt amount', 'total', 'balance', 'סכום', 'סכום חוב'],
       currency: ['currency', 'מטבע'],
-      dueDate: ['due date', 'date', 'תאריך', 'תאריך פירעון'],
+      dueDate: ['due date', 'payment due date', 'תאריך', 'תאריך פירעון', 'תאריך תשלום'],
       installmentAmount: ['installment', 'payment', 'תשלום'],
+      sequenceNo: ['sequence', 'seq', '#'],
     };
 
     for (const header of fileHeaders) {
@@ -314,20 +387,33 @@ function DataImportTab() {
 
   const handleMappingChange = (field: string, value: string) => {
     setMapping(prev => ({ ...prev, [field]: value }));
+    // Clear validation errors when mapping changes
+    setValidationErrors([]);
   };
 
   const handleImport = async () => {
     if (!file) return;
 
+    // Check required fields before import
+    const { valid, missing } = checkRequiredMappings();
+    if (!valid) {
+      setImportResult({
+        success: false,
+        message: t('integrations.dataImport.errors.missingRequired') + ': ' + missing.join(', '),
+      });
+      return;
+    }
+
     setImporting(true);
     setImportResult(null);
+    setValidationErrors([]);
 
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('options', JSON.stringify({ mapping, defaultCurrency: 'USD' }));
 
-      const response = await fetch('http://localhost:3001/api/import/execute', {
+      const response = await fetch('/api/import/execute', {
         method: 'POST',
         body: formData,
       });
@@ -342,6 +428,10 @@ function DataImportTab() {
         });
         setStep('complete');
       } else {
+        // Handle validation errors from server
+        if (result.data?.validationErrors && result.data.validationErrors.length > 0) {
+          setValidationErrors(result.data.validationErrors);
+        }
         setImportResult({
           success: false,
           message: result.data?.errors?.join(', ') || result.message || t('integrations.dataImport.errors.importFailed'),
@@ -359,24 +449,90 @@ function DataImportTab() {
     setHeaders([]);
     setSampleRows([]);
     setMapping({});
+    setAiSuggestedMapping({});
     setImportResult(null);
+    setValidationErrors([]);
     setStep('upload');
   };
 
+  // Get field mapping status for styling
+  const getFieldStatus = (fieldKey: string, required: boolean): 'mapped' | 'unmapped' | 'missing' => {
+    if (mapping[fieldKey]) return 'mapped';
+    if (required) return 'missing';
+    return 'unmapped';
+  };
+
+  // Check if required fields are missing
+  const { valid: allRequiredMapped, missing: missingRequired } = checkRequiredMappings();
+
   return (
     <Box>
+      {/* AI Mapping Suggestion Dialog */}
+      <Dialog open={showMappingDialog} onClose={() => setShowMappingDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AIIcon color="primary" />
+          {t('integrations.dataImport.aiMapping.title') || 'AI Detected Mappings'}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            {t('integrations.dataImport.aiMapping.description') || 'We detected possible column mappings. Would you like to apply automatic mapping?'}
+          </Typography>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <AlertTitle>{t('integrations.dataImport.aiMapping.detected') || 'Detected Mappings'}</AlertTitle>
+            {getMappedFieldsCount(aiSuggestedMapping)} {t('integrations.dataImport.aiMapping.fieldsDetected') || 'fields automatically detected'}
+          </Alert>
+          <Box sx={{ bgcolor: '#f5f5f5', p: 2, borderRadius: 1 }}>
+            {Object.entries(aiSuggestedMapping).map(([field, header]) => {
+              const fieldDef = MAPPING_FIELDS.find(f => f.key === field);
+              return (
+                <Box key={field} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                  <Typography variant="body2" fontWeight={500}>
+                    {fieldDef ? t(fieldDef.labelKey) : field}
+                    {fieldDef?.required && <span style={{ color: '#d32f2f' }}> *</span>}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">→ {header}</Typography>
+                </Box>
+              );
+            })}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button onClick={handleRejectAIMapping} color="inherit">
+            {t('integrations.dataImport.aiMapping.reject') || 'Map Manually'}
+          </Button>
+          <Button onClick={handleEditAIMapping} variant="outlined">
+            {t('integrations.dataImport.aiMapping.edit') || 'Edit Mappings'}
+          </Button>
+          <Button onClick={handleAcceptAIMapping} variant="contained" sx={{ bgcolor: '#1e3a5f' }}>
+            {t('integrations.dataImport.aiMapping.accept') || 'Accept All'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Step 1: Upload */}
       {step === 'upload' && (
         <Paper sx={{ p: 4, textAlign: 'center', bgcolor: '#f8fafc', border: '2px dashed', borderColor: 'divider', borderRadius: 2 }}>
-          <UploadIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" sx={{ mb: 1 }}>{t('integrations.dataImport.upload.title')}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            {t('integrations.dataImport.upload.description')}
-          </Typography>
-          <Button variant="contained" component="label" startIcon={<UploadIcon />} sx={{ bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}>
-            {t('integrations.dataImport.upload.selectFile')}
-            <input type="file" hidden accept=".xlsx,.xls,.csv" onChange={handleFileSelect} />
-          </Button>
+          {detectingMapping ? (
+            <>
+              <CircularProgress size={48} sx={{ mb: 2 }} />
+              <Typography variant="h6" sx={{ mb: 1 }}>{t('integrations.dataImport.mapping.aiDetecting') || 'AI is analyzing your file...'}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {t('integrations.dataImport.mapping.aiDetectingDesc') || 'Detecting column mappings automatically'}
+              </Typography>
+            </>
+          ) : (
+            <>
+              <UploadIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" sx={{ mb: 1 }}>{t('integrations.dataImport.upload.title')}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                {t('integrations.dataImport.upload.description')}
+              </Typography>
+              <Button variant="contained" component="label" startIcon={<UploadIcon />} sx={{ bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}>
+                {t('integrations.dataImport.upload.selectFile')}
+                <input type="file" hidden accept=".xlsx,.xls,.csv" onChange={handleFileSelect} />
+              </Button>
+            </>
+          )}
           {importResult && !importResult.success && (
             <Alert severity="error" sx={{ mt: 2, textAlign: 'left' }}>{importResult.message}</Alert>
           )}
@@ -396,60 +552,157 @@ function DataImportTab() {
             <Button variant="outlined" onClick={resetImport}>{t('common.cancel')}</Button>
           </Box>
 
+          {/* Required fields warning */}
+          {!allRequiredMapped && (
+            <Alert severity="warning" sx={{ mb: 2 }} icon={<WarningIcon />}>
+              <AlertTitle>{t('integrations.dataImport.mapping.requiredMissing') || 'Required Fields Missing'}</AlertTitle>
+              {t('integrations.dataImport.mapping.pleaseMap') || 'Please map the following required fields:'} {missingRequired.join(', ')}
+            </Alert>
+          )}
+
           {/* Column Mapping */}
           <Paper sx={{ p: 3, mb: 3, position: 'relative' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{t('integrations.dataImport.mapping.columnMapping')}</Typography>
-              {detectingMapping && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CircularProgress size={16} />
-                  <Typography variant="caption" color="text.secondary">
-                    {t('integrations.dataImport.mapping.aiDetecting') || 'AI detecting mappings...'}
-                  </Typography>
-                </Box>
-              )}
+              <Chip 
+                size="small" 
+                label={`${getMappedFieldsCount(mapping)}/${MAPPING_FIELDS.length} ${t('integrations.dataImport.mapping.mapped') || 'mapped'}`}
+                color={allRequiredMapped ? 'success' : 'warning'}
+              />
             </Box>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, opacity: detectingMapping ? 0.5 : 1, pointerEvents: detectingMapping ? 'none' : 'auto' }}>
-              {MAPPING_FIELDS.map(field => (
-                <FormControl key={field.key} size="small" fullWidth>
-                  <InputLabel>{t(field.labelKey)}{field.required ? ' *' : ''}</InputLabel>
-                  <Select
-                    value={mapping[field.key] || ''}
-                    onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                    label={t(field.labelKey) + (field.required ? ' *' : '')}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+              {MAPPING_FIELDS.map(field => {
+                const status = getFieldStatus(field.key, field.required);
+                return (
+                  <FormControl 
+                    key={field.key} 
+                    size="small" 
+                    fullWidth
+                    error={status === 'missing'}
                   >
-                    <MenuItem value="">{t('integrations.dataImport.mapping.notMapped')}</MenuItem>
-                    {headers.map(header => (
-                      <MenuItem key={header} value={header}>{header}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              ))}
+                    <InputLabel 
+                      sx={{ 
+                        color: status === 'missing' ? 'error.main' : status === 'mapped' ? 'success.main' : undefined 
+                      }}
+                    >
+                      {t(field.labelKey)}{field.required ? ' *' : ''}
+                    </InputLabel>
+                    <Select
+                      value={mapping[field.key] || ''}
+                      onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                      label={t(field.labelKey) + (field.required ? ' *' : '')}
+                      sx={{
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: status === 'missing' ? 'error.main' : status === 'mapped' ? 'success.main' : undefined,
+                          borderWidth: status !== 'unmapped' ? 2 : 1,
+                        },
+                      }}
+                      endAdornment={
+                        status === 'mapped' ? (
+                          <SuccessIcon color="success" sx={{ mr: 1, fontSize: 18 }} />
+                        ) : status === 'missing' ? (
+                          <ErrorIcon color="error" sx={{ mr: 1, fontSize: 18 }} />
+                        ) : null
+                      }
+                    >
+                      <MenuItem value="">{t('integrations.dataImport.mapping.notMapped')}</MenuItem>
+                      {headers.map(header => (
+                        <MenuItem key={header} value={header}>{header}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                );
+              })}
             </Box>
           </Paper>
+
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              <AlertTitle>{t('integrations.dataImport.errors.validationFailed') || 'Validation Errors'}</AlertTitle>
+              <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                {validationErrors.slice(0, 10).map((error, idx) => (
+                  <li key={idx}>
+                    <Typography variant="body2">
+                      <strong>Row {error.row}:</strong> {error.message}
+                    </Typography>
+                  </li>
+                ))}
+                {validationErrors.length > 10 && (
+                  <li>
+                    <Typography variant="body2" color="text.secondary">
+                      ...and {validationErrors.length - 10} more errors
+                    </Typography>
+                  </li>
+                )}
+              </Box>
+            </Alert>
+          )}
 
           {/* Data Preview */}
           <Paper sx={{ mb: 3 }}>
             <Typography variant="subtitle2" sx={{ p: 2, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-              {t('integrations.dataImport.preview.title')}
+              {t('integrations.dataImport.preview.title')} ({sampleRows.length} {t('integrations.dataImport.preview.rows') || 'rows'})
             </Typography>
-            <TableContainer sx={{ maxHeight: 300 }}>
+            <TableContainer sx={{ maxHeight: 400 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    {headers.map(header => (
-                      <TableCell key={header} sx={{ fontWeight: 600, bgcolor: '#f5f5f5' }}>{header}</TableCell>
-                    ))}
+                    <TableCell sx={{ fontWeight: 600, bgcolor: '#f5f5f5', minWidth: 50 }}>#</TableCell>
+                    {headers.map(header => {
+                      // Check if this header is mapped to a field
+                      const mappedField = Object.entries(mapping).find(([, h]) => h === header)?.[0];
+                      const fieldDef = mappedField ? MAPPING_FIELDS.find(f => f.key === mappedField) : null;
+                      return (
+                        <TableCell 
+                          key={header} 
+                          sx={{ 
+                            fontWeight: 600, 
+                            bgcolor: mappedField ? '#e8f5e9' : '#f5f5f5',
+                            borderBottom: mappedField ? '2px solid #4caf50' : undefined,
+                          }}
+                        >
+                          <Tooltip title={fieldDef ? `→ ${t(fieldDef.labelKey)}` : 'Not mapped'}>
+                            <span>{header}</span>
+                          </Tooltip>
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {sampleRows.map((row, idx) => (
-                    <TableRow key={idx}>
-                      {headers.map(header => (
-                        <TableCell key={header}>{String(row[header] ?? '')}</TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
+                  {sampleRows.map((row, idx) => {
+                    // Check if this row has validation errors
+                    const rowErrors = validationErrors.filter(e => e.row === idx + 2);
+                    return (
+                      <TableRow key={idx} sx={{ bgcolor: rowErrors.length > 0 ? '#ffebee' : undefined }}>
+                        <TableCell sx={{ color: 'text.secondary' }}>{idx + 2}</TableCell>
+                        {headers.map(header => {
+                          const cellError = rowErrors.find(e => {
+                            const mappedField = Object.entries(mapping).find(([, h]) => h === header)?.[0];
+                            return mappedField === e.field;
+                          });
+                          return (
+                            <TableCell 
+                              key={header}
+                              sx={{ 
+                                color: cellError ? 'error.main' : undefined,
+                                fontWeight: cellError ? 600 : undefined,
+                              }}
+                            >
+                              {cellError ? (
+                                <Tooltip title={cellError.message}>
+                                  <span>{String(row[header] ?? '')}</span>
+                                </Tooltip>
+                              ) : (
+                                String(row[header] ?? '')
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -462,13 +715,19 @@ function DataImportTab() {
               gap: 2,
               justifyContent: isRTL ? 'flex-start' : 'flex-end',
               flexWrap: 'wrap',
+              alignItems: 'center',
             }}
           >
+            {!allRequiredMapped && (
+              <Typography variant="body2" color="error.main">
+                {t('integrations.dataImport.mapping.cannotImport') || 'Cannot import: required fields not mapped'}
+              </Typography>
+            )}
             <Button variant="outlined" onClick={resetImport}>{t('common.cancel')}</Button>
             <Button
               variant="contained"
               onClick={handleImport}
-              disabled={importing || !mapping.customerName || !mapping.debtAmount}
+              disabled={importing || !allRequiredMapped}
               startIcon={importing ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
               sx={{ bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}
             >
