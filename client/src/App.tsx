@@ -9,6 +9,7 @@ import ContractsPage from './pages/ContractsPage';
 import ChatHistoryPage from './pages/ChatHistoryPage';
 import CustomerInsightPage from './pages/CustomerInsightPage';
 import IntegrationsPage from './pages/IntegrationsPage';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/chat-history" element={<ChatHistoryPage />} />
         <Route path="/customer-insight" element={<CustomerInsightPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </AppShell>
   );

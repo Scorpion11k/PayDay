@@ -1,0 +1,278 @@
+{
+  "common": {
+    "cancel": "ביטול",
+    "save": "שמירה",
+    "delete": "מחיקה",
+    "edit": "עריכה",
+    "add": "הוספה",
+    "create": "יצירה",
+    "update": "עדכון",
+    "close": "סגירה",
+    "refresh": "רענון",
+    "search": "חיפוש",
+    "filter": "סינון",
+    "actions": "פעולות",
+    "status": "סטטוס",
+    "loading": "טוען...",
+    "noResults": "לא נמצאו תוצאות",
+    "all": "הכל",
+    "yes": "כן",
+    "no": "לא",
+    "confirm": "אישור",
+    "back": "חזרה",
+    "next": "הבא",
+    "submit": "שליחה",
+    "send": "שלח",
+    "clear": "ניקוי",
+    "copy": "העתקה",
+    "copied": "הועתק!",
+    "email": "דוא\"ל",
+    "phone": "טלפון",
+    "name": "שם",
+    "date": "תאריך",
+    "amount": "סכום",
+    "total": "סה\"כ",
+    "result": "תוצאה",
+    "results": "תוצאות",
+    "showing": "מציג",
+    "of": "מתוך",
+    "rowsPerPage": "שורות בעמוד"
+  },
+  "nav": {
+    "home": "בית",
+    "customers": "לקוחות",
+    "activities": "פעילויות",
+    "dashboards": "לוחות בקרה",
+    "flows": "תהליכים",
+    "contracts": "חוזים",
+    "chatHistory": "היסטוריית צ'אט",
+    "customerInsight": "תובנות לקוחות",
+    "integrations": "אינטגרציות",
+    "settings": "הגדרות",
+    "signOut": "התנתקות"
+  },
+  "app": {
+    "title": "מרכז בקרת AI",
+    "subtitle": "שליטה מלאה בפעולות הגבייה שלך",
+    "preview": "תצוגה מקדימה",
+    "systemActive": "כל המערכות פעילות"
+  },
+  "home": {
+    "welcome": "ברוכים הבאים ל-PayDay AI",
+    "subtitle": "העוזר החכם שלך לגביית חובות. הקלד פקודה או נסה אחת מהדוגמאות למטה.",
+    "quickActions": {
+      "buildFlow": "בניית הדגמת תהליך גבייה",
+      "buildFlowDesc": "יצירת תהליכי גבייה אוטומטיים",
+      "sendReminder": "שליחת תזכורת תשלום לפלח לקוחות מעל 50K",
+      "sendReminderDesc": "מיקוד בפלחי לקוחות בעלי ערך גבוה",
+      "buildDashboard": "בניית לוח בקרה מותאם",
+      "buildDashboardDesc": "יצירת לוחות ניתוח מותאמים אישית",
+      "sendOverdue": "שליחת CSV של חובות באיחור להנהלה",
+      "sendOverdueDesc": "ייצוא ושיתוף דוחות איחורים"
+    }
+  },
+  "customers": {
+    "title": "לקוחות",
+    "addCustomer": "הוספת לקוח",
+    "editCustomer": "עריכת לקוח",
+    "deleteCustomer": "מחיקת לקוח",
+    "newCustomer": "הוספת לקוח חדש",
+    "searchPlaceholder": "חיפוש לפי שם, דוא\"ל, טלפון...",
+    "noCustomers": "לא נמצאו לקוחות",
+    "adjustFilters": "נסה להתאים את החיפוש או הסינון",
+    "loadingCustomers": "טוען לקוחות...",
+    "columns": {
+      "name": "שם",
+      "contact": "פרטי קשר",
+      "externalRef": "מזהה חיצוני",
+      "status": "סטטוס",
+      "overdue": "באיחור",
+      "totalDebt": "סה\"כ חוב",
+      "payments": "תשלומים",
+      "created": "נוצר"
+    },
+    "status": {
+      "active": "פעיל",
+      "doNotContact": "אל תיצור קשר",
+      "blocked": "חסום"
+    },
+    "noContactInfo": "אין פרטי קשר",
+    "noEmailAddress": "אין כתובת דוא\"ל",
+    "noPhoneNumber": "אין מספר טלפון"
+  },
+  "forms": {
+    "fullName": "שם מלא",
+    "email": "דוא\"ל",
+    "phone": "טלפון",
+    "externalRef": "מזהה חיצוני",
+    "externalRefHelper": "מזהה אופציונלי ממערכות חיצוניות",
+    "status": "סטטוס"
+  },
+  "validation": {
+    "fullNameRequired": "שם מלא הוא שדה חובה",
+    "invalidEmail": "פורמט דוא\"ל לא תקין"
+  },
+  "dialogs": {
+    "deleteCustomer": {
+      "title": "מחיקת לקוח",
+      "message": "האם אתה בטוח שברצונך למחוק את",
+      "warning": "פעולה זו לא ניתנת לביטול ותמחק גם את כל החובות, התשלומים וההתראות המשויכים."
+    },
+    "sendReminder": {
+      "title": "שליחת תזכורת {{type}}",
+      "message": "שלח תזכורת תשלום אל",
+      "preview": "תצוגה מקדימה של התזכורת:",
+      "previewMessage": "שלום {{name}},\n\nזוהי תזכורת ידידותית בנוגע לחוב הקיים שלך. אנא בצע את התשלום בהקדם האפשרי כדי למנוע חיובים נוספים.\n\nאם כבר ביצעת את התשלום, אנא התעלם מהודעה זו.\n\nבברכה,\nצוות גביית PayDay AI",
+      "sendingTo": "שולח אל:"
+    }
+  },
+  "notifications": {
+    "customerCreated": "הלקוח נוצר בהצלחה!",
+    "customerUpdated": "הלקוח עודכן בהצלחה!",
+    "customerDeleted": "הלקוח נמחק בהצלחה!",
+    "reminderSent": "תזכורת {{type}} נשלחה ל-{{name}}!",
+    "error": {
+      "createCustomer": "יצירת הלקוח נכשלה",
+      "updateCustomer": "עדכון הלקוח נכשל",
+      "deleteCustomer": "מחיקת הלקוח נכשלה",
+      "sendNotification": "שליחת ההתראה נכשלה"
+    }
+  },
+  "actions": {
+    "editCustomer": "עריכת לקוח",
+    "sendEmailReminder": "שליחת תזכורת בדוא\"ל",
+    "sendWhatsAppReminder": "שליחת תזכורת ב-WhatsApp",
+    "deleting": "מוחק...",
+    "creating": "יוצר...",
+    "updating": "מעדכן...",
+    "sending": "שולח...",
+    "createCustomer": "יצירת לקוח",
+    "updateCustomer": "עדכון לקוח",
+    "sendEmail": "שליחת דוא\"ל",
+    "sendWhatsApp": "שליחת WhatsApp"
+  },
+  "chat": {
+    "placeholder": "שאל כל דבר על הנתונים שלך... (לדוגמה, 'הצג את כל הלקוחות באיחור של 30 יום')",
+    "thinking": "PayDay AI חושב...",
+    "tryAsking": "נסה לשאול:",
+    "openAssistant": "פתח עוזר AI",
+    "minimizeChat": "מזער צ'אט",
+    "clearChat": "נקה צ'אט",
+    "pressEnter": "לחץ Enter לשליחה",
+    "shiftEnter": "Shift + Enter לשורה חדשה",
+    "poweredBy": "מופעל על ידי Google Gemini AI",
+    "error": "מצטער, נתקלתי בשגיאה בעיבוד השאילתה שלך.",
+    "copyJson": "העתק JSON",
+    "noResultsFound": "לא נמצאו תוצאות"
+  },
+  "pages": {
+    "activities": {
+      "title": "פעילויות",
+      "description": "מעקב פעילויות והיסטוריה יוצגו כאן.",
+      "subtitle": "מעקב אחר כל פעילויות הגבייה והתקשורת."
+    },
+    "dashboards": {
+      "title": "לוחות בקרה",
+      "description": "לוחות ניתוח יוצגו כאן.",
+      "subtitle": "צפייה וניתוח מדדי ביצועי גבייה."
+    },
+    "flows": {
+      "title": "תהליכים",
+      "description": "בונה אוטומציית תהליכים יוצג כאן.",
+      "subtitle": "יצירה וניהול תהליכי גבייה אוטומטיים."
+    },
+    "contracts": {
+      "title": "חוזים",
+      "description": "ניהול חוזים יוצג כאן.",
+      "subtitle": "ניהול הסכמי תשלום וחוזי הסדר."
+    },
+    "chatHistory": {
+      "title": "היסטוריית צ'אט",
+      "description": "היסטוריית שיחות תוצג כאן.",
+      "subtitle": "סקירת אינטראקציות ושאילתות AI קודמות."
+    },
+    "customerInsight": {
+      "title": "תובנות לקוחות",
+      "description": "ניתוח ותובנות לקוחות יוצגו כאן.",
+      "subtitle": "צלילה עמוקה להתנהגות לקוחות ודפוסי תשלום."
+    }
+  },
+  "integrations": {
+    "title": "אינטגרציות",
+    "subtitle": "חבר את PayDay AI למערכות CRM, ERP, הנהלת חשבונות ומערכות מותאמות אישית",
+    "addIntegration": "הוסף אינטגרציה",
+    "tabs": {
+      "connectedApps": "אפליקציות מחוברות",
+      "dataImport": "ייבוא נתונים",
+      "api": "API",
+      "webhooks": "Webhooks",
+      "marketplace": "חנות אינטגרציות",
+      "custom": "מותאם אישית"
+    },
+    "lastSync": "סנכרון אחרון",
+    "connected": "מחובר",
+    "disconnected": "מנותק",
+    "reconnect": "התחבר מחדש",
+    "emptyState": {
+      "noConfig": "לא הוגדרו {{tabName}} עדיין.",
+      "clickAdd": "לחץ על \"+ הוסף אינטגרציה\" כדי להתחיל."
+    },
+    "dataImport": {
+      "upload": {
+        "title": "העלה קובץ Excel",
+        "description": "העלה קובץ Excel (.xlsx, .xls) או CSV המכיל נתוני לקוחות וחובות",
+        "selectFile": "בחר קובץ"
+      },
+      "mapping": {
+        "title": "מיפוי עמודות",
+        "fileInfo": "קובץ: {{fileName}} (תצוגה מקדימה של {{rowCount}} שורות)",
+        "columnMapping": "מיפוי עמודות",
+        "notMapped": "-- לא ממופה --"
+      },
+      "fields": {
+        "customerName": "שם לקוח",
+        "email": "דוא\"ל",
+        "phone": "טלפון",
+        "externalRef": "מזהה חיצוני",
+        "debtAmount": "סכום חוב",
+        "currency": "מטבע",
+        "dueDate": "תאריך פירעון",
+        "installmentAmount": "סכום תשלום"
+      },
+      "preview": {
+        "title": "תצוגה מקדימה של הנתונים"
+      },
+      "importing": "מייבא...",
+      "importData": "ייבא נתונים",
+      "importAnother": "ייבא קובץ נוסף",
+      "success": {
+        "title": "הייבוא הצליח!",
+        "customers": "לקוחות",
+        "debts": "חובות",
+        "installments": "תשלומים"
+      },
+      "errors": {
+        "emptyFile": "קובץ ה-Excel ריק",
+        "noDataRows": "אין שורות נתונים בקובץ ה-Excel",
+        "parseFailed": "ניתוח הקובץ נכשל",
+        "importFailed": "הייבוא נכשל",
+        "serverConnection": "החיבור לשרת נכשל"
+      }
+    }
+  },
+  "settings": {
+    "title": "הגדרות",
+    "description": "נהל את העדפות האפליקציה שלך",
+    "language": {
+      "title": "שפה",
+      "description": "בחר את השפה המועדפת עליך לממשק",
+      "english": "English (אנגלית)",
+      "hebrew": "עברית"
+    },
+    "appearance": {
+      "title": "מראה",
+      "description": "התאם את המראה והתחושה של האפליקציה"
+    }
+  }
+}
+

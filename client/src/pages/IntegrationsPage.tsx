@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../context/LanguageContext';
 import {
   Box,
   Typography,
@@ -72,6 +74,8 @@ const connectedApps: Integration[] = [
 
 // Integration Card Component
 function IntegrationCard({ integration }: { integration: Integration }) {
+  const { t } = useTranslation();
+  
   return (
     <Card variant="outlined" sx={{ height: '100%', borderRadius: 2, '&:hover': { borderColor: 'primary.main', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' } }}>
       <CardContent sx={{ p: 2.5 }}>
@@ -82,11 +86,13 @@ function IntegrationCard({ integration }: { integration: Integration }) {
             </Box>
             <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '0.95rem' }}>{integration.name}</Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>Last sync: {integration.lastSync}</Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                {t('integrations.lastSync')}: {integration.lastSync}
+              </Typography>
             </Box>
           </Box>
           <Chip
-            label={integration.connected ? 'Connected' : 'Disconnected'}
+            label={integration.connected ? t('integrations.connected') : t('integrations.disconnected')}
             size="small"
             sx={{
               bgcolor: integration.connected ? '#e8f5e9' : '#ffebee',
@@ -97,8 +103,12 @@ function IntegrationCard({ integration }: { integration: Integration }) {
           />
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" size="small" startIcon={<ReconnectIcon sx={{ fontSize: 16 }} />} sx={{ flex: 1, textTransform: 'none', fontSize: '0.8rem', py: 0.75, borderColor: 'divider', color: 'text.secondary' }}>Reconnect</Button>
-          <Button variant="outlined" size="small" startIcon={<EditIcon sx={{ fontSize: 16 }} />} sx={{ flex: 1, textTransform: 'none', fontSize: '0.8rem', py: 0.75, borderColor: 'divider', color: 'text.secondary' }}>Edit</Button>
+          <Button variant="outlined" size="small" startIcon={<ReconnectIcon sx={{ fontSize: 16 }} />} sx={{ flex: 1, textTransform: 'none', fontSize: '0.8rem', py: 0.75, borderColor: 'divider', color: 'text.secondary' }}>
+            {t('integrations.reconnect')}
+          </Button>
+          <Button variant="outlined" size="small" startIcon={<EditIcon sx={{ fontSize: 16 }} />} sx={{ flex: 1, textTransform: 'none', fontSize: '0.8rem', py: 0.75, borderColor: 'divider', color: 'text.secondary' }}>
+            {t('common.edit')}
+          </Button>
           <IconButton size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}><DeleteIcon sx={{ fontSize: 18 }} /></IconButton>
         </Box>
       </CardContent>
@@ -108,28 +118,36 @@ function IntegrationCard({ integration }: { integration: Integration }) {
 
 // Empty state for tabs without content
 function EmptyTabContent({ tabName }: { tabName: string }) {
+  const { t } = useTranslation();
+  
   return (
     <Box sx={{ textAlign: 'center', py: 8, px: 4, bgcolor: '#f8fafc', borderRadius: 2, border: '1px dashed', borderColor: 'divider' }}>
-      <Typography color="text.secondary" sx={{ mb: 1 }}>No {tabName.toLowerCase()} configured yet.</Typography>
-      <Typography variant="body2" color="text.secondary">Click "+ Add Integration" to get started.</Typography>
+      <Typography color="text.secondary" sx={{ mb: 1 }}>
+        {t('integrations.emptyState.noConfig', { tabName: tabName.toLowerCase() })}
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        {t('integrations.emptyState.clickAdd')}
+      </Typography>
     </Box>
   );
 }
 
 // Column mapping fields
 const MAPPING_FIELDS = [
-  { key: 'customerName', label: 'Customer Name', required: true },
-  { key: 'customerEmail', label: 'Email', required: false },
-  { key: 'customerPhone', label: 'Phone', required: false },
-  { key: 'externalRef', label: 'External Reference', required: false },
-  { key: 'debtAmount', label: 'Debt Amount', required: true },
-  { key: 'currency', label: 'Currency', required: false },
-  { key: 'dueDate', label: 'Due Date', required: false },
-  { key: 'installmentAmount', label: 'Installment Amount', required: false },
+  { key: 'customerName', labelKey: 'integrations.dataImport.fields.customerName', required: true },
+  { key: 'customerEmail', labelKey: 'integrations.dataImport.fields.email', required: false },
+  { key: 'customerPhone', labelKey: 'integrations.dataImport.fields.phone', required: false },
+  { key: 'externalRef', labelKey: 'integrations.dataImport.fields.externalRef', required: false },
+  { key: 'debtAmount', labelKey: 'integrations.dataImport.fields.debtAmount', required: true },
+  { key: 'currency', labelKey: 'integrations.dataImport.fields.currency', required: false },
+  { key: 'dueDate', labelKey: 'integrations.dataImport.fields.dueDate', required: false },
+  { key: 'installmentAmount', labelKey: 'integrations.dataImport.fields.installmentAmount', required: false },
 ];
 
 // Data Import Component
 function DataImportTab() {
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [file, setFile] = useState<File | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [sampleRows, setSampleRows] = useState<Record<string, unknown>[]>([]);
@@ -173,6 +191,7 @@ function DataImportTab() {
   };
 
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    debugger;
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
 
@@ -187,7 +206,7 @@ function DataImportTab() {
       const worksheet = workbook.worksheets[0];
 
       if (!worksheet || worksheet.rowCount === 0) {
-        setImportResult({ success: false, message: 'Excel file is empty' });
+        setImportResult({ success: false, message: t('integrations.dataImport.errors.emptyFile') });
         return;
       }
 
@@ -228,7 +247,7 @@ function DataImportTab() {
       }
 
       if (jsonData.length === 0) {
-        setImportResult({ success: false, message: 'Excel file has no data rows' });
+        setImportResult({ success: false, message: t('integrations.dataImport.errors.noDataRows') });
         return;
       }
 
@@ -261,9 +280,9 @@ function DataImportTab() {
       setMapping(autoMapping);
       setStep('mapping');
     } catch (error) {
-      setImportResult({ success: false, message: 'Failed to parse file: ' + (error instanceof Error ? error.message : 'Unknown error') });
+      setImportResult({ success: false, message: t('integrations.dataImport.errors.parseFailed') + ': ' + (error instanceof Error ? error.message : 'Unknown error') });
     }
-  }, []);
+  }, [t]);
 
   const handleMappingChange = (field: string, value: string) => {
     setMapping(prev => ({ ...prev, [field]: value }));
@@ -297,11 +316,11 @@ function DataImportTab() {
       } else {
         setImportResult({
           success: false,
-          message: result.data?.errors?.join(', ') || result.message || 'Import failed',
+          message: result.data?.errors?.join(', ') || result.message || t('integrations.dataImport.errors.importFailed'),
         });
       }
     } catch (error) {
-      setImportResult({ success: false, message: 'Failed to connect to server: ' + (error instanceof Error ? error.message : 'Unknown error') });
+      setImportResult({ success: false, message: t('integrations.dataImport.errors.serverConnection') + ': ' + (error instanceof Error ? error.message : 'Unknown error') });
     } finally {
       setImporting(false);
     }
@@ -322,12 +341,12 @@ function DataImportTab() {
       {step === 'upload' && (
         <Paper sx={{ p: 4, textAlign: 'center', bgcolor: '#f8fafc', border: '2px dashed', borderColor: 'divider', borderRadius: 2 }}>
           <UploadIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" sx={{ mb: 1 }}>Upload Excel File</Typography>
+          <Typography variant="h6" sx={{ mb: 1 }}>{t('integrations.dataImport.upload.title')}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Upload an Excel file (.xlsx, .xls) or CSV containing customer and debt data
+            {t('integrations.dataImport.upload.description')}
           </Typography>
           <Button variant="contained" component="label" startIcon={<UploadIcon />} sx={{ bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}>
-            Select File
+            {t('integrations.dataImport.upload.selectFile')}
             <input type="file" hidden accept=".xlsx,.xls,.csv" onChange={handleFileSelect} />
           </Button>
           {importResult && !importResult.success && (
@@ -341,27 +360,27 @@ function DataImportTab() {
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Box>
-              <Typography variant="h6">Map Columns</Typography>
+              <Typography variant="h6">{t('integrations.dataImport.mapping.title')}</Typography>
               <Typography variant="body2" color="text.secondary">
-                File: {file?.name} ({sampleRows.length} rows preview)
+                {t('integrations.dataImport.mapping.fileInfo', { fileName: file?.name, rowCount: sampleRows.length })}
               </Typography>
             </Box>
-            <Button variant="outlined" onClick={resetImport}>Cancel</Button>
+            <Button variant="outlined" onClick={resetImport}>{t('common.cancel')}</Button>
           </Box>
 
           {/* Column Mapping */}
           <Paper sx={{ p: 3, mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>Column Mapping</Typography>
+            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>{t('integrations.dataImport.mapping.columnMapping')}</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
               {MAPPING_FIELDS.map(field => (
                 <FormControl key={field.key} size="small" fullWidth>
-                  <InputLabel>{field.label}{field.required ? ' *' : ''}</InputLabel>
+                  <InputLabel>{t(field.labelKey)}{field.required ? ' *' : ''}</InputLabel>
                   <Select
                     value={mapping[field.key] || ''}
                     onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                    label={field.label + (field.required ? ' *' : '')}
+                    label={t(field.labelKey) + (field.required ? ' *' : '')}
                   >
-                    <MenuItem value="">-- Not Mapped --</MenuItem>
+                    <MenuItem value="">{t('integrations.dataImport.mapping.notMapped')}</MenuItem>
                     {headers.map(header => (
                       <MenuItem key={header} value={header}>{header}</MenuItem>
                     ))}
@@ -374,7 +393,7 @@ function DataImportTab() {
           {/* Data Preview */}
           <Paper sx={{ mb: 3 }}>
             <Typography variant="subtitle2" sx={{ p: 2, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-              Data Preview
+              {t('integrations.dataImport.preview.title')}
             </Typography>
             <TableContainer sx={{ maxHeight: 300 }}>
               <Table size="small" stickyHeader>
@@ -399,8 +418,15 @@ function DataImportTab() {
           </Paper>
 
           {/* Import Button */}
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-            <Button variant="outlined" onClick={resetImport}>Cancel</Button>
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 2,
+              justifyContent: isRTL ? 'flex-start' : 'flex-end',
+              flexWrap: 'wrap',
+            }}
+          >
+            <Button variant="outlined" onClick={resetImport}>{t('common.cancel')}</Button>
             <Button
               variant="contained"
               onClick={handleImport}
@@ -408,7 +434,7 @@ function DataImportTab() {
               startIcon={importing ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
               sx={{ bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}
             >
-              {importing ? 'Importing...' : 'Import Data'}
+              {importing ? t('integrations.dataImport.importing') : t('integrations.dataImport.importData')}
             </Button>
           </Box>
 
@@ -426,28 +452,28 @@ function DataImportTab() {
       {step === 'complete' && importResult?.success && (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <SuccessIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-          <Typography variant="h5" sx={{ mb: 1 }}>Import Successful!</Typography>
+          <Typography variant="h5" sx={{ mb: 1 }}>{t('integrations.dataImport.success.title')}</Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>{importResult.message}</Typography>
           
           {importResult.details && (
             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4, mb: 4 }}>
               <Box>
                 <Typography variant="h4" color="primary">{importResult.details.customers}</Typography>
-                <Typography variant="body2" color="text.secondary">Customers</Typography>
+                <Typography variant="body2" color="text.secondary">{t('integrations.dataImport.success.customers')}</Typography>
               </Box>
               <Box>
                 <Typography variant="h4" color="primary">{importResult.details.debts}</Typography>
-                <Typography variant="body2" color="text.secondary">Debts</Typography>
+                <Typography variant="body2" color="text.secondary">{t('integrations.dataImport.success.debts')}</Typography>
               </Box>
               <Box>
                 <Typography variant="h4" color="primary">{importResult.details.installments}</Typography>
-                <Typography variant="body2" color="text.secondary">Installments</Typography>
+                <Typography variant="body2" color="text.secondary">{t('integrations.dataImport.success.installments')}</Typography>
               </Box>
             </Box>
           )}
 
           <Button variant="contained" onClick={resetImport} sx={{ bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}>
-            Import Another File
+            {t('integrations.dataImport.importAnother')}
           </Button>
         </Paper>
       )}
@@ -456,13 +482,21 @@ function DataImportTab() {
 }
 
 export default function IntegrationsPage() {
+  const { t } = useTranslation();
   const [tabValue, setTabValue] = useState(0);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
-  const tabs = ['Connected Apps', 'Data Import', 'API', 'Webhooks', 'Marketplace', 'Custom'];
+  const tabs = [
+    t('integrations.tabs.connectedApps'),
+    t('integrations.tabs.dataImport'),
+    t('integrations.tabs.api'),
+    t('integrations.tabs.webhooks'),
+    t('integrations.tabs.marketplace'),
+    t('integrations.tabs.custom'),
+  ];
 
   return (
     <Box sx={{ p: 3 }}>
@@ -471,14 +505,14 @@ export default function IntegrationsPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IntegrationsIcon sx={{ fontSize: 28, color: 'primary.main' }} />
           <Box>
-            <Typography variant="h2" sx={{ fontSize: '1.5rem', fontWeight: 600 }}>Integrations</Typography>
+            <Typography variant="h2" sx={{ fontSize: '1.5rem', fontWeight: 600 }}>{t('integrations.title')}</Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-              Connect PayDay AI with your CRM, ERP, accounting platforms, and custom systems
+              {t('integrations.subtitle')}
             </Typography>
           </Box>
         </Box>
         <Button variant="contained" startIcon={<AddIcon />} sx={{ textTransform: 'none', bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}>
-          Add Integration
+          {t('integrations.addIntegration')}
         </Button>
       </Box>
 
@@ -509,10 +543,10 @@ export default function IntegrationsPage() {
         <DataImportTab />
       </TabPanel>
 
-      <TabPanel value={tabValue} index={2}><EmptyTabContent tabName="API Connections" /></TabPanel>
-      <TabPanel value={tabValue} index={3}><EmptyTabContent tabName="Webhooks" /></TabPanel>
-      <TabPanel value={tabValue} index={4}><EmptyTabContent tabName="Marketplace Apps" /></TabPanel>
-      <TabPanel value={tabValue} index={5}><EmptyTabContent tabName="Custom Integrations" /></TabPanel>
+      <TabPanel value={tabValue} index={2}><EmptyTabContent tabName={t('integrations.tabs.api')} /></TabPanel>
+      <TabPanel value={tabValue} index={3}><EmptyTabContent tabName={t('integrations.tabs.webhooks')} /></TabPanel>
+      <TabPanel value={tabValue} index={4}><EmptyTabContent tabName={t('integrations.tabs.marketplace')} /></TabPanel>
+      <TabPanel value={tabValue} index={5}><EmptyTabContent tabName={t('integrations.tabs.custom')} /></TabPanel>
     </Box>
   );
 }

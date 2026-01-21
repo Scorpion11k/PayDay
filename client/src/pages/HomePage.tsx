@@ -1,25 +1,28 @@
 import { Box, Typography, Card, CardActionArea, CardContent } from '@mui/material';
-
-const quickActions = [
-  {
-    title: 'Build a Collection Flow Demo',
-    description: 'Create automated collection workflows',
-  },
-  {
-    title: 'Send Payment Reminder by Segment for Over 50K customers',
-    description: 'Target high-value customer segments',
-  },
-  {
-    title: 'Build Dashboard on the Fly',
-    description: 'Generate custom analytics dashboards',
-  },
-  {
-    title: 'Send Overdue CSV to Management',
-    description: 'Export and share overdue reports',
-  },
-];
+import { useTranslation } from 'react-i18next';
 
 export default function HomePage() {
+  const { t } = useTranslation();
+
+  const quickActions = [
+    {
+      titleKey: 'home.quickActions.buildFlow',
+      descKey: 'home.quickActions.buildFlowDesc',
+    },
+    {
+      titleKey: 'home.quickActions.sendReminder',
+      descKey: 'home.quickActions.sendReminderDesc',
+    },
+    {
+      titleKey: 'home.quickActions.buildDashboard',
+      descKey: 'home.quickActions.buildDashboardDesc',
+    },
+    {
+      titleKey: 'home.quickActions.sendOverdue',
+      descKey: 'home.quickActions.sendOverdueDesc',
+    },
+  ];
+
   return (
     <Box
       sx={{
@@ -101,7 +104,7 @@ export default function HomePage() {
           textAlign: 'center',
         }}
       >
-        Welcome to PayDay AI
+        {t('home.welcome')}
       </Typography>
       <Typography
         variant="body1"
@@ -112,8 +115,7 @@ export default function HomePage() {
           maxWidth: 500,
         }}
       >
-        Your intelligent debt collection assistant. Type a command or try one of the
-        examples below.
+        {t('home.subtitle')}
       </Typography>
 
       {/* Quick Action Cards - 2x2 Grid using Flexbox */}
@@ -149,7 +151,7 @@ export default function HomePage() {
                       fontSize: '0.875rem',
                     }}
                   >
-                    {action.title}
+                    {t(action.titleKey)}
                   </Typography>
                 </CardContent>
               </CardActionArea>

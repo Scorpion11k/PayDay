@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Typography,
@@ -50,6 +51,7 @@ import {
   Edit as EditIcon,
   Warning as WarningIcon,
 } from '@mui/icons-material';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Customer {
   id: string;
@@ -103,16 +105,13 @@ const statusColors: Record<Customer['status'], 'success' | 'warning' | 'error'> 
   blocked: 'error',
 };
 
-const statusLabels: Record<Customer['status'], string> = {
-  active: 'Active',
-  do_not_contact: 'Do Not Contact',
-  blocked: 'Blocked',
-};
-
 type SortField = 'fullName' | 'email' | 'status' | 'createdAt' | 'totalDebtAmount' | 'isOverdue' | 'payments';
 type SortOrder = 'asc' | 'desc';
 
 export default function CustomersPage() {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +156,16 @@ export default function CustomersPage() {
   const [editFormData, setEditFormData] = useState<NewCustomerForm>(initialFormState);
   const [editFormErrors, setEditFormErrors] = useState<Partial<Record<keyof NewCustomerForm, string>>>({});
   const [updating, setUpdating] = useState(false);
+
+  // Status labels with translations
+  const getStatusLabel = (status: Customer['status']): string => {
+    const labels: Record<Customer['status'], string> = {
+      active: t('customers.status.active'),
+      do_not_contact: t('customers.status.doNotContact'),
+      blocked: t('customers.status.blocked'),
+    };
+    return labels[status];
+  };
 
   // Debounce search input
   useEffect(() => {
@@ -245,7 +254,7 @@ export default function CustomersPage() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -278,11 +287,11 @@ export default function CustomersPage() {
     const errors: Partial<Record<keyof NewCustomerForm, string>> = {};
 
     if (!formData.fullName.trim()) {
-      errors.fullName = 'Full name is required';
+      errors.fullName = t('validation.fullNameRequired');
     }
 
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Invalid email format';
+      errors.email = t('validation.invalidEmail');
     }
 
     setFormErrors(errors);
@@ -313,16 +322,16 @@ export default function CustomersPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to create customer');
+        throw new Error(data.message || t('notifications.error.createCustomer'));
       }
 
-      setSnackbar({ open: true, message: 'Customer created successfully!', severity: 'success' });
+      setSnackbar({ open: true, message: t('notifications.customerCreated'), severity: 'success' });
       handleCloseDialog();
       fetchCustomers();
     } catch (err) {
       setSnackbar({
         open: true,
-        message: err instanceof Error ? err.message : 'Failed to create customer',
+        message: err instanceof Error ? err.message : t('notifications.error.createCustomer'),
         severity: 'error',
       });
     } finally {
@@ -359,17 +368,17 @@ export default function CustomersPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.message || 'Failed to delete customer');
+        throw new Error(data.message || t('notifications.error.deleteCustomer'));
       }
 
-      setSnackbar({ open: true, message: 'Customer deleted successfully!', severity: 'success' });
+      setSnackbar({ open: true, message: t('notifications.customerDeleted'), severity: 'success' });
       setDeleteDialogOpen(false);
       setSelectedCustomer(null);
       fetchCustomers();
     } catch (err) {
       setSnackbar({
         open: true,
-        message: err instanceof Error ? err.message : 'Failed to delete customer',
+        message: err instanceof Error ? err.message : t('notifications.error.deleteCustomer'),
         severity: 'error',
       });
     } finally {
@@ -406,11 +415,11 @@ export default function CustomersPage() {
     const errors: Partial<Record<keyof NewCustomerForm, string>> = {};
 
     if (!editFormData.fullName.trim()) {
-      errors.fullName = 'Full name is required';
+      errors.fullName = t('validation.fullNameRequired');
     }
 
     if (editFormData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editFormData.email)) {
-      errors.email = 'Invalid email format';
+      errors.email = t('validation.invalidEmail');
     }
 
     setEditFormErrors(errors);
@@ -441,17 +450,17 @@ export default function CustomersPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to update customer');
+        throw new Error(data.message || t('notifications.error.updateCustomer'));
       }
 
-      setSnackbar({ open: true, message: 'Customer updated successfully!', severity: 'success' });
+      setSnackbar({ open: true, message: t('notifications.customerUpdated'), severity: 'success' });
       setEditDialogOpen(false);
       setSelectedCustomer(null);
       fetchCustomers();
     } catch (err) {
       setSnackbar({
         open: true,
-        message: err instanceof Error ? err.message : 'Failed to update customer',
+        message: err instanceof Error ? err.message : t('notifications.error.updateCustomer'),
         severity: 'error',
       });
     } finally {
@@ -486,13 +495,13 @@ export default function CustomersPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'Failed to send notification');
+        throw new Error(data.error || data.message || t('notifications.error.sendNotification'));
       }
 
-      const notificationTypeLabel = notificationType === 'email' ? 'Email' : 'WhatsApp';
+      const notificationTypeLabel = notificationType === 'email' ? t('common.email') : 'WhatsApp';
       setSnackbar({
         open: true,
-        message: `${notificationTypeLabel} reminder sent to ${selectedCustomer.fullName}!`,
+        message: t('notifications.reminderSent', { type: notificationTypeLabel, name: selectedCustomer.fullName }),
         severity: 'success',
       });
 
@@ -502,7 +511,7 @@ export default function CustomersPage() {
     } catch (err) {
       setSnackbar({
         open: true,
-        message: err instanceof Error ? err.message : 'Failed to send notification',
+        message: err instanceof Error ? err.message : t('notifications.error.sendNotification'),
         severity: 'error',
       });
     } finally {
@@ -521,17 +530,17 @@ export default function CustomersPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <CustomersIcon sx={{ fontSize: 28, color: 'primary.main' }} />
           <Typography variant="h2" sx={{ fontSize: '1.5rem', fontWeight: 600 }}>
-            Customers
+            {t('customers.title')}
           </Typography>
           {!loading && (
-            <Chip label={`${pagination.total} total`} size="small" sx={{ bgcolor: 'primary.light', color: 'white' }} />
+            <Chip label={`${pagination.total} ${t('common.total')}`} size="small" sx={{ bgcolor: 'primary.light', color: 'white' }} />
           )}
         </Box>
         <Stack direction="row" spacing={1}>
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenDialog} sx={{ textTransform: 'none' }}>
-            Add Customer
+            {t('customers.addCustomer')}
           </Button>
-          <Tooltip title="Refresh">
+          <Tooltip title={t('common.refresh')}>
             <IconButton onClick={fetchCustomers} disabled={loading}>
               <RefreshIcon />
             </IconButton>
@@ -543,7 +552,7 @@ export default function CustomersPage() {
       <Paper sx={{ p: 2, mb: 3 }}>
         <Stack direction="row" spacing={2} alignItems="center">
           <TextField
-            placeholder="Search by name, email, phone..."
+            placeholder={t('customers.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             size="small"
@@ -557,12 +566,12 @@ export default function CustomersPage() {
             }}
           />
           <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select value={statusFilter} label="Status" onChange={(e) => setStatusFilter(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="do_not_contact">Do Not Contact</MenuItem>
-              <MenuItem value="blocked">Blocked</MenuItem>
+            <InputLabel>{t('common.status')}</InputLabel>
+            <Select value={statusFilter} label={t('common.status')} onChange={(e) => setStatusFilter(e.target.value)}>
+              <MenuItem value="">{t('common.all')}</MenuItem>
+              <MenuItem value="active">{t('customers.status.active')}</MenuItem>
+              <MenuItem value="do_not_contact">{t('customers.status.doNotContact')}</MenuItem>
+              <MenuItem value="blocked">{t('customers.status.blocked')}</MenuItem>
             </Select>
           </FormControl>
         </Stack>
@@ -587,7 +596,7 @@ export default function CustomersPage() {
                     direction={sortBy === 'fullName' ? sortOrder : 'asc'}
                     onClick={() => handleSort('fullName')}
                   >
-                    Name
+                    {t('customers.columns.name')}
                   </TableSortLabel>
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>
@@ -596,17 +605,17 @@ export default function CustomersPage() {
                     direction={sortBy === 'email' ? sortOrder : 'asc'}
                     onClick={() => handleSort('email')}
                   >
-                    Contact
+                    {t('customers.columns.contact')}
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>External Ref</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.externalRef')}</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>
                   <TableSortLabel
                     active={sortBy === 'status'}
                     direction={sortBy === 'status' ? sortOrder : 'asc'}
                     onClick={() => handleSort('status')}
                   >
-                    Status
+                    {t('customers.columns.status')}
                   </TableSortLabel>
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600 }} align="center">
@@ -615,7 +624,7 @@ export default function CustomersPage() {
                     direction={sortBy === 'isOverdue' ? sortOrder : 'asc'}
                     onClick={() => handleSort('isOverdue')}
                   >
-                    Overdue
+                    {t('customers.columns.overdue')}
                   </TableSortLabel>
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600 }} align="right">
@@ -624,7 +633,7 @@ export default function CustomersPage() {
                     direction={sortBy === 'totalDebtAmount' ? sortOrder : 'asc'}
                     onClick={() => handleSort('totalDebtAmount')}
                   >
-                    Total Debt
+                    {t('customers.columns.totalDebt')}
                   </TableSortLabel>
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600 }} align="center">
@@ -633,7 +642,7 @@ export default function CustomersPage() {
                     direction={sortBy === 'payments' ? sortOrder : 'asc'}
                     onClick={() => handleSort('payments')}
                   >
-                    Payments
+                    {t('customers.columns.payments')}
                   </TableSortLabel>
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>
@@ -642,10 +651,10 @@ export default function CustomersPage() {
                     direction={sortBy === 'createdAt' ? sortOrder : 'asc'}
                     onClick={() => handleSort('createdAt')}
                   >
-                    Created
+                    {t('customers.columns.created')}
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="center">Actions</TableCell>
+                <TableCell sx={{ fontWeight: 600 }} align="center">{t('common.actions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -654,17 +663,17 @@ export default function CustomersPage() {
                   <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
                     <CircularProgress size={40} />
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                      Loading customers...
+                      {t('customers.loadingCustomers')}
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : customers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
-                    <Typography variant="body1" color="text.secondary">No customers found</Typography>
+                    <Typography variant="body1" color="text.secondary">{t('customers.noCustomers')}</Typography>
                     {(search || statusFilter) && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Try adjusting your search or filters
+                        {t('customers.adjustFilters')}
                       </Typography>
                     )}
                   </TableCell>
@@ -690,7 +699,7 @@ export default function CustomersPage() {
                           </Box>
                         )}
                         {!customer.email && !customer.phone && (
-                          <Typography variant="body2" color="text.disabled">No contact info</Typography>
+                          <Typography variant="body2" color="text.disabled">{t('customers.noContactInfo')}</Typography>
                         )}
                       </Stack>
                     </TableCell>
@@ -698,13 +707,13 @@ export default function CustomersPage() {
                       <Typography variant="body2" color="text.secondary">{customer.externalRef || '—'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip label={statusLabels[customer.status]} color={statusColors[customer.status]} size="small" variant="outlined" />
+                      <Chip label={getStatusLabel(customer.status)} color={statusColors[customer.status]} size="small" variant="outlined" />
                     </TableCell>
                     <TableCell align="center">
                       {customer.isOverdue ? (
                         <Chip
                           icon={<WarningIcon sx={{ fontSize: 16 }} />}
-                          label="Overdue"
+                          label={t('customers.columns.overdue')}
                           size="small"
                           sx={{
                             bgcolor: 'error.light',
@@ -724,7 +733,7 @@ export default function CustomersPage() {
                         color={customer.totalDebtAmount > 0 ? 'error.main' : 'text.secondary'}
                       >
                         {customer.totalDebtAmount > 0
-                          ? `₪${customer.totalDebtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          ? `₪${customer.totalDebtAmount.toLocaleString(language === 'he' ? 'he-IL' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : '₪0.00'}
                       </Typography>
                     </TableCell>
@@ -743,7 +752,7 @@ export default function CustomersPage() {
                       <Typography variant="body2" color="text.secondary">{formatDate(customer.createdAt)}</Typography>
                     </TableCell>
                     <TableCell align="center">
-                      <Tooltip title="Actions">
+                      <Tooltip title={t('common.actions')}>
                         <IconButton size="small" onClick={(e) => handleActionsClick(e, customer)}>
                           <MoreVertIcon />
                         </IconButton>
@@ -763,6 +772,7 @@ export default function CustomersPage() {
           rowsPerPage={pagination.limit}
           onRowsPerPageChange={handleChangeRowsPerPage}
           rowsPerPageOptions={[10, 20, 50, 100]}
+          labelRowsPerPage={t('common.rowsPerPage')}
         />
       </Paper>
 
@@ -778,7 +788,7 @@ export default function CustomersPage() {
           <ListItemIcon>
             <EditIcon fontSize="small" sx={{ color: '#1976d2' }} />
           </ListItemIcon>
-          <ListItemText primary="Edit Customer" />
+          <ListItemText primary={t('actions.editCustomer')} />
         </MenuItem>
         <Divider />
         <MenuItem
@@ -788,7 +798,7 @@ export default function CustomersPage() {
           <ListItemIcon>
             <EmailIcon fontSize="small" sx={{ color: '#1976d2' }} />
           </ListItemIcon>
-          <ListItemText primary="Send Email Reminder" secondary={!selectedCustomer?.email ? 'No email address' : undefined} />
+          <ListItemText primary={t('actions.sendEmailReminder')} secondary={!selectedCustomer?.email ? t('customers.noEmailAddress') : undefined} />
         </MenuItem>
         <MenuItem
           onClick={() => handleSendNotification('whatsapp')}
@@ -797,27 +807,27 @@ export default function CustomersPage() {
           <ListItemIcon>
             <WhatsAppIcon fontSize="small" sx={{ color: '#25D366' }} />
           </ListItemIcon>
-          <ListItemText primary="Send WhatsApp Reminder" secondary={!selectedCustomer?.phone ? 'No phone number' : undefined} />
+          <ListItemText primary={t('actions.sendWhatsAppReminder')} secondary={!selectedCustomer?.phone ? t('customers.noPhoneNumber') : undefined} />
         </MenuItem>
         <Divider />
         <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>
           <ListItemIcon>
             <DeleteIcon fontSize="small" color="error" />
           </ListItemIcon>
-          <ListItemText primary="Delete Customer" />
+          <ListItemText primary={t('customers.deleteCustomer')} />
         </MenuItem>
       </Menu>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Delete Customer</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>{t('dialogs.deleteCustomer.title')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to delete <strong>{selectedCustomer?.fullName}</strong>? This action cannot be undone and will also delete all associated debts, payments, and notifications.
+            {t('dialogs.deleteCustomer.message')} <strong>{selectedCustomer?.fullName}</strong>? {t('dialogs.deleteCustomer.warning')}
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)} color="inherit">{t('common.cancel')}</Button>
           <Button
             onClick={handleDeleteConfirm}
             variant="contained"
@@ -825,7 +835,7 @@ export default function CustomersPage() {
             disabled={deleting}
             startIcon={deleting ? <CircularProgress size={18} color="inherit" /> : <DeleteIcon />}
           >
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('actions.deleting') : t('common.delete')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -833,31 +843,27 @@ export default function CustomersPage() {
       {/* Send Notification Dialog */}
       <Dialog open={notificationDialogOpen} onClose={() => setNotificationDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 600 }}>
-          Send {notificationType === 'email' ? 'Email' : 'WhatsApp'} Reminder
+          {t('dialogs.sendReminder.title', { type: notificationType === 'email' ? t('common.email') : 'WhatsApp' })}
         </DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
-            Send a payment reminder to <strong>{selectedCustomer?.fullName}</strong>?
+            {t('dialogs.sendReminder.message')} <strong>{selectedCustomer?.fullName}</strong>?
           </DialogContentText>
           <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-            <Typography variant="subtitle2" gutterBottom>Reminder Preview:</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Dear {selectedCustomer?.fullName},<br /><br />
-              This is a friendly reminder about your outstanding debt. Please make your payment at your earliest convenience to avoid any additional fees.<br /><br />
-              If you have already made the payment, please disregard this message.<br /><br />
-              Best regards,<br />
-              PayDay AI Collection Team
+            <Typography variant="subtitle2" gutterBottom>{t('dialogs.sendReminder.preview')}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+              {t('dialogs.sendReminder.previewMessage', { name: selectedCustomer?.fullName })}
             </Typography>
           </Paper>
           <Box sx={{ mt: 2, p: 2, bgcolor: notificationType === 'email' ? '#e3f2fd' : '#e8f5e9', borderRadius: 1 }}>
             <Typography variant="body2">
-              <strong>Sending to:</strong>{' '}
-              {notificationType === 'email' ? selectedCustomer?.email : selectedCustomer?.phone}
+              <strong>{t('dialogs.sendReminder.sendingTo')}</strong>{' '}
+              <bdi>{notificationType === 'email' ? selectedCustomer?.email : selectedCustomer?.phone}</bdi>
             </Typography>
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setNotificationDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button onClick={() => setNotificationDialogOpen(false)} color="inherit">{t('common.cancel')}</Button>
           <Button
             onClick={handleSendNotificationConfirm}
             variant="contained"
@@ -868,7 +874,7 @@ export default function CustomersPage() {
               '&:hover': { bgcolor: notificationType === 'email' ? '#1565c0' : '#128C7E' },
             }}
           >
-            {sendingNotification ? 'Sending...' : `Send ${notificationType === 'email' ? 'Email' : 'WhatsApp'}`}
+            {sendingNotification ? t('actions.sending') : (notificationType === 'email' ? t('actions.sendEmail') : t('actions.sendWhatsApp'))}
           </Button>
         </DialogActions>
       </Dialog>
@@ -876,13 +882,13 @@ export default function CustomersPage() {
       {/* Add Customer Dialog */}
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="h6" fontWeight={600}>Add New Customer</Typography>
+          <Typography variant="h6" fontWeight={600}>{t('customers.newCustomer')}</Typography>
           <IconButton onClick={handleCloseDialog} size="small"><CloseIcon /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2.5} sx={{ pt: 1 }}>
             <TextField
-              label="Full Name"
+              label={t('forms.fullName')}
               value={formData.fullName}
               onChange={handleFormChange('fullName')}
               error={!!formErrors.fullName}
@@ -892,7 +898,7 @@ export default function CustomersPage() {
               autoFocus
             />
             <TextField
-              label="Email"
+              label={t('forms.email')}
               type="email"
               value={formData.email}
               onChange={handleFormChange('email')}
@@ -900,37 +906,37 @@ export default function CustomersPage() {
               helperText={formErrors.email}
               fullWidth
             />
-            <TextField label="Phone" value={formData.phone} onChange={handleFormChange('phone')} fullWidth />
+            <TextField label={t('forms.phone')} value={formData.phone} onChange={handleFormChange('phone')} fullWidth />
             <TextField
-              label="External Reference"
+              label={t('forms.externalRef')}
               value={formData.externalRef}
               onChange={handleFormChange('externalRef')}
               fullWidth
-              helperText="Optional identifier from external systems"
+              helperText={t('forms.externalRefHelper')}
             />
             <FormControl fullWidth>
-              <InputLabel>Status</InputLabel>
+              <InputLabel>{t('forms.status')}</InputLabel>
               <Select
                 value={formData.status}
-                label="Status"
+                label={t('forms.status')}
                 onChange={(e) => handleFormChange('status')({ target: { value: e.target.value } })}
               >
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="do_not_contact">Do Not Contact</MenuItem>
-                <MenuItem value="blocked">Blocked</MenuItem>
+                <MenuItem value="active">{t('customers.status.active')}</MenuItem>
+                <MenuItem value="do_not_contact">{t('customers.status.doNotContact')}</MenuItem>
+                <MenuItem value="blocked">{t('customers.status.blocked')}</MenuItem>
               </Select>
             </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleCloseDialog} color="inherit">Cancel</Button>
+          <Button onClick={handleCloseDialog} color="inherit">{t('common.cancel')}</Button>
           <Button
             onClick={handleSubmit}
             variant="contained"
             disabled={submitting}
             startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <AddIcon />}
           >
-            {submitting ? 'Creating...' : 'Create Customer'}
+            {submitting ? t('actions.creating') : t('actions.createCustomer')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -938,13 +944,13 @@ export default function CustomersPage() {
       {/* Edit Customer Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="h6" fontWeight={600}>Edit Customer</Typography>
+          <Typography variant="h6" fontWeight={600}>{t('customers.editCustomer')}</Typography>
           <IconButton onClick={() => setEditDialogOpen(false)} size="small"><CloseIcon /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2.5} sx={{ pt: 1 }}>
             <TextField
-              label="Full Name"
+              label={t('forms.fullName')}
               value={editFormData.fullName}
               onChange={handleEditFormChange('fullName')}
               error={!!editFormErrors.fullName}
@@ -954,7 +960,7 @@ export default function CustomersPage() {
               autoFocus
             />
             <TextField
-              label="Email"
+              label={t('forms.email')}
               type="email"
               value={editFormData.email}
               onChange={handleEditFormChange('email')}
@@ -962,37 +968,37 @@ export default function CustomersPage() {
               helperText={editFormErrors.email}
               fullWidth
             />
-            <TextField label="Phone" value={editFormData.phone} onChange={handleEditFormChange('phone')} fullWidth />
+            <TextField label={t('forms.phone')} value={editFormData.phone} onChange={handleEditFormChange('phone')} fullWidth />
             <TextField
-              label="External Reference"
+              label={t('forms.externalRef')}
               value={editFormData.externalRef}
               onChange={handleEditFormChange('externalRef')}
               fullWidth
-              helperText="Optional identifier from external systems"
+              helperText={t('forms.externalRefHelper')}
             />
             <FormControl fullWidth>
-              <InputLabel>Status</InputLabel>
+              <InputLabel>{t('forms.status')}</InputLabel>
               <Select
                 value={editFormData.status}
-                label="Status"
+                label={t('forms.status')}
                 onChange={(e) => handleEditFormChange('status')({ target: { value: e.target.value } })}
               >
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="do_not_contact">Do Not Contact</MenuItem>
-                <MenuItem value="blocked">Blocked</MenuItem>
+                <MenuItem value="active">{t('customers.status.active')}</MenuItem>
+                <MenuItem value="do_not_contact">{t('customers.status.doNotContact')}</MenuItem>
+                <MenuItem value="blocked">{t('customers.status.blocked')}</MenuItem>
               </Select>
             </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setEditDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button onClick={() => setEditDialogOpen(false)} color="inherit">{t('common.cancel')}</Button>
           <Button
             onClick={handleEditSubmit}
             variant="contained"
             disabled={updating}
             startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <EditIcon />}
           >
-            {updating ? 'Updating...' : 'Update Customer'}
+            {updating ? t('actions.updating') : t('actions.updateCustomer')}
           </Button>
         </DialogActions>
       </Dialog>

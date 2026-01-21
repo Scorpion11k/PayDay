@@ -48,3 +48,166 @@ body {
 ::selection {
   background-color: rgba(33, 150, 243, 0.2);
 }
+
+/* RTL Layout Adjustments */
+[dir="rtl"] {
+  /* Ensure correct text alignment */
+  text-align: right;
+}
+
+[dir="rtl"] body {
+  direction: rtl;
+}
+
+/* Fix for RTL input fields */
+[dir="rtl"] input,
+[dir="rtl"] textarea {
+  text-align: right;
+}
+
+/* Ensure technical terms and LTR content renders correctly in RTL context */
+[dir="rtl"] .ltr-content,
+[dir="rtl"] bdi {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Email addresses and URLs should always be LTR */
+[dir="rtl"] a[href^="mailto:"],
+[dir="rtl"] a[href^="http"],
+[dir="rtl"] a[href^="https"] {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Numbers and technical content */
+[dir="rtl"] .MuiTablePagination-displayedRows,
+[dir="rtl"] .MuiChip-label {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Fix table cell alignment in RTL */
+[dir="rtl"] .MuiTableCell-alignRight {
+  text-align: left;
+}
+
+[dir="rtl"] .MuiTableCell-alignLeft {
+  text-align: right;
+}
+
+/* Ensure icons in buttons maintain correct spacing */
+[dir="rtl"] .MuiButton-startIcon {
+  margin-left: 8px;
+  margin-right: -4px;
+}
+
+[dir="rtl"] .MuiButton-endIcon {
+  margin-right: 8px;
+  margin-left: -4px;
+}
+
+/* Fix list item icon spacing in RTL */
+[dir="rtl"] .MuiListItemIcon-root {
+  min-width: 36px;
+}
+
+/* Ensure proper alignment for input adornments */
+[dir="rtl"] .MuiInputAdornment-positionStart {
+  margin-left: 8px;
+  margin-right: 0;
+}
+
+[dir="rtl"] .MuiInputAdornment-positionEnd {
+  margin-right: 8px;
+  margin-left: 0;
+}
+
+/* Fix chip delete icon position */
+[dir="rtl"] .MuiChip-deleteIcon {
+  margin-left: -6px;
+  margin-right: 5px;
+}
+
+/* Ensure dialog actions are correctly aligned */
+[dir="rtl"] .MuiDialogActions-root {
+  flex-direction: row-reverse;
+}
+
+/* Fix breadcrumb separator direction */
+[dir="rtl"] .MuiBreadcrumbs-separator {
+  transform: scaleX(-1);
+}
+
+/* Ensure proper scrollbar position in RTL */
+[dir="rtl"] ::-webkit-scrollbar {
+  direction: rtl;
+}
+
+/* Fix for select dropdown arrow */
+[dir="rtl"] .MuiSelect-icon {
+  right: auto;
+  left: 7px;
+}
+
+/* Ensure step indicators work correctly in RTL */
+[dir="rtl"] .MuiStepConnector-line {
+  transform: scaleX(-1);
+}
+
+/* Fix menu item icon alignment */
+[dir="rtl"] .MuiMenuItem-root .MuiListItemIcon-root {
+  min-width: 36px;
+}
+
+/* Ensure tooltips position correctly */
+[dir="rtl"] .MuiTooltip-popper[data-popper-placement*="right"] {
+  transform-origin: left center;
+}
+
+[dir="rtl"] .MuiTooltip-popper[data-popper-placement*="left"] {
+  transform-origin: right center;
+}
+
+/* Fix for drawer positioning - handled by component but adding fallback */
+[dir="rtl"] .MuiDrawer-paperAnchorLeft {
+  left: auto;
+  right: 0;
+}
+
+/* Ensure numeric inputs maintain LTR for better UX */
+[dir="rtl"] input[type="number"],
+[dir="rtl"] input[type="tel"],
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="url"] {
+  direction: ltr;
+  text-align: right;
+}
+
+/* Fix table sort label icon position */
+[dir="rtl"] .MuiTableSortLabel-icon {
+  margin-left: 0;
+  margin-right: 4px;
+}
+
+/* Ensure proper spacing for form helper text */
+[dir="rtl"] .MuiFormHelperText-root {
+  text-align: right;
+}
+
+/* Fix for alert icon position */
+[dir="rtl"] .MuiAlert-icon {
+  margin-left: 12px;
+  margin-right: 0;
+}
+
+/* Ensure snackbar positions correctly */
+[dir="rtl"] .MuiSnackbar-anchorOriginBottomLeft {
+  left: auto;
+  right: 24px;
+}
+
+[dir="rtl"] .MuiSnackbar-anchorOriginBottomRight {
+  right: auto;
+  left: 24px;
+}

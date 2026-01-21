@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   TextField,
@@ -98,6 +99,7 @@ function getDisplayColumns(data: Record<string, unknown>[]): string[] {
 
 // Results display component
 function ResultsDisplay({ results, resultCount }: { results: unknown; resultCount: number }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -132,9 +134,9 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
             }}
           >
             <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-              Result
+              {t('common.result')}
             </Typography>
-            <Tooltip title={copied ? 'Copied!' : 'Copy JSON'}>
+            <Tooltip title={copied ? t('common.copied') : t('chat.copyJson')}>
               <IconButton size="small" onClick={handleCopy}>
                 {copied ? <CheckIcon fontSize="small" /> : <CopyIcon fontSize="small" />}
               </IconButton>
@@ -173,7 +175,7 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
             }}
           >
             <Typography variant="body2" color="text.secondary">
-              No results found
+              {t('chat.noResultsFound')}
             </Typography>
           </Paper>
         </Box>
@@ -207,11 +209,11 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                {resultCount} {resultCount === 1 ? 'Result' : 'Results'}
+                {resultCount} {resultCount === 1 ? t('common.result') : t('common.results')}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Tooltip title={copied ? 'Copied!' : 'Copy JSON'}>
+              <Tooltip title={copied ? t('common.copied') : t('chat.copyJson')}>
                 <IconButton
                   size="small"
                   onClick={(e) => {
@@ -270,7 +272,7 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
             {results.length > 50 && (
               <Box sx={{ p: 1, textAlign: 'center', borderTop: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary">
-                  Showing 50 of {results.length} results
+                  {t('common.showing')} 50 {t('common.of')} {results.length} {t('common.results')}
                 </Typography>
               </Box>
             )}
@@ -311,6 +313,7 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
 
 export default function ChatPanel() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -382,7 +385,7 @@ export default function ChatPanel() {
     } catch (error) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: 'Sorry, I encountered an error processing your query.',
+        content: t('chat.error'),
         role: 'assistant',
         timestamp: new Date(),
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -411,11 +414,11 @@ export default function ChatPanel() {
         sx={{
           position: 'fixed',
           bottom: 16,
-          right: 16,
+          insetInlineEnd: 16,
           zIndex: 1000,
         }}
       >
-        <Tooltip title="Open AI Assistant">
+        <Tooltip title={t('chat.openAssistant')}>
           <IconButton
             onClick={() => setIsMinimized(false)}
             sx={{
@@ -441,8 +444,8 @@ export default function ChatPanel() {
       sx={{
         position: 'fixed',
         bottom: 0,
-        left: isMobile ? 0 : DRAWER_WIDTH,
-        right: 0,
+        insetInlineStart: isMobile ? 0 : DRAWER_WIDTH,
+        insetInlineEnd: 0,
         bgcolor: 'background.default',
         borderTop: '1px solid',
         borderColor: 'divider',
@@ -454,12 +457,12 @@ export default function ChatPanel() {
         sx={{
           position: 'absolute',
           top: -40,
-          right: 16,
+          insetInlineEnd: 16,
           display: 'flex',
           gap: 0.5,
         }}
       >
-        <Tooltip title="Minimize chat">
+        <Tooltip title={t('chat.minimizeChat')}>
           <IconButton
             size="small"
             onClick={() => setIsMinimized(true)}
@@ -477,7 +480,7 @@ export default function ChatPanel() {
           </IconButton>
         </Tooltip>
         {messages.length > 0 && (
-          <Tooltip title="Clear chat">
+          <Tooltip title={t('chat.clearChat')}>
             <IconButton
               size="small"
               onClick={() => {
@@ -524,7 +527,7 @@ export default function ChatPanel() {
                 alignItems: message.role === 'user' ? 'flex-end' : 'flex-start',
               }}
             >
-              <Paper
+                <Paper
                 elevation={0}
                 sx={{
                   px: 2,
@@ -533,8 +536,10 @@ export default function ChatPanel() {
                   width: message.role === 'assistant' && message.data ? '100%' : 'auto',
                   bgcolor: message.role === 'user' ? '#1e3a5f' : '#f0f4f8',
                   color: message.role === 'user' ? '#fff' : 'text.primary',
-                  borderRadius:
-                    message.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  borderStartStartRadius: 16,
+                  borderStartEndRadius: 16,
+                  borderEndStartRadius: message.role === 'user' ? 16 : 4,
+                  borderEndEndRadius: message.role === 'user' ? 4 : 16,
                 }}
               >
                 {message.role === 'assistant' && (
@@ -572,7 +577,7 @@ export default function ChatPanel() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <CircularProgress size={16} sx={{ color: 'primary.main' }} />
               <Typography variant="body2" color="text.secondary">
-                PayDay AI is thinking...
+                {t('chat.thinking')}
               </Typography>
             </Box>
           )}
@@ -593,7 +598,7 @@ export default function ChatPanel() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
             <SparkleIcon sx={{ fontSize: 18, color: 'primary.main' }} />
             <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-              Try asking:
+              {t('chat.tryAsking')}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -648,7 +653,7 @@ export default function ChatPanel() {
             fullWidth
             multiline
             maxRows={4}
-            placeholder="Ask anything about your data... (e.g., 'Show all customers overdue by 30 days')"
+            placeholder={t('chat.placeholder')}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -696,7 +701,7 @@ export default function ChatPanel() {
           </IconButton>
         </Box>
         <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
-          Press Enter to send • Shift + Enter for new line • Powered by Google Gemini AI
+          {t('chat.pressEnter')} • {t('chat.shiftEnter')} • {t('chat.poweredBy')}
         </Typography>
       </Box>
     </Box>

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Drawer,
@@ -22,6 +23,7 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -30,7 +32,12 @@ export default function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        minHeight: '100vh',
+      }}
+    >
       {/* Sidebar Drawer */}
       {isMobile ? (
         <Drawer
@@ -90,27 +97,27 @@ export default function AppShell({ children }: AppShellProps) {
                 color="inherit"
                 edge="start"
                 onClick={handleDrawerToggle}
-                sx={{ mr: 2 }}
+                sx={{ marginInlineEnd: 2 }}
               >
                 <MenuIcon />
               </IconButton>
             )}
             <Box sx={{ flex: 1 }}>
               <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
-                AI Command Center
+                {t('app.title')}
               </Typography>
               <Typography
                 variant="body2"
                 sx={{ color: 'text.secondary', fontSize: '0.813rem' }}
               >
-                Control your entire collections operation
+                {t('app.subtitle')}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Switch defaultChecked size="small" />
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Preview
+                  {t('app.preview')}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -126,7 +133,7 @@ export default function AppShell({ children }: AppShellProps) {
                   variant="body2"
                   sx={{ color: 'success.main', fontWeight: 500, fontSize: '0.813rem' }}
                 >
-                  All Systems Active
+                  {t('app.systemActive')}
                 </Typography>
               </Box>
             </Box>
@@ -151,4 +158,3 @@ export default function AppShell({ children }: AppShellProps) {
     </Box>
   );
 }
-

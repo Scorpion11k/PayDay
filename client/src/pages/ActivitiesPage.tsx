@@ -1,13 +1,16 @@
 import { Box, Typography, Paper } from '@mui/material';
 import { TrendingUp as ActivitiesIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 export default function ActivitiesPage() {
+  const { t } = useTranslation();
+
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <ActivitiesIcon sx={{ fontSize: 28, color: 'primary.main' }} />
         <Typography variant="h2" sx={{ fontSize: '1.5rem', fontWeight: 600 }}>
-          Activities
+          {t('pages.activities.title')}
         </Typography>
       </Box>
       <Paper
@@ -20,13 +23,12 @@ export default function ActivitiesPage() {
         }}
       >
         <Typography color="text.secondary">
-          Activity tracking and history will be displayed here.
+          {t('pages.activities.description')}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Monitor all collection activities and communications.
+          {t('pages.activities.subtitle')}
         </Typography>
       </Paper>
     </Box>
   );
 }
-

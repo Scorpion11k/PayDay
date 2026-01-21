@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   List,
@@ -8,6 +9,8 @@ import {
   Typography,
   Avatar,
   Divider,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   Home as HomeIcon,
@@ -22,17 +25,24 @@ import {
   Logout as LogoutIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
+import { useLanguage } from '../context/LanguageContext';
 
-const navItems = [
-  { label: 'Home', path: '/', icon: HomeIcon },
-  { label: 'Customers', path: '/customers', icon: CustomersIcon },
-  { label: 'Activities', path: '/activities', icon: ActivitiesIcon },
-  { label: 'Dashboards', path: '/dashboards', icon: DashboardsIcon },
-  { label: 'Flows', path: '/flows', icon: FlowsIcon },
-  { label: 'Contracts', path: '/contracts', icon: ContractsIcon },
-  { label: 'Chat History', path: '/chat-history', icon: ChatHistoryIcon },
-  { label: 'Customer Insight', path: '/customer-insight', icon: CustomerInsightIcon },
-  { label: 'Integrations', path: '/integrations', icon: IntegrationsIcon },
+interface NavItem {
+  labelKey: string;
+  path: string;
+  icon: typeof HomeIcon;
+}
+
+const navItems: NavItem[] = [
+  { labelKey: 'nav.home', path: '/', icon: HomeIcon },
+  { labelKey: 'nav.customers', path: '/customers', icon: CustomersIcon },
+  { labelKey: 'nav.activities', path: '/activities', icon: ActivitiesIcon },
+  { labelKey: 'nav.dashboards', path: '/dashboards', icon: DashboardsIcon },
+  { labelKey: 'nav.flows', path: '/flows', icon: FlowsIcon },
+  { labelKey: 'nav.contracts', path: '/contracts', icon: ContractsIcon },
+  { labelKey: 'nav.chatHistory', path: '/chat-history', icon: ChatHistoryIcon },
+  { labelKey: 'nav.customerInsight', path: '/customer-insight', icon: CustomerInsightIcon },
+  { labelKey: 'nav.integrations', path: '/integrations', icon: IntegrationsIcon },
 ];
 
 interface SidebarNavProps {
@@ -42,6 +52,8 @@ interface SidebarNavProps {
 export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
 
   return (
     <Box
@@ -91,7 +103,21 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
             PAYDAY
           </Typography>
         </Box>
-        <SettingsIcon sx={{ fontSize: 20, opacity: 0.7, cursor: 'pointer' }} />
+        <Tooltip title={t('nav.settings')}>
+          <IconButton
+            onClick={() => navigate('/settings')}
+            sx={{
+              color: 'rgba(255,255,255,0.7)',
+              '&:hover': {
+                color: '#fff',
+                bgcolor: 'rgba(255,255,255,0.08)',
+              },
+            }}
+            size="small"
+          >
+            <SettingsIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* Navigation Items */}
@@ -125,7 +151,7 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
                 <Icon sx={{ fontSize: 20 }} />
               </ListItemIcon>
               <ListItemText
-                primary={item.label}
+                primary={t(item.labelKey)}
                 primaryTypographyProps={{
                   fontSize: '0.875rem',
                   fontWeight: isSelected ? 500 : 400,
@@ -148,6 +174,7 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
+            flexDirection: isRTL ? 'row-reverse' : 'row',
           }}
         >
           <Avatar
@@ -168,6 +195,8 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              flex: 1,
+              textAlign: isRTL ? 'right' : 'left',
             }}
           >
             gil.kamar@gmail.com
@@ -189,7 +218,7 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
             <LogoutIcon sx={{ fontSize: 20 }} />
           </ListItemIcon>
           <ListItemText
-            primary="Sign Out"
+            primary={t('nav.signOut')}
             primaryTypographyProps={{ fontSize: '0.875rem' }}
           />
         </ListItemButton>
@@ -197,4 +226,3 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
     </Box>
   );
 }
-

@@ -1,0 +1,278 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "create": "Create",
+    "update": "Update",
+    "close": "Close",
+    "refresh": "Refresh",
+    "search": "Search",
+    "filter": "Filter",
+    "actions": "Actions",
+    "status": "Status",
+    "loading": "Loading...",
+    "noResults": "No results found",
+    "all": "All",
+    "yes": "Yes",
+    "no": "No",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "send": "Send",
+    "clear": "Clear",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "email": "Email",
+    "phone": "Phone",
+    "name": "Name",
+    "date": "Date",
+    "amount": "Amount",
+    "total": "total",
+    "result": "Result",
+    "results": "Results",
+    "showing": "Showing",
+    "of": "of",
+    "rowsPerPage": "Rows per page"
+  },
+  "nav": {
+    "home": "Home",
+    "customers": "Customers",
+    "activities": "Activities",
+    "dashboards": "Dashboards",
+    "flows": "Flows",
+    "contracts": "Contracts",
+    "chatHistory": "Chat History",
+    "customerInsight": "Customer Insight",
+    "integrations": "Integrations",
+    "settings": "Settings",
+    "signOut": "Sign Out"
+  },
+  "app": {
+    "title": "AI Command Center",
+    "subtitle": "Control your entire collections operation",
+    "preview": "Preview",
+    "systemActive": "All Systems Active"
+  },
+  "home": {
+    "welcome": "Welcome to PayDay AI",
+    "subtitle": "Your intelligent debt collection assistant. Type a command or try one of the examples below.",
+    "quickActions": {
+      "buildFlow": "Build a Collection Flow Demo",
+      "buildFlowDesc": "Create automated collection workflows",
+      "sendReminder": "Send Payment Reminder by Segment for Over 50K customers",
+      "sendReminderDesc": "Target high-value customer segments",
+      "buildDashboard": "Build Dashboard on the Fly",
+      "buildDashboardDesc": "Generate custom analytics dashboards",
+      "sendOverdue": "Send Overdue CSV to Management",
+      "sendOverdueDesc": "Export and share overdue reports"
+    }
+  },
+  "customers": {
+    "title": "Customers",
+    "addCustomer": "Add Customer",
+    "editCustomer": "Edit Customer",
+    "deleteCustomer": "Delete Customer",
+    "newCustomer": "Add New Customer",
+    "searchPlaceholder": "Search by name, email, phone...",
+    "noCustomers": "No customers found",
+    "adjustFilters": "Try adjusting your search or filters",
+    "loadingCustomers": "Loading customers...",
+    "columns": {
+      "name": "Name",
+      "contact": "Contact",
+      "externalRef": "External Ref",
+      "status": "Status",
+      "overdue": "Overdue",
+      "totalDebt": "Total Debt",
+      "payments": "Payments",
+      "created": "Created"
+    },
+    "status": {
+      "active": "Active",
+      "doNotContact": "Do Not Contact",
+      "blocked": "Blocked"
+    },
+    "noContactInfo": "No contact info",
+    "noEmailAddress": "No email address",
+    "noPhoneNumber": "No phone number"
+  },
+  "forms": {
+    "fullName": "Full Name",
+    "email": "Email",
+    "phone": "Phone",
+    "externalRef": "External Reference",
+    "externalRefHelper": "Optional identifier from external systems",
+    "status": "Status"
+  },
+  "validation": {
+    "fullNameRequired": "Full name is required",
+    "invalidEmail": "Invalid email format"
+  },
+  "dialogs": {
+    "deleteCustomer": {
+      "title": "Delete Customer",
+      "message": "Are you sure you want to delete",
+      "warning": "This action cannot be undone and will also delete all associated debts, payments, and notifications."
+    },
+    "sendReminder": {
+      "title": "Send {{type}} Reminder",
+      "message": "Send a payment reminder to",
+      "preview": "Reminder Preview:",
+      "previewMessage": "Dear {{name}},\n\nThis is a friendly reminder about your outstanding debt. Please make your payment at your earliest convenience to avoid any additional fees.\n\nIf you have already made the payment, please disregard this message.\n\nBest regards,\nPayDay AI Collection Team",
+      "sendingTo": "Sending to:"
+    }
+  },
+  "notifications": {
+    "customerCreated": "Customer created successfully!",
+    "customerUpdated": "Customer updated successfully!",
+    "customerDeleted": "Customer deleted successfully!",
+    "reminderSent": "{{type}} reminder sent to {{name}}!",
+    "error": {
+      "createCustomer": "Failed to create customer",
+      "updateCustomer": "Failed to update customer",
+      "deleteCustomer": "Failed to delete customer",
+      "sendNotification": "Failed to send notification"
+    }
+  },
+  "actions": {
+    "editCustomer": "Edit Customer",
+    "sendEmailReminder": "Send Email Reminder",
+    "sendWhatsAppReminder": "Send WhatsApp Reminder",
+    "deleting": "Deleting...",
+    "creating": "Creating...",
+    "updating": "Updating...",
+    "sending": "Sending...",
+    "createCustomer": "Create Customer",
+    "updateCustomer": "Update Customer",
+    "sendEmail": "Send Email",
+    "sendWhatsApp": "Send WhatsApp"
+  },
+  "chat": {
+    "placeholder": "Ask anything about your data... (e.g., 'Show all customers overdue by 30 days')",
+    "thinking": "PayDay AI is thinking...",
+    "tryAsking": "Try asking:",
+    "openAssistant": "Open AI Assistant",
+    "minimizeChat": "Minimize chat",
+    "clearChat": "Clear chat",
+    "pressEnter": "Press Enter to send",
+    "shiftEnter": "Shift + Enter for new line",
+    "poweredBy": "Powered by Google Gemini AI",
+    "error": "Sorry, I encountered an error processing your query.",
+    "copyJson": "Copy JSON",
+    "noResultsFound": "No results found"
+  },
+  "pages": {
+    "activities": {
+      "title": "Activities",
+      "description": "Activity tracking and history will be displayed here.",
+      "subtitle": "Monitor all collection activities and communications."
+    },
+    "dashboards": {
+      "title": "Dashboards",
+      "description": "Analytics dashboards will be displayed here.",
+      "subtitle": "View and analyze collection performance metrics."
+    },
+    "flows": {
+      "title": "Flows",
+      "description": "Workflow automation builder will be displayed here.",
+      "subtitle": "Create and manage automated collection flows and sequences."
+    },
+    "contracts": {
+      "title": "Contracts",
+      "description": "Contract management will be displayed here.",
+      "subtitle": "Manage payment agreements and settlement contracts."
+    },
+    "chatHistory": {
+      "title": "Chat History",
+      "description": "Conversation history will be displayed here.",
+      "subtitle": "Review past AI interactions and queries."
+    },
+    "customerInsight": {
+      "title": "Customer Insight",
+      "description": "Customer analytics and insights will be displayed here.",
+      "subtitle": "Deep dive into customer behavior and payment patterns."
+    }
+  },
+  "integrations": {
+    "title": "Integrations",
+    "subtitle": "Connect PayDay AI with your CRM, ERP, accounting platforms, and custom systems",
+    "addIntegration": "Add Integration",
+    "tabs": {
+      "connectedApps": "Connected Apps",
+      "dataImport": "Data Import",
+      "api": "API",
+      "webhooks": "Webhooks",
+      "marketplace": "Marketplace",
+      "custom": "Custom"
+    },
+    "lastSync": "Last sync",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "reconnect": "Reconnect",
+    "emptyState": {
+      "noConfig": "No {{tabName}} configured yet.",
+      "clickAdd": "Click \"+ Add Integration\" to get started."
+    },
+    "dataImport": {
+      "upload": {
+        "title": "Upload Excel File",
+        "description": "Upload an Excel file (.xlsx, .xls) or CSV containing customer and debt data",
+        "selectFile": "Select File"
+      },
+      "mapping": {
+        "title": "Map Columns",
+        "fileInfo": "File: {{fileName}} ({{rowCount}} rows preview)",
+        "columnMapping": "Column Mapping",
+        "notMapped": "-- Not Mapped --"
+      },
+      "fields": {
+        "customerName": "Customer Name",
+        "email": "Email",
+        "phone": "Phone",
+        "externalRef": "External Reference",
+        "debtAmount": "Debt Amount",
+        "currency": "Currency",
+        "dueDate": "Due Date",
+        "installmentAmount": "Installment Amount"
+      },
+      "preview": {
+        "title": "Data Preview"
+      },
+      "importing": "Importing...",
+      "importData": "Import Data",
+      "importAnother": "Import Another File",
+      "success": {
+        "title": "Import Successful!",
+        "customers": "Customers",
+        "debts": "Debts",
+        "installments": "Installments"
+      },
+      "errors": {
+        "emptyFile": "Excel file is empty",
+        "noDataRows": "Excel file has no data rows",
+        "parseFailed": "Failed to parse file",
+        "importFailed": "Import failed",
+        "serverConnection": "Failed to connect to server"
+      }
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your application preferences",
+    "language": {
+      "title": "Language",
+      "description": "Select your preferred language for the interface",
+      "english": "English",
+      "hebrew": "עברית (Hebrew)"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "description": "Customize the look and feel of the application"
+    }
+  }
+}
+
