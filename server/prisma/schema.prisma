@@ -71,6 +71,24 @@ enum DeliveryStatus {
   failed
 }
 
+enum TemplateLanguage {
+  en
+  he
+  ar
+}
+
+enum TemplateTone {
+  calm
+  medium
+  heavy
+}
+
+enum TemplateStatus {
+  draft
+  active
+  archived
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -89,6 +107,11 @@ model Customer {
   status      CustomerStatus @default(active)
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Communication preferences
+  preferredLanguage TemplateLanguage?    @map("preferred_language")
+  preferredTone     TemplateTone?        @map("preferred_tone")
+  preferredChannel  NotificationChannel? @map("preferred_channel")
 
   // Relations
   debts         Debt[]
@@ -233,4 +256,40 @@ model NotificationDelivery {
   @@index([notificationId])
   @@index([status])
   @@map("notification_deliveries")
+}
+
+/// Stores reusable message templates for outreach
+model MessageTemplate {
+  id          String              @id @default(uuid()) @db.Uuid
+
+  // Template identification
+  key         String              // e.g., "debt_reminder", "payment_confirmation"
+  channel     NotificationChannel // email, sms, whatsapp, call_task
+  language    TemplateLanguage
+  tone        TemplateTone
+
+  // Content
+  name        String              // Human-readable name for UI
+  description String?             // Admin notes
+  subject     String?             // Email subject line (null for non-email)
+  bodyHtml    String?             @map("body_html") @db.Text  // HTML body (email only)
+  bodyText    String              @map("body_text") @db.Text  // Plain text / script
+
+  // Metadata
+  placeholders String[]           // List of placeholders used, e.g., ["CustomerName", "Amount"]
+  status      TemplateStatus      @default(active)
+  version     Int                 @default(1)
+
+  // Audit
+  createdBy   String              @map("created_by")
+  updatedBy   String?             @map("updated_by")
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([key, channel, language, tone])
+  @@index([channel])
+  @@index([language])
+  @@index([tone])
+  @@index([status])
+  @@map("message_templates")
 }

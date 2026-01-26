@@ -16,5 +16,11 @@ router.post('/test-email', asyncHandler(messagingController.testEmail.bind(messa
 // POST /api/messaging/test-whatsapp - Test WhatsApp configuration
 router.post('/test-whatsapp', asyncHandler(messagingController.testWhatsApp.bind(messagingController)));
 
+// POST /api/messaging/test-sms - Test SMS configuration
+router.post('/test-sms', asyncHandler(messagingController.testSMS.bind(messagingController)));
+
+// POST /api/messaging/sms-status - SMS delivery status webhook
+router.post('/sms-status', asyncHandler(messagingController.smsStatus.bind(messagingController)));
+
 export default router;
 

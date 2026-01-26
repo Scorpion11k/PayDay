@@ -7,6 +7,8 @@ import notificationsRoutes from './notifications.routes';
 import importRoutes from './import.routes';
 import messagingRoutes from './messaging.routes';
 import aiRoutes from './ai.routes';
+import templatesRoutes from './templates.routes';
+import voiceRoutes from './voice.routes';
 
 const router = Router();
 
@@ -19,6 +21,8 @@ router.use('/notifications', notificationsRoutes);
 router.use('/import', importRoutes);
 router.use('/messaging', messagingRoutes);
 router.use('/ai', aiRoutes);
+router.use('/templates', templatesRoutes);
+router.use('/voice', voiceRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -34,6 +38,8 @@ router.get('/', (req, res) => {
       import: '/api/import',
       messaging: '/api/messaging',
       ai: '/api/ai',
+      templates: '/api/templates',
+      voice: '/api/voice',
     },
   });
 });

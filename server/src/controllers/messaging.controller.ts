@@ -3,12 +3,20 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import emailService from '../services/email.service';
 import whatsappService from '../services/whatsapp.service';
+import smsService from '../services/sms.service';
+import voiceService from '../services/voice.service';
+import templateService from '../services/template.service';
 import { ValidationError, NotFoundError } from '../types';
+import { TemplateLanguage, TemplateTone, NotificationChannel } from '@prisma/client';
 
 const sendReminderSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
-  channel: z.enum(['email', 'whatsapp']),
+  channel: z.enum(['email', 'whatsapp', 'sms', 'call_task']),
   templateKey: z.string().optional().default('debt_reminder'),
+  language: z.enum(['en', 'he', 'ar']).optional(),
+  tone: z.enum(['calm', 'medium', 'heavy']).optional(),
+  debtId: z.string().uuid().optional(),
+  installmentId: z.string().uuid().optional()
 });
 
 class MessagingController {
@@ -17,8 +25,12 @@ class MessagingController {
    */
   async getStatus(req: Request, res: Response) {
     // Initialize services if not already
-    await emailService.initialize();
-    await whatsappService.initialize();
+    await Promise.all([
+      emailService.initialize(),
+      whatsappService.initialize(),
+      smsService.initialize(),
+      voiceService.initialize()
+    ]);
 
     res.json({
       success: true,
@@ -29,6 +41,14 @@ class MessagingController {
         },
         whatsapp: {
           available: whatsappService.isAvailable(),
+          provider: 'Twilio',
+        },
+        sms: {
+          available: smsService.isAvailable(),
+          provider: 'Twilio',
+        },
+        voice: {
+          available: voiceService.isAvailable(),
           provider: 'Twilio',
         },
       },
@@ -45,15 +65,19 @@ class MessagingController {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
-    const { customerId, channel, templateKey } = validation.data;
+    const { customerId, channel, templateKey, debtId, installmentId } = validation.data;
+    let { language, tone } = validation.data;
 
-    // Get customer with their debts
+    // Get customer with their debts and preferences
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
       include: {
         debts: {
-          where: { status: { in: ['open', 'in_collection'] } },
+          where: debtId 
+            ? { id: debtId }
+            : { status: { in: ['open', 'in_collection'] } },
           select: {
+            id: true,
             originalAmount: true,
             currentBalance: true,
             currency: true,
@@ -75,65 +99,191 @@ class MessagingController {
       throw new ValidationError('Customer is blocked');
     }
 
-    // Calculate total debt
-    const totalDebt = customer.debts.reduce(
-      (sum, debt) => sum + Number(debt.currentBalance),
-      0
-    );
-    const currency = customer.debts[0]?.currency || 'USD';
+    // Resolve language and tone from customer preferences or defaults
+    language = language || customer.preferredLanguage || 'en';
+    tone = tone || customer.preferredTone || 'calm';
 
-    // Send based on channel
-    let result: { success: boolean; messageId?: string; messageSid?: string; error?: string };
-
-    if (channel === 'email') {
-      if (!customer.email) {
-        throw new ValidationError('Customer has no email address');
-      }
-
-      await emailService.initialize();
-      
-      if (!emailService.isAvailable()) {
-        throw new ValidationError('Email service is not configured. Please set GMAIL_USER and GMAIL_APP_PASSWORD in environment variables.');
-      }
-
-      result = await emailService.sendDebtReminder({
-        customerName: customer.fullName,
-        email: customer.email,
-        totalDebt: totalDebt > 0 ? totalDebt : undefined,
-        currency,
-      });
-    } else {
-      if (!customer.phone) {
-        throw new ValidationError('Customer has no phone number');
-      }
-
-      await whatsappService.initialize();
-      
-      if (!whatsappService.isAvailable()) {
-        throw new ValidationError('WhatsApp service is not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_NUMBER in environment variables.');
-      }
-
-      result = await whatsappService.sendDebtReminder({
-        customerName: customer.fullName,
-        phone: customer.phone,
-        totalDebt: totalDebt > 0 ? totalDebt : undefined,
-        currency,
+    // Get debt and installment if specified
+    const debt = customer.debts[0] || null;
+    let installment = null;
+    if (installmentId) {
+      installment = await prisma.installment.findUnique({
+        where: { id: installmentId }
       });
     }
 
-    // Create notification record
+    // Resolve template
+    const template = await templateService.resolveTemplate(
+      templateKey,
+      channel as NotificationChannel,
+      language as TemplateLanguage,
+      tone as TemplateTone
+    );
+
+    if (!template) {
+      throw new ValidationError(
+        `No template found for ${templateKey}/${channel}/${language}/${tone}`
+      );
+    }
+
+    // Build payload
+    const notificationId = crypto.randomUUID();
+    const payload = templateService.buildPayload(
+      customer,
+      debt,
+      installment,
+      notificationId,
+      language as TemplateLanguage
+    );
+
+    // Render template
+    const rendered = templateService.render(template, payload);
+
+    // Send based on channel
+    let result: { success: boolean; messageId?: string; messageSid?: string; callSid?: string; error?: string };
+    let provider: string;
+
+    switch (channel) {
+      case 'email':
+        if (!customer.email) {
+          throw new ValidationError('Customer has no email address');
+        }
+        await emailService.initialize();
+        if (!emailService.isAvailable()) {
+          throw new ValidationError('Email service is not configured');
+        }
+        result = await emailService.sendEmail({
+          to: customer.email,
+          subject: rendered.subject || 'Payment Reminder',
+          html: rendered.bodyHtml,
+          text: rendered.bodyText
+        });
+        provider = 'gmail';
+        break;
+
+      case 'whatsapp':
+        if (!customer.phone) {
+          throw new ValidationError('Customer has no phone number');
+        }
+        await whatsappService.initialize();
+        if (!whatsappService.isAvailable()) {
+          throw new ValidationError('WhatsApp service is not configured');
+        }
+        result = await whatsappService.sendMessage({
+          to: customer.phone,
+          message: rendered.bodyText
+        });
+        provider = 'twilio_whatsapp';
+        break;
+
+      case 'sms':
+        if (!customer.phone) {
+          throw new ValidationError('Customer has no phone number');
+        }
+        await smsService.initialize();
+        if (!smsService.isAvailable()) {
+          throw new ValidationError('SMS service is not configured');
+        }
+        result = await smsService.sendSMS({
+          to: customer.phone,
+          message: rendered.bodyText
+        });
+        provider = 'twilio_sms';
+        break;
+
+      case 'call_task':
+        if (!customer.phone) {
+          throw new ValidationError('Customer has no phone number');
+        }
+        await voiceService.initialize();
+        if (!voiceService.isAvailable()) {
+          throw new ValidationError('Voice service is not configured');
+        }
+
+        // Create notification first to get ID for TwiML URL
+        const voiceNotification = await prisma.notification.create({
+          data: {
+            id: notificationId,
+            customerId,
+            debtId: debt?.id,
+            installmentId,
+            channel: 'call_task',
+            templateKey,
+            payloadSnapshot: {
+              ...payload,
+              language,
+              tone
+            },
+            createdBy: 'system',
+          },
+        });
+
+        // Generate TwiML URL
+        const baseUrl = process.env.BASE_URL || 'http://localhost:3001';
+        const twimlUrl = `${baseUrl}/api/voice/twiml/${voiceNotification.id}`;
+
+        result = await voiceService.makeCall({
+          to: customer.phone,
+          twimlUrl,
+          notificationId: voiceNotification.id
+        });
+
+        // Create delivery record
+        await prisma.notificationDelivery.create({
+          data: {
+            notificationId: voiceNotification.id,
+            attemptNo: 1,
+            provider: 'twilio_voice',
+            providerMessageId: result.callSid || null,
+            status: result.success ? 'sent' : 'failed',
+            errorMessage: result.error || null,
+            sentAt: result.success ? new Date() : null,
+          },
+        });
+
+        if (!result.success) {
+          res.status(500).json({
+            success: false,
+            error: result.error || 'Failed to initiate call',
+            data: { notificationId: voiceNotification.id },
+          });
+          return;
+        }
+
+        res.json({
+          success: true,
+          message: `Voice call initiated to ${customer.fullName}`,
+          data: {
+            notificationId: voiceNotification.id,
+            callSid: result.callSid,
+            channel,
+            recipient: customer.phone,
+            templateUsed: {
+              key: templateKey,
+              language,
+              tone
+            }
+          },
+        });
+        return;
+
+      default:
+        throw new ValidationError(`Unsupported channel: ${channel}`);
+    }
+
+    // Create notification record (for non-voice channels)
     const notification = await prisma.notification.create({
       data: {
+        id: notificationId,
         customerId,
-        channel,
+        debtId: debt?.id,
+        installmentId,
+        channel: channel as NotificationChannel,
         templateKey,
         payloadSnapshot: {
-          customerName: customer.fullName,
-          email: customer.email,
-          phone: customer.phone,
-          totalDebt,
-          currency,
-          sentAt: new Date().toISOString(),
+          ...payload,
+          language,
+          tone
         },
         createdBy: 'system',
       },
@@ -144,7 +294,7 @@ class MessagingController {
       data: {
         notificationId: notification.id,
         attemptNo: 1,
-        provider: channel === 'email' ? 'gmail' : 'twilio',
+        provider,
         providerMessageId: result.messageId || result.messageSid || null,
         status: result.success ? 'sent' : 'failed',
         errorMessage: result.error || null,
@@ -161,14 +311,26 @@ class MessagingController {
       return;
     }
 
+    const channelLabel = {
+      email: 'Email',
+      sms: 'SMS',
+      whatsapp: 'WhatsApp',
+      call_task: 'Voice Call'
+    }[channel];
+
     res.json({
       success: true,
-      message: `${channel === 'email' ? 'Email' : 'WhatsApp'} reminder sent successfully to ${customer.fullName}`,
+      message: `${channelLabel} reminder sent successfully to ${customer.fullName}`,
       data: {
         notificationId: notification.id,
         messageId: result.messageId || result.messageSid,
         channel,
         recipient: channel === 'email' ? customer.email : customer.phone,
+        templateUsed: {
+          key: templateKey,
+          language,
+          tone
+        }
       },
     });
   }
@@ -254,7 +416,69 @@ class MessagingController {
       data: { messageSid: result.messageSid },
     });
   }
+
+  /**
+   * Test SMS configuration
+   */
+  async testSMS(req: Request, res: Response) {
+    const { phone } = req.body;
+
+    if (!phone) {
+      throw new ValidationError('Phone number is required');
+    }
+
+    await smsService.initialize();
+    
+    if (!smsService.isAvailable()) {
+      throw new ValidationError('SMS service is not configured');
+    }
+
+    const result = await smsService.sendSMS({
+      to: phone,
+      message: 'PayDay AI Test: This is a test SMS. If you received this, your SMS configuration is working correctly!',
+    });
+
+    if (!result.success) {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Test SMS sent successfully',
+      data: { messageSid: result.messageSid },
+    });
+  }
+
+  /**
+   * SMS delivery status webhook
+   */
+  async smsStatus(req: Request, res: Response) {
+    const { MessageSid, MessageStatus } = req.body;
+
+    const statusMap: Record<string, 'delivered' | 'failed'> = {
+      delivered: 'delivered',
+      undelivered: 'failed',
+      failed: 'failed'
+    };
+
+    const newStatus = statusMap[MessageStatus];
+
+    if (newStatus) {
+      await prisma.notificationDelivery.updateMany({
+        where: { providerMessageId: MessageSid },
+        data: {
+          status: newStatus,
+          errorMessage: MessageStatus !== 'delivered' ? MessageStatus : null
+        }
+      });
+    }
+
+    res.sendStatus(200);
+  }
 }
 
 export default new MessagingController();
-

@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import AppShell from './layout/AppShell';
 import HomePage from './pages/HomePage';
 import CustomersPage from './pages/CustomersPage';
+import TemplatesPage from './pages/TemplatesPage';
 import ActivitiesPage from './pages/ActivitiesPage';
 import DashboardsPage from './pages/DashboardsPage';
 import FlowsPage from './pages/FlowsPage';
@@ -17,6 +18,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/templates" element={<TemplatesPage />} />
         <Route path="/activities" element={<ActivitiesPage />} />
         <Route path="/dashboards" element={<DashboardsPage />} />
         <Route path="/flows" element={<FlowsPage />} />

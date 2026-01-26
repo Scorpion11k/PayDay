@@ -24,6 +24,7 @@ import {
   Extension as IntegrationsIcon,
   Logout as LogoutIcon,
   Settings as SettingsIcon,
+  Article as TemplatesIcon,
 } from '@mui/icons-material';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -36,6 +37,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { labelKey: 'nav.home', path: '/', icon: HomeIcon },
   { labelKey: 'nav.customers', path: '/customers', icon: CustomersIcon },
+  { labelKey: 'nav.templates', path: '/templates', icon: TemplatesIcon },
   { labelKey: 'nav.activities', path: '/activities', icon: ActivitiesIcon },
   { labelKey: 'nav.dashboards', path: '/dashboards', icon: DashboardsIcon },
   { labelKey: 'nav.flows', path: '/flows', icon: FlowsIcon },

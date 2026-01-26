@@ -50,6 +50,8 @@ import {
   WhatsApp as WhatsAppIcon,
   Edit as EditIcon,
   Warning as WarningIcon,
+  Sms as SmsIcon,
+  Call as CallIcon,
 } from '@mui/icons-material';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -148,8 +150,10 @@ export default function CustomersPage() {
 
   // Send Notification Dialog
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
-  const [notificationType, setNotificationType] = useState<'email' | 'whatsapp' | null>(null);
+  const [notificationType, setNotificationType] = useState<'email' | 'whatsapp' | 'sms' | 'call_task' | null>(null);
   const [sendingNotification, setSendingNotification] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'he' | 'ar'>('en');
+  const [selectedTone, setSelectedTone] = useState<'calm' | 'medium' | 'heavy'>('calm');
 
   // Edit Customer Dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -469,9 +473,11 @@ export default function CustomersPage() {
   };
 
   // Send Notification
-  const handleSendNotification = (type: 'email' | 'whatsapp') => {
+  const handleSendNotification = (type: 'email' | 'whatsapp' | 'sms' | 'call_task') => {
     handleActionsClose();
     setNotificationType(type);
+    setSelectedLanguage('en');
+    setSelectedTone('calm');
     setNotificationDialogOpen(true);
   };
 
@@ -489,6 +495,8 @@ export default function CustomersPage() {
           customerId: selectedCustomer.id,
           channel: notificationType,
           templateKey: 'debt_reminder',
+          language: selectedLanguage,
+          tone: selectedTone,
         }),
       });
 
@@ -498,10 +506,15 @@ export default function CustomersPage() {
         throw new Error(data.error || data.message || t('notifications.error.sendNotification'));
       }
 
-      const notificationTypeLabel = notificationType === 'email' ? t('common.email') : 'WhatsApp';
+      const channelLabels: Record<string, string> = {
+        email: t('common.email'),
+        whatsapp: 'WhatsApp',
+        sms: 'SMS',
+        call_task: t('common.voiceCall') || 'Voice call',
+      };
       setSnackbar({
         open: true,
-        message: t('notifications.reminderSent', { type: notificationTypeLabel, name: selectedCustomer.fullName }),
+        message: t('notifications.reminderSent', { type: channelLabels[notificationType], name: selectedCustomer.fullName }),
         severity: 'success',
       });
 
@@ -801,6 +814,15 @@ export default function CustomersPage() {
           <ListItemText primary={t('actions.sendEmailReminder')} secondary={!selectedCustomer?.email ? t('customers.noEmailAddress') : undefined} />
         </MenuItem>
         <MenuItem
+          onClick={() => handleSendNotification('sms')}
+          disabled={!selectedCustomer?.phone}
+        >
+          <ListItemIcon>
+            <SmsIcon fontSize="small" sx={{ color: '#1976d2' }} />
+          </ListItemIcon>
+          <ListItemText primary="Send SMS Reminder" secondary={!selectedCustomer?.phone ? 'No phone number' : undefined} />
+        </MenuItem>
+        <MenuItem
           onClick={() => handleSendNotification('whatsapp')}
           disabled={!selectedCustomer?.phone}
         >
@@ -808,6 +830,15 @@ export default function CustomersPage() {
             <WhatsAppIcon fontSize="small" sx={{ color: '#25D366' }} />
           </ListItemIcon>
           <ListItemText primary={t('actions.sendWhatsAppReminder')} secondary={!selectedCustomer?.phone ? t('customers.noPhoneNumber') : undefined} />
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleSendNotification('call_task')}
+          disabled={!selectedCustomer?.phone}
+        >
+          <ListItemIcon>
+            <CallIcon fontSize="small" sx={{ color: '#9c27b0' }} />
+          </ListItemIcon>
+          <ListItemText primary="Make Voice Call" secondary={!selectedCustomer?.phone ? 'No phone number' : undefined} />
         </MenuItem>
         <Divider />
         <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>
@@ -843,19 +874,55 @@ export default function CustomersPage() {
       {/* Send Notification Dialog */}
       <Dialog open={notificationDialogOpen} onClose={() => setNotificationDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 600 }}>
-          {t('dialogs.sendReminder.title', { type: notificationType === 'email' ? t('common.email') : 'WhatsApp' })}
+{t('dialogs.sendReminder.title', { type: notificationType === 'email' ? t('common.email') : notificationType === 'sms' ? 'SMS' : notificationType === 'whatsapp' ? 'WhatsApp' : t('common.voiceCall') || 'Voice' })}
         </DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
             {t('dialogs.sendReminder.message')} <strong>{selectedCustomer?.fullName}</strong>?
           </DialogContentText>
+          
+          <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Language</InputLabel>
+              <Select
+                value={selectedLanguage}
+                label="Language"
+                onChange={(e) => setSelectedLanguage(e.target.value as 'en' | 'he' | 'ar')}
+              >
+                <MenuItem value="en">English</MenuItem>
+                <MenuItem value="he">Hebrew</MenuItem>
+                <MenuItem value="ar">Arabic</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Tone</InputLabel>
+              <Select
+                value={selectedTone}
+                label="Tone"
+                onChange={(e) => setSelectedTone(e.target.value as 'calm' | 'medium' | 'heavy')}
+              >
+                <MenuItem value="calm">Calm</MenuItem>
+                <MenuItem value="medium">Medium</MenuItem>
+                <MenuItem value="heavy">Heavy</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+
           <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-            <Typography variant="subtitle2" gutterBottom>{t('dialogs.sendReminder.preview')}</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
-              {t('dialogs.sendReminder.previewMessage', { name: selectedCustomer?.fullName })}
+<Typography variant="subtitle2" gutterBottom>{t('dialogs.sendReminder.preview')}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t('dialogs.sendReminder.toneInfo', { 
+                tone: selectedTone === 'calm' ? t('common.friendly') || 'friendly' : selectedTone === 'medium' ? t('common.firm') || 'firm' : t('common.urgent') || 'urgent',
+                language: selectedLanguage === 'en' ? 'English' : selectedLanguage === 'he' ? 'Hebrew' : 'Arabic'
+              }) || `A ${selectedTone === 'calm' ? 'friendly' : selectedTone === 'medium' ? 'firm' : 'urgent'} payment reminder will be sent in ${selectedLanguage === 'en' ? 'English' : selectedLanguage === 'he' ? 'Hebrew' : 'Arabic'}.`}
             </Typography>
           </Paper>
-          <Box sx={{ mt: 2, p: 2, bgcolor: notificationType === 'email' ? '#e3f2fd' : '#e8f5e9', borderRadius: 1 }}>
+          <Box sx={{ 
+            mt: 2, 
+            p: 2, 
+            bgcolor: notificationType === 'email' ? '#e3f2fd' : notificationType === 'sms' ? '#e3f2fd' : notificationType === 'whatsapp' ? '#e8f5e9' : '#f3e5f5', 
+            borderRadius: 1 
+          }}>
             <Typography variant="body2">
               <strong>{t('dialogs.sendReminder.sendingTo')}</strong>{' '}
               <bdi>{notificationType === 'email' ? selectedCustomer?.email : selectedCustomer?.phone}</bdi>
@@ -870,11 +937,18 @@ export default function CustomersPage() {
             disabled={sendingNotification}
             startIcon={sendingNotification ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
             sx={{
-              bgcolor: notificationType === 'email' ? '#1976d2' : '#25D366',
-              '&:hover': { bgcolor: notificationType === 'email' ? '#1565c0' : '#128C7E' },
+              bgcolor: notificationType === 'email' ? '#1976d2' : notificationType === 'sms' ? '#1976d2' : notificationType === 'whatsapp' ? '#25D366' : '#9c27b0',
+              '&:hover': { 
+                bgcolor: notificationType === 'email' ? '#1565c0' : notificationType === 'sms' ? '#1565c0' : notificationType === 'whatsapp' ? '#128C7E' : '#7b1fa2'
+              },
             }}
           >
-            {sendingNotification ? t('actions.sending') : (notificationType === 'email' ? t('actions.sendEmail') : t('actions.sendWhatsApp'))}
+{sendingNotification ? t('actions.sending') : (
+              notificationType === 'email' ? t('actions.sendEmail') : 
+              notificationType === 'sms' ? t('actions.sendSms') || 'Send SMS' : 
+              notificationType === 'whatsapp' ? t('actions.sendWhatsApp') : 
+              t('actions.makeVoiceCall') || 'Make Voice Call'
+            )}
           </Button>
         </DialogActions>
       </Dialog>
