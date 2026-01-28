@@ -21,7 +21,7 @@ const columnMappingSchema = z.object({
 
 const importOptionsSchema = z.object({
   mapping: columnMappingSchema.optional(),
-  defaultCurrency: z.string().length(3).default('USD'),
+  defaultCurrency: z.string().length(3).default('ILS'),
 });
 
 class ImportController {
@@ -85,7 +85,7 @@ class ImportController {
     // Parse options from form data
     let options: { mapping?: ColumnMapping; defaultCurrency: string } = { 
       mapping: {}, 
-      defaultCurrency: 'USD' 
+      defaultCurrency: 'ILS' 
     };
     if (req.body.options) {
       try {

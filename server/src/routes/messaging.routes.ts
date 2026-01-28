@@ -10,6 +10,9 @@ router.get('/status', asyncHandler(messagingController.getStatus.bind(messagingC
 // POST /api/messaging/send-reminder - Send payment reminder to customer
 router.post('/send-reminder', asyncHandler(messagingController.sendReminder.bind(messagingController)));
 
+// POST /api/messaging/preview-reminder - Preview reminder without sending
+router.post('/preview-reminder', asyncHandler(messagingController.previewReminder.bind(messagingController)));
+
 // POST /api/messaging/test-email - Test email configuration
 router.post('/test-email', asyncHandler(messagingController.testEmail.bind(messagingController)));
 

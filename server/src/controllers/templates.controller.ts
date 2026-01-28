@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
-import templateService from '../services/template.service';
+import templateService, { formatCurrencyForLanguage } from '../services/template.service';
 import { ValidationError, NotFoundError } from '../types';
 
 // Validation schemas
@@ -304,21 +304,21 @@ class TemplatesController {
       throw new NotFoundError('Template');
     }
 
-    // Default sample data
+    // Default sample data - use appropriate currency based on template language
     const defaultSampleData = {
-      CustomerName: 'John Doe',
+      CustomerName: template.language === 'he' ? 'ישראל ישראלי' : 'John Doe',
       Amount: '1,500.00',
-      Currency: 'USD',
+      Currency: formatCurrencyForLanguage('ILS', template.language),
       InvoiceNumber: 'INV-2026-001',
-      DueDate: 'January 15, 2026',
+      DueDate: template.language === 'he' ? '15 בינואר, 2026' : 'January 15, 2026',
       DaysOverdue: '11',
       PaymentLink: 'https://pay.example.com/abc123',
-      SupportPhone: '+1-800-555-0123',
+      SupportPhone: '+972-3-555-0123',
       SupportEmail: 'support@payday.ai',
-      BusinessHours: '9 AM - 5 PM EST',
+      BusinessHours: template.language === 'he' ? '09:00 - 17:00' : '9 AM - 5 PM',
       CompanyName: 'PayDay AI',
       CaseId: 'CASE-12345',
-      UnsubscribeText: 'Reply STOP to opt out'
+      UnsubscribeText: template.language === 'he' ? 'השב/י STOP להסרה' : 'Reply STOP to opt out'
     };
 
     // Merge with provided sample data

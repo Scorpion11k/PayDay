@@ -40,7 +40,10 @@
     "male": "Male",
     "female": "Female",
     "other": "Other",
-    "preferNotToSay": "Prefer not to say"
+    "preferNotToSay": "Prefer not to say",
+    "friendly": "friendly",
+    "firm": "firm",
+    "urgent": "urgent"
   },
   "nav": {
     "home": "Home",
@@ -80,6 +83,7 @@
     "addCustomer": "Add Customer",
     "editCustomer": "Edit Customer",
     "deleteCustomer": "Delete Customer",
+    "deleteAll": "Delete All",
     "newCustomer": "Add New Customer",
     "searchPlaceholder": "Search by name, email, phone...",
     "noCustomers": "No customers found",
@@ -114,7 +118,8 @@
     "phone": "Phone",
     "externalRef": "External Reference",
     "externalRefHelper": "Optional identifier from external systems",
-    "status": "Status"
+    "status": "Status",
+    "subject": "Subject"
   },
   "validation": {
     "fullNameRequired": "Full name is required",
@@ -126,11 +131,18 @@
       "message": "Are you sure you want to delete",
       "warning": "This action cannot be undone and will also delete all associated debts, payments, and notifications."
     },
+    "deleteAllCustomers": {
+      "title": "Delete All Customers",
+      "message": "Are you sure you want to delete all {{count}} customers?",
+      "warning": "This action cannot be undone! All customers and their associated debts, payments, installments, and notifications will be permanently deleted.",
+      "confirmButton": "Delete All Customers"
+    },
     "sendReminder": {
       "title": "Send {{type}} Reminder",
       "message": "Send a payment reminder to",
       "preview": "Reminder Preview:",
       "previewMessage": "Dear {{name}},\n\nThis is a friendly reminder about your outstanding debt. Please make your payment at your earliest convenience to avoid any additional fees.\n\nIf you have already made the payment, please disregard this message.\n\nBest regards,\nPayDay AI Collection Team",
+      "toneInfo": "A {{tone}} payment reminder will be sent in {{language}}.",
       "sendingTo": "Sending to:"
     }
   },
@@ -138,11 +150,13 @@
     "customerCreated": "Customer created successfully!",
     "customerUpdated": "Customer updated successfully!",
     "customerDeleted": "Customer deleted successfully!",
+    "allCustomersDeleted": "Successfully deleted {{count}} customers!",
     "reminderSent": "{{type}} reminder sent to {{name}}!",
     "error": {
       "createCustomer": "Failed to create customer",
       "updateCustomer": "Failed to update customer",
       "deleteCustomer": "Failed to delete customer",
+      "deleteAllCustomers": "Failed to delete all customers",
       "sendNotification": "Failed to send notification"
     }
   },

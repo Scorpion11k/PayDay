@@ -429,7 +429,7 @@ class ImportService {
   async importData(
     rows: ExcelRow[],
     mapping: ColumnMapping,
-    defaultCurrency = 'USD'
+    defaultCurrency = 'ILS'
   ): Promise<ImportResult> {
     const result: ImportResult = {
       success: true,
@@ -739,8 +739,8 @@ class ImportService {
             : undefined,
           debtAmount: totalDebt,
           currency: mapping.currency
-            ? String(firstRow[mapping.currency] || 'USD').trim().toUpperCase()
-            : 'USD',
+            ? String(firstRow[mapping.currency] || 'ILS').trim().toUpperCase()
+            : 'ILS',
           installments: installmentCount,
         });
       }

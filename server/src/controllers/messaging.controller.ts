@@ -19,6 +19,14 @@ const sendReminderSchema = z.object({
   installmentId: z.string().uuid().optional()
 });
 
+const previewReminderSchema = z.object({
+  customerId: z.string().uuid('Invalid customer ID'),
+  channel: z.enum(['email', 'whatsapp', 'sms', 'call_task']),
+  templateKey: z.string().optional().default('debt_reminder'),
+  language: z.enum(['en', 'he', 'ar']).optional(),
+  tone: z.enum(['calm', 'medium', 'heavy']).optional()
+});
+
 class MessagingController {
   /**
    * Get messaging service status
@@ -332,6 +340,86 @@ class MessagingController {
           tone
         }
       },
+    });
+  }
+
+  /**
+   * Preview a reminder without sending it
+   */
+  async previewReminder(req: Request, res: Response) {
+    const validation = previewReminderSchema.safeParse(req.body);
+    
+    if (!validation.success) {
+      throw new ValidationError(validation.error.issues[0].message);
+    }
+
+    const { customerId, channel, templateKey } = validation.data;
+    let { language, tone } = validation.data;
+
+    // Get customer with their debts
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      include: {
+        debts: {
+          where: { status: { in: ['open', 'in_collection'] } },
+          select: {
+            id: true,
+            originalAmount: true,
+            currentBalance: true,
+            currency: true,
+          },
+        },
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundError('Customer');
+    }
+
+    // Resolve language and tone from customer preferences or defaults
+    language = language || customer.preferredLanguage || 'en';
+    tone = tone || customer.preferredTone || 'calm';
+
+    // Get debt
+    const debt = customer.debts[0] || null;
+
+    // Resolve template
+    const template = await templateService.resolveTemplate(
+      templateKey,
+      channel as NotificationChannel,
+      language as TemplateLanguage,
+      tone as TemplateTone
+    );
+
+    if (!template) {
+      throw new ValidationError(
+        `No template found for ${templateKey}/${channel}/${language}/${tone}`
+      );
+    }
+
+    // Build payload
+    const payload = templateService.buildPayload(
+      customer,
+      debt,
+      null,
+      'preview-id',
+      language as TemplateLanguage
+    );
+
+    // Render template
+    const rendered = templateService.render(template, payload);
+
+    res.json({
+      success: true,
+      data: {
+        subject: rendered.subject,
+        bodyText: rendered.bodyText,
+        bodyHtml: rendered.bodyHtml,
+        templateName: template.name,
+        channel,
+        language,
+        tone
+      }
     });
   }
 

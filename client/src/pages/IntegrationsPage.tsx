@@ -411,7 +411,7 @@ function DataImportTab() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('options', JSON.stringify({ mapping, defaultCurrency: 'USD' }));
+      formData.append('options', JSON.stringify({ mapping, defaultCurrency: 'ILS' }));
 
       const response = await fetch('/api/import/execute', {
         method: 'POST',

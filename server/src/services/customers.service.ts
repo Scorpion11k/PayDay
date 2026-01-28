@@ -224,6 +224,12 @@ class CustomersService {
     });
   }
 
+  async deleteAll() {
+    // Delete all customers and return the count
+    const result = await prisma.customer.deleteMany({});
+    return { deletedCount: result.count };
+  }
+
   async getStats(id: string) {
     const customer = await this.findById(id);
 

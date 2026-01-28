@@ -31,6 +31,27 @@ const LOCALE_MAP: Record<string, string> = {
   ar: 'ar-SA'
 };
 
+// Currency display by language
+const CURRENCY_DISPLAY: Record<string, Record<string, string>> = {
+  ILS: { en: '₪', he: 'ש"ח', ar: '₪' },
+  USD: { en: '$', he: '$', ar: '$' },
+  EUR: { en: '€', he: '€', ar: '€' },
+  GBP: { en: '£', he: '£', ar: '£' },
+};
+
+/**
+ * Format currency code for display based on language
+ */
+export function formatCurrencyForLanguage(currencyCode: string, language: string): string {
+  const code = currencyCode?.toUpperCase() || 'ILS';
+  const langDisplays = CURRENCY_DISPLAY[code];
+  if (langDisplays && langDisplays[language]) {
+    return langDisplays[language];
+  }
+  // Fallback to currency code if no mapping found
+  return code;
+}
+
 export interface TemplatePayload {
   CustomerName: string;
   CompanyName: string;
@@ -123,7 +144,7 @@ class TemplateService {
       CustomerName: customer.fullName,
       CompanyName: process.env.COMPANY_NAME || 'PayDay AI',
       Amount: this.formatAmount(debt?.currentBalance),
-      Currency: debt?.currency || 'USD',
+      Currency: formatCurrencyForLanguage(debt?.currency || 'ILS', language),
       InvoiceNumber: debt?.id?.slice(0, 8).toUpperCase() || 'N/A',
       DueDate: this.formatDate(dueDate, language),
       DaysOverdue: String(daysOverdue),
@@ -159,10 +180,10 @@ class TemplateService {
    * Render a single text string with payload
    */
   renderText(templateText: string, payload: TemplatePayload): string {
-    // Convert {Placeholder} to {{Placeholder}} for Handlebars
+    // Convert {Placeholder} to {{{Placeholder}}} for Handlebars (triple braces = no HTML escaping)
     const handlebarsTemplate = templateText.replace(
       /\{(\w+)\}/g,
-      '{{$1}}'
+      '{{{$1}}}'
     );
     const compiled = Handlebars.compile(handlebarsTemplate);
     return compiled(payload);

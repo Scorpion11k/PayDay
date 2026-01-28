@@ -7,6 +7,9 @@ const router = Router();
 // GET /api/customers - List all customers
 router.get('/', asyncHandler(customersController.getAll.bind(customersController)));
 
+// DELETE /api/customers/all - Delete all customers (must be before /:id route)
+router.delete('/all', asyncHandler(customersController.deleteAll.bind(customersController)));
+
 // GET /api/customers/:id - Get customer by ID
 router.get('/:id', asyncHandler(customersController.getById.bind(customersController)));
 

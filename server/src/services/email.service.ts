@@ -126,7 +126,7 @@ class EmailService {
       
       ${data.totalDebt ? `
       <p style="text-align: center; margin: 30px 0;">
-        <span class="amount">${data.currency || 'USD'} ${data.totalDebt.toLocaleString()}</span>
+        <span class="amount">${data.currency || '₪'} ${data.totalDebt.toLocaleString()}</span>
         <br><small>Outstanding Balance</small>
       </p>
       ` : ''}
@@ -155,7 +155,7 @@ Dear ${data.customerName},
 
 This is a friendly reminder about your outstanding balance.
 
-${data.totalDebt ? `Outstanding Balance: ${data.currency || 'USD'} ${data.totalDebt.toLocaleString()}` : ''}
+${data.totalDebt ? `Outstanding Balance: ${data.currency || '₪'} ${data.totalDebt.toLocaleString()}` : ''}
 ${data.dueDate ? `Due Date: ${data.dueDate}` : ''}
 
 Please make your payment at your earliest convenience to avoid any additional fees or service interruptions.

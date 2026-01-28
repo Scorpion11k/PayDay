@@ -40,7 +40,10 @@
     "male": "זכר",
     "female": "נקבה",
     "other": "אחר",
-    "preferNotToSay": "מעדיף/ה לא לציין"
+    "preferNotToSay": "מעדיף/ה לא לציין",
+    "friendly": "ידידותית",
+    "firm": "נחושה",
+    "urgent": "דחופה"
   },
   "nav": {
     "home": "בית",
@@ -80,6 +83,7 @@
     "addCustomer": "הוספת לקוח",
     "editCustomer": "עריכת לקוח",
     "deleteCustomer": "מחיקת לקוח",
+    "deleteAll": "מחק הכל",
     "newCustomer": "הוספת לקוח חדש",
     "searchPlaceholder": "חיפוש לפי שם, דוא\"ל, טלפון...",
     "noCustomers": "לא נמצאו לקוחות",
@@ -114,7 +118,8 @@
     "phone": "טלפון",
     "externalRef": "מזהה חיצוני",
     "externalRefHelper": "מזהה אופציונלי ממערכות חיצוניות",
-    "status": "סטטוס"
+    "status": "סטטוס",
+    "subject": "נושא"
   },
   "validation": {
     "fullNameRequired": "שם מלא הוא שדה חובה",
@@ -126,11 +131,18 @@
       "message": "האם אתה בטוח שברצונך למחוק את",
       "warning": "פעולה זו לא ניתנת לביטול ותמחק גם את כל החובות, התשלומים וההתראות המשויכים."
     },
+    "deleteAllCustomers": {
+      "title": "מחיקת כל הלקוחות",
+      "message": "האם אתה בטוח שברצונך למחוק את כל {{count}} הלקוחות?",
+      "warning": "פעולה זו לא ניתנת לביטול! כל הלקוחות והחובות, התשלומים, התשלומים והתראות המשויכים אליהם יימחקו לצמיתות.",
+      "confirmButton": "מחק את כל הלקוחות"
+    },
     "sendReminder": {
       "title": "שליחת תזכורת {{type}}",
       "message": "שלח תזכורת תשלום אל",
       "preview": "תצוגה מקדימה של התזכורת:",
       "previewMessage": "שלום {{name}},\n\nזוהי תזכורת ידידותית בנוגע לחוב הקיים שלך. אנא בצע את התשלום בהקדם האפשרי כדי למנוע חיובים נוספים.\n\nאם כבר ביצעת את התשלום, אנא התעלם מהודעה זו.\n\nבברכה,\nצוות גביית PayDay AI",
+      "toneInfo": "תזכורת תשלום בנימה {{tone}} תישלח ב{{language}}.",
       "sendingTo": "שולח אל:"
     }
   },
@@ -138,11 +150,13 @@
     "customerCreated": "הלקוח נוצר בהצלחה!",
     "customerUpdated": "הלקוח עודכן בהצלחה!",
     "customerDeleted": "הלקוח נמחק בהצלחה!",
+    "allCustomersDeleted": "{{count}} לקוחות נמחקו בהצלחה!",
     "reminderSent": "תזכורת {{type}} נשלחה ל-{{name}}!",
     "error": {
       "createCustomer": "יצירת הלקוח נכשלה",
       "updateCustomer": "עדכון הלקוח נכשל",
       "deleteCustomer": "מחיקת הלקוח נכשלה",
+      "deleteAllCustomers": "מחיקת כל הלקוחות נכשלה",
       "sendNotification": "שליחת ההתראה נכשלה"
     }
   },

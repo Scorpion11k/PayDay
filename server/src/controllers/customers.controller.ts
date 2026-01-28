@@ -108,6 +108,16 @@ class CustomersController {
     });
   }
 
+  async deleteAll(req: Request, res: Response) {
+    const result = await customersService.deleteAll();
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} customers`,
+      data: result,
+    });
+  }
+
   async getStats(req: Request, res: Response) {
     const { id } = req.params;
     const stats = await customersService.getStats(id);

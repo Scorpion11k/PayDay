@@ -38,8 +38,9 @@ cd server
 npm install
 
 # Create server/.env (see server/env.example)
-# Then run migrations + start dev server
+# Then run migrations + seed templates + start dev server
 npm run db:migrate
+npx ts-node prisma/seed-templates.ts   # Seeds 36 message templates for notifications
 npm run dev
 ```
 

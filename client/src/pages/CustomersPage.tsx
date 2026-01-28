@@ -152,12 +152,18 @@ export default function CustomersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Delete All Confirmation Dialog
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+
   // Send Notification Dialog
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
   const [notificationType, setNotificationType] = useState<'email' | 'whatsapp' | 'sms' | 'call_task' | null>(null);
   const [sendingNotification, setSendingNotification] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'he' | 'ar'>('en');
   const [selectedTone, setSelectedTone] = useState<'calm' | 'medium' | 'heavy'>('calm');
+  const [templatePreview, setTemplatePreview] = useState<{ subject?: string; bodyText: string } | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   // Edit Customer Dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -416,6 +422,43 @@ export default function CustomersPage() {
     }
   };
 
+  // Delete All Customers
+  const handleDeleteAllClick = () => {
+    setDeleteAllDialogOpen(true);
+  };
+
+  const handleDeleteAllConfirm = async () => {
+    setDeletingAll(true);
+
+    try {
+      const response = await fetch('http://localhost:3001/api/customers/all', {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || t('notifications.error.deleteAllCustomers'));
+      }
+
+      setSnackbar({ 
+        open: true, 
+        message: t('notifications.allCustomersDeleted', { count: data.data?.deletedCount || 0 }), 
+        severity: 'success' 
+      });
+      setDeleteAllDialogOpen(false);
+      fetchCustomers();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : t('notifications.error.deleteAllCustomers'),
+        severity: 'error',
+      });
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   // Edit Customer
   const handleEditClick = () => {
     if (selectedCustomer) {
@@ -499,13 +542,58 @@ export default function CustomersPage() {
   };
 
   // Send Notification
+  // Fetch template preview
+  const fetchTemplatePreview = useCallback(async (
+    customerId: string,
+    channel: 'email' | 'whatsapp' | 'sms' | 'call_task',
+    lang: 'en' | 'he' | 'ar',
+    tone: 'calm' | 'medium' | 'heavy'
+  ) => {
+    setLoadingPreview(true);
+    try {
+      const response = await fetch('http://localhost:3001/api/messaging/preview-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId,
+          channel,
+          language: lang,
+          tone,
+          templateKey: 'debt_reminder'
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTemplatePreview({ subject: data.data.subject, bodyText: data.data.bodyText });
+      } else {
+        setTemplatePreview(null);
+      }
+    } catch {
+      setTemplatePreview(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  }, []);
+
   const handleSendNotification = (type: 'email' | 'whatsapp' | 'sms' | 'call_task') => {
     handleActionsClose();
     setNotificationType(type);
     setSelectedLanguage('en');
     setSelectedTone('calm');
+    setTemplatePreview(null);
     setNotificationDialogOpen(true);
+    // Fetch preview for the selected customer
+    if (selectedCustomer) {
+      fetchTemplatePreview(selectedCustomer.id, type, 'en', 'calm');
+    }
   };
+
+  // Refetch template preview when language or tone changes
+  useEffect(() => {
+    if (notificationDialogOpen && selectedCustomer && notificationType) {
+      fetchTemplatePreview(selectedCustomer.id, notificationType, selectedLanguage, selectedTone);
+    }
+  }, [selectedLanguage, selectedTone, notificationDialogOpen, selectedCustomer, notificationType, fetchTemplatePreview]);
 
   const handleSendNotificationConfirm = async () => {
     if (!selectedCustomer || !notificationType) return;
@@ -578,6 +666,16 @@ export default function CustomersPage() {
         <Stack direction="row" spacing={1}>
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenDialog} sx={{ textTransform: 'none' }}>
             {t('customers.addCustomer')}
+          </Button>
+          <Button 
+            variant="outlined" 
+            color="error" 
+            startIcon={<DeleteIcon />} 
+            onClick={handleDeleteAllClick} 
+            disabled={loading || pagination.total === 0}
+            sx={{ textTransform: 'none' }}
+          >
+            {t('customers.deleteAll')}
           </Button>
           <Tooltip title={t('common.refresh')}>
             <IconButton onClick={fetchCustomers} disabled={loading}>
@@ -912,6 +1010,34 @@ export default function CustomersPage() {
         </DialogActions>
       </Dialog>
 
+      {/* Delete All Confirmation Dialog */}
+      <Dialog open={deleteAllDialogOpen} onClose={() => setDeleteAllDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600, color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningIcon />
+          {t('dialogs.deleteAllCustomers.title')}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {t('dialogs.deleteAllCustomers.message', { count: pagination.total })}
+          </DialogContentText>
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {t('dialogs.deleteAllCustomers.warning')}
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setDeleteAllDialogOpen(false)} color="inherit">{t('common.cancel')}</Button>
+          <Button
+            onClick={handleDeleteAllConfirm}
+            variant="contained"
+            color="error"
+            disabled={deletingAll}
+            startIcon={deletingAll ? <CircularProgress size={18} color="inherit" /> : <DeleteIcon />}
+          >
+            {deletingAll ? t('actions.deleting') : t('dialogs.deleteAllCustomers.confirmButton')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Send Notification Dialog */}
       <Dialog open={notificationDialogOpen} onClose={() => setNotificationDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 600 }}>
@@ -949,14 +1075,44 @@ export default function CustomersPage() {
             </FormControl>
           </Stack>
 
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-<Typography variant="subtitle2" gutterBottom>{t('dialogs.sendReminder.preview')}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {t('dialogs.sendReminder.toneInfo', { 
-                tone: selectedTone === 'calm' ? t('common.friendly') || 'friendly' : selectedTone === 'medium' ? t('common.firm') || 'firm' : t('common.urgent') || 'urgent',
-                language: selectedLanguage === 'en' ? 'English' : selectedLanguage === 'he' ? 'Hebrew' : 'Arabic'
-              }) || `A ${selectedTone === 'calm' ? 'friendly' : selectedTone === 'medium' ? 'firm' : 'urgent'} payment reminder will be sent in ${selectedLanguage === 'en' ? 'English' : selectedLanguage === 'he' ? 'Hebrew' : 'Arabic'}.`}
-            </Typography>
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f5f5f5', maxHeight: 300, overflow: 'auto' }}>
+            <Typography variant="subtitle2" gutterBottom>{t('dialogs.sendReminder.preview')}</Typography>
+            {loadingPreview ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2" color="text.secondary">{t('common.loading')}</Typography>
+              </Box>
+            ) : templatePreview ? (
+              <Box>
+                {templatePreview.subject && notificationType === 'email' && (
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>{t('forms.subject') || 'Subject'}:</strong> {templatePreview.subject}
+                  </Typography>
+                )}
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  sx={{ 
+                    whiteSpace: 'pre-wrap',
+                    fontFamily: 'monospace',
+                    fontSize: '0.8rem',
+                    bgcolor: 'white',
+                    p: 1.5,
+                    borderRadius: 1,
+                    border: '1px solid #e0e0e0'
+                  }}
+                >
+                  {templatePreview.bodyText}
+                </Typography>
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                {t('dialogs.sendReminder.toneInfo', { 
+                  tone: selectedTone === 'calm' ? t('common.friendly') || 'friendly' : selectedTone === 'medium' ? t('common.firm') || 'firm' : t('common.urgent') || 'urgent',
+                  language: selectedLanguage === 'en' ? 'English' : selectedLanguage === 'he' ? 'Hebrew' : 'Arabic'
+                })}
+              </Typography>
+            )}
           </Paper>
           <Box sx={{ 
             mt: 2, 

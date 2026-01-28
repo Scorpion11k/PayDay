@@ -120,7 +120,7 @@ class WhatsAppService {
     message += `This is a friendly reminder about your outstanding balance.\n\n`;
     
     if (data.totalDebt) {
-      message += `💰 *Amount Due:* ${data.currency || 'USD'} ${data.totalDebt.toLocaleString()}\n`;
+      message += `💰 *Amount Due:* ${data.currency || '₪'} ${data.totalDebt.toLocaleString()}\n`;
     }
     
     if (data.dueDate) {
