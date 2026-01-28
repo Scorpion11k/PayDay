@@ -112,8 +112,8 @@ IMPORTANT RULES:
 The JSON response should have this structure:
 {
   "model": "customer" | "debt" | "installment" | "payment" | "notification",
-  "operation": "findMany" | "findFirst" | "count" | "aggregate" | "groupBy",
-  "args": { /* Prisma query arguments with camelCase field names */ },
+  "operation": "findMany" | "findFirst" | "count" | "aggregate" | "groupBy" | "rawQuery",
+  "args": { /* Prisma query arguments with camelCase field names, OR { "sql": "SELECT ..." } for rawQuery */ },
   "explanation": "Brief explanation of what this query does"
 }
 
@@ -190,11 +190,42 @@ Response:
   },
   "explanation": "Counts all received payments since the start of the current month"
 }
+
+IMPORTANT: For queries that require aggregating across relations (like "top customers by total balance"), 
+use the "rawQuery" operation with raw SQL. The database uses snake_case column names and PLURAL table names:
+- customers (not customer)
+- debts (not debt)
+- installments (not installment)
+- payments (not payment)
+- notifications (not notification)
+- notification_deliveries (not notificationDelivery)
+
+User: "List top 10 customers with highest outstanding balance"
+Response:
+{
+  "model": "customer",
+  "operation": "rawQuery",
+  "args": {
+    "sql": "SELECT c.id, c.full_name, c.phone, c.email, c.status, c.created_at, c.updated_at, COALESCE(SUM(d.current_balance), 0) as total_balance FROM customers c LEFT JOIN debts d ON d.customer_id = c.id AND d.status IN ('open', 'in_collection') GROUP BY c.id ORDER BY total_balance DESC LIMIT 10"
+  },
+  "explanation": "Gets top 10 customers ranked by their total outstanding debt balance"
+}
+
+User: "Show customers with total debt over 5000"
+Response:
+{
+  "model": "customer",
+  "operation": "rawQuery",
+  "args": {
+    "sql": "SELECT c.id, c.full_name, c.phone, c.email, c.status, COALESCE(SUM(d.current_balance), 0) as total_balance FROM customers c LEFT JOIN debts d ON d.customer_id = c.id AND d.status IN ('open', 'in_collection') GROUP BY c.id HAVING COALESCE(SUM(d.current_balance), 0) > 5000 ORDER BY total_balance DESC LIMIT 100"
+  },
+  "explanation": "Finds customers whose total outstanding balance exceeds 5000"
+}
 `;
 
 interface PrismaQueryResponse {
   model: 'customer' | 'debt' | 'installment' | 'payment' | 'notification' | 'notificationDelivery';
-  operation: 'findMany' | 'findFirst' | 'count' | 'aggregate' | 'groupBy';
+  operation: 'findMany' | 'findFirst' | 'count' | 'aggregate' | 'groupBy' | 'rawQuery';
   args: Record<string, unknown>;
   explanation: string;
 }
@@ -371,10 +402,48 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
   }
 
   /**
+   * Recursively convert ISO date strings to Date objects in query args
+   * Prisma requires actual Date objects for DateTime comparisons
+   */
+  private convertDatesToObjects(obj: unknown): unknown {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+
+    // Check if it's a date string (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
+    if (typeof obj === 'string') {
+      // Match ISO date format (with or without time component)
+      const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+      if (isoDateRegex.test(obj)) {
+        return new Date(obj);
+      }
+      return obj;
+    }
+
+    // Recursively process arrays
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.convertDatesToObjects(item));
+    }
+
+    // Recursively process objects
+    if (typeof obj === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+        result[key] = this.convertDatesToObjects(value);
+      }
+      return result;
+    }
+
+    return obj;
+  }
+
+  /**
    * Execute a Prisma query based on the AI-generated config
    */
   private async executeQuery(config: PrismaQueryResponse): Promise<unknown> {
-    const { model, operation, args } = config;
+    const { model, operation } = config;
+    // Convert any date strings to Date objects for Prisma compatibility
+    const args = this.convertDatesToObjects(config.args) as Record<string, unknown>;
 
     // Map model names to Prisma delegates
     const modelMap = {
@@ -404,9 +473,75 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
       case 'groupBy':
         // GroupBy has special handling
         return (prismaModel as unknown as { groupBy: (args: unknown) => Promise<unknown> }).groupBy(args);
+      case 'rawQuery':
+        // Execute raw SQL query for complex aggregations
+        return this.executeRawQuery(args);
       default:
         throw new AppError(`Invalid operation: ${operation}`, 400);
     }
+  }
+
+  /**
+   * Execute a raw SQL query for complex aggregations
+   * Only SELECT queries are allowed for safety
+   */
+  private async executeRawQuery(args: Record<string, unknown>): Promise<unknown> {
+    const sql = args.sql as string;
+    
+    if (!sql) {
+      throw new AppError('Raw query requires a sql field', 400);
+    }
+
+    // Security: Only allow SELECT queries (read-only)
+    const normalizedSql = sql.trim().toLowerCase();
+    if (!normalizedSql.startsWith('select')) {
+      throw new AppError('Only SELECT queries are allowed for safety', 400);
+    }
+
+    // Block dangerous keywords
+    const dangerousKeywords = ['insert', 'update', 'delete', 'drop', 'alter', 'truncate', 'create', 'grant', 'revoke'];
+    for (const keyword of dangerousKeywords) {
+      // Check for keyword as a standalone word (not part of column name)
+      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+      if (regex.test(sql)) {
+        throw new AppError(`Dangerous SQL keyword detected: ${keyword}`, 400);
+      }
+    }
+
+    // Execute the raw query using Prisma's $queryRawUnsafe
+    // We use $queryRawUnsafe because the SQL is AI-generated, but we've validated it above
+    const results = await prisma.$queryRawUnsafe(sql);
+    
+    // Convert BigInt values to numbers (Prisma returns BigInt for aggregates)
+    return this.convertBigIntsToNumbers(results);
+  }
+
+  /**
+   * Convert BigInt values to numbers in query results
+   * PostgreSQL returns BigInt for COUNT and SUM which JSON.stringify can't handle
+   */
+  private convertBigIntsToNumbers(obj: unknown): unknown {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+
+    if (typeof obj === 'bigint') {
+      return Number(obj);
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.convertBigIntsToNumbers(item));
+    }
+
+    if (typeof obj === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+        result[key] = this.convertBigIntsToNumbers(value);
+      }
+      return result;
+    }
+
+    return obj;
   }
 
   /**
