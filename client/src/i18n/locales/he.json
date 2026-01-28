@@ -43,7 +43,9 @@
     "preferNotToSay": "מעדיף/ה לא לציין",
     "friendly": "ידידותית",
     "firm": "נחושה",
-    "urgent": "דחופה"
+    "urgent": "דחופה",
+    "sms": "SMS",
+    "voiceCall": "שיחה קולית"
   },
   "nav": {
     "home": "בית",
@@ -164,6 +166,8 @@
     "editCustomer": "עריכת לקוח",
     "sendEmailReminder": "שליחת תזכורת בדוא\"ל",
     "sendWhatsAppReminder": "שליחת תזכורת ב-WhatsApp",
+    "sendSmsReminder": "שליחת תזכורת ב-SMS",
+    "makeVoiceCallReminder": "ביצוע שיחה קולית",
     "deleting": "מוחק...",
     "creating": "יוצר...",
     "updating": "מעדכן...",
@@ -171,7 +175,9 @@
     "createCustomer": "יצירת לקוח",
     "updateCustomer": "עדכון לקוח",
     "sendEmail": "שליחת דוא\"ל",
-    "sendWhatsApp": "שליחת WhatsApp"
+    "sendWhatsApp": "שליחת WhatsApp",
+    "sendSms": "שליחת SMS",
+    "makeVoiceCall": "ביצוע שיחה קולית"
   },
   "chat": {
     "placeholder": "שאל כל דבר על הנתונים שלך... (לדוגמה, 'הצג את כל הלקוחות באיחור של 30 יום')",

@@ -43,7 +43,9 @@
     "preferNotToSay": "Prefer not to say",
     "friendly": "friendly",
     "firm": "firm",
-    "urgent": "urgent"
+    "urgent": "urgent",
+    "sms": "SMS",
+    "voiceCall": "Voice Call"
   },
   "nav": {
     "home": "Home",
@@ -164,6 +166,8 @@
     "editCustomer": "Edit Customer",
     "sendEmailReminder": "Send Email Reminder",
     "sendWhatsAppReminder": "Send WhatsApp Reminder",
+    "sendSmsReminder": "Send SMS Reminder",
+    "makeVoiceCallReminder": "Make Voice Call",
     "deleting": "Deleting...",
     "creating": "Creating...",
     "updating": "Updating...",
@@ -171,7 +175,9 @@
     "createCustomer": "Create Customer",
     "updateCustomer": "Update Customer",
     "sendEmail": "Send Email",
-    "sendWhatsApp": "Send WhatsApp"
+    "sendWhatsApp": "Send WhatsApp",
+    "sendSms": "Send SMS",
+    "makeVoiceCall": "Make Voice Call"
   },
   "chat": {
     "placeholder": "Ask anything about your data... (e.g., 'Show all customers overdue by 30 days')",

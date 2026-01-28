@@ -959,7 +959,7 @@ export default function CustomersPage() {
           <ListItemIcon>
             <SmsIcon fontSize="small" sx={{ color: '#1976d2' }} />
           </ListItemIcon>
-          <ListItemText primary="Send SMS Reminder" secondary={!selectedCustomer?.phone ? 'No phone number' : undefined} />
+          <ListItemText primary={t('actions.sendSmsReminder')} secondary={!selectedCustomer?.phone ? t('customers.noPhoneNumber') : undefined} />
         </MenuItem>
         <MenuItem
           onClick={() => handleSendNotification('whatsapp')}
@@ -977,7 +977,7 @@ export default function CustomersPage() {
           <ListItemIcon>
             <CallIcon fontSize="small" sx={{ color: '#9c27b0' }} />
           </ListItemIcon>
-          <ListItemText primary="Make Voice Call" secondary={!selectedCustomer?.phone ? 'No phone number' : undefined} />
+          <ListItemText primary={t('actions.makeVoiceCallReminder')} secondary={!selectedCustomer?.phone ? t('customers.noPhoneNumber') : undefined} />
         </MenuItem>
         <Divider />
         <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>
@@ -1041,7 +1041,7 @@ export default function CustomersPage() {
       {/* Send Notification Dialog */}
       <Dialog open={notificationDialogOpen} onClose={() => setNotificationDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 600 }}>
-{t('dialogs.sendReminder.title', { type: notificationType === 'email' ? t('common.email') : notificationType === 'sms' ? 'SMS' : notificationType === 'whatsapp' ? 'WhatsApp' : t('common.voiceCall') || 'Voice' })}
+{t('dialogs.sendReminder.title', { type: notificationType === 'email' ? t('common.email') : notificationType === 'sms' ? t('common.sms') : notificationType === 'whatsapp' ? 'WhatsApp' : t('common.voiceCall') })}
         </DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
@@ -1142,9 +1142,9 @@ export default function CustomersPage() {
           >
 {sendingNotification ? t('actions.sending') : (
               notificationType === 'email' ? t('actions.sendEmail') : 
-              notificationType === 'sms' ? t('actions.sendSms') || 'Send SMS' : 
+              notificationType === 'sms' ? t('actions.sendSms') : 
               notificationType === 'whatsapp' ? t('actions.sendWhatsApp') : 
-              t('actions.makeVoiceCall') || 'Make Voice Call'
+              t('actions.makeVoiceCall')
             )}
           </Button>
         </DialogActions>
