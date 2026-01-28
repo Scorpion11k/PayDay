@@ -36,7 +36,11 @@
     "results": "Results",
     "showing": "Showing",
     "of": "of",
-    "rowsPerPage": "Rows per page"
+    "rowsPerPage": "Rows per page",
+    "male": "Male",
+    "female": "Female",
+    "other": "Other",
+    "preferNotToSay": "Prefer not to say"
   },
   "nav": {
     "home": "Home",
@@ -85,8 +89,12 @@
       "name": "Name",
       "contact": "Contact",
       "externalRef": "External Ref",
+      "gender": "Gender",
+      "dateOfBirth": "Date of Birth",
+      "religion": "Religion",
       "status": "Status",
       "overdue": "Overdue",
+      "overdueDays": "{{days}} days",
       "totalDebt": "Total Debt",
       "payments": "Payments",
       "created": "Created"

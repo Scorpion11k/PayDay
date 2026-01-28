@@ -61,6 +61,9 @@ interface Customer {
   fullName: string;
   phone: string | null;
   email: string | null;
+  gender: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
+  dateOfBirth: string | null;
+  religion: string | null;
   status: 'active' | 'do_not_contact' | 'blocked';
   createdAt: string;
   updatedAt: string;
@@ -70,6 +73,7 @@ interface Customer {
   };
   totalDebtAmount: number;
   isOverdue: boolean;
+  overdueDays: number;
 }
 
 interface PaginationInfo {
@@ -169,6 +173,28 @@ export default function CustomersPage() {
       blocked: t('customers.status.blocked'),
     };
     return labels[status];
+  };
+
+  // Gender labels with translations
+  const getGenderLabel = (gender: Customer['gender']): string => {
+    if (!gender) return '—';
+    const labels: Record<NonNullable<Customer['gender']>, string> = {
+      male: t('common.male') || 'Male',
+      female: t('common.female') || 'Female',
+      other: t('common.other') || 'Other',
+      prefer_not_to_say: t('common.preferNotToSay') || 'Prefer not to say',
+    };
+    return labels[gender] || gender;
+  };
+
+  // Format date of birth
+  const formatDateOfBirth = (dateString: string | null) => {
+    if (!dateString) return '—';
+    return new Date(dateString).toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
   // Debounce search input
@@ -622,6 +648,9 @@ export default function CustomersPage() {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.externalRef')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.gender')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.dateOfBirth')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.religion')}</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>
                   <TableSortLabel
                     active={sortBy === 'status'}
@@ -673,7 +702,7 @@ export default function CustomersPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={12} align="center" sx={{ py: 8 }}>
                     <CircularProgress size={40} />
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                       {t('customers.loadingCustomers')}
@@ -682,7 +711,7 @@ export default function CustomersPage() {
                 </TableRow>
               ) : customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={12} align="center" sx={{ py: 8 }}>
                     <Typography variant="body1" color="text.secondary">{t('customers.noCustomers')}</Typography>
                     {(search || statusFilter) && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -720,21 +749,33 @@ export default function CustomersPage() {
                       <Typography variant="body2" color="text.secondary">{customer.externalRef || '—'}</Typography>
                     </TableCell>
                     <TableCell>
+                      <Typography variant="body2" color="text.secondary">{getGenderLabel(customer.gender)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{formatDateOfBirth(customer.dateOfBirth)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{customer.religion || '—'}</Typography>
+                    </TableCell>
+                    <TableCell>
                       <Chip label={getStatusLabel(customer.status)} color={statusColors[customer.status]} size="small" variant="outlined" />
                     </TableCell>
                     <TableCell align="center">
-                      {customer.isOverdue ? (
-                        <Chip
-                          icon={<WarningIcon sx={{ fontSize: 16 }} />}
-                          label={t('customers.columns.overdue')}
-                          size="small"
+                      {customer.overdueDays > 0 ? (
+                        <Typography
+                          variant="body2"
                           sx={{
-                            bgcolor: 'error.light',
-                            color: 'error.dark',
-                            fontWeight: 500,
-                            '& .MuiChip-icon': { color: 'error.dark' },
+                            color: 'error.main',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 0.5,
                           }}
-                        />
+                        >
+                          <WarningIcon sx={{ fontSize: 16 }} />
+                          {t('customers.columns.overdueDays', { days: customer.overdueDays })}
+                        </Typography>
                       ) : (
                         <Typography variant="body2" color="text.secondary">—</Typography>
                       )}

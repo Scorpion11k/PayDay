@@ -81,6 +81,7 @@ class CustomersService {
                 },
                 select: {
                   id: true,
+                  dueDate: true,
                 },
               },
             },
@@ -90,12 +91,27 @@ class CustomersService {
       prisma.customer.count({ where }),
     ]);
 
-    // Calculate total debt amount and overdue status for each customer
+    // Calculate total debt amount, overdue status, and max overdue days for each customer
+    const now = new Date();
     let customersWithStats = customers.map((customer) => {
       const totalDebtAmount = customer.debts.reduce(
         (sum, debt) => sum + Number(debt.currentBalance),
         0
       );
+      
+      // Find the oldest overdue installment to calculate max overdue days
+      let maxOverdueDays = 0;
+      for (const debt of customer.debts) {
+        for (const installment of debt.installments) {
+          const dueDate = new Date(installment.dueDate);
+          const diffTime = now.getTime() - dueDate.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays > maxOverdueDays) {
+            maxOverdueDays = diffDays;
+          }
+        }
+      }
+      
       const hasOverdueInstallments = customer.debts.some(
         (debt) => debt.installments.length > 0
       );
@@ -107,6 +123,7 @@ class CustomersService {
         ...customerWithoutDebts,
         totalDebtAmount,
         isOverdue: hasOverdueInstallments,
+        overdueDays: maxOverdueDays,
       };
     });
 

@@ -148,6 +148,35 @@ function validatePhone(value: string): boolean {
 function validateDate(value: string | number | Date): boolean {
   if (value instanceof Date) return !isNaN(value.getTime());
   if (typeof value === 'number') return true; // Excel serial number
+  
+  const strValue = String(value).trim();
+  
+  // Try DD/MM/YYYY or DD-MM-YYYY format first
+  const ddmmyyyyMatch = strValue.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const [, day, month, year] = ddmmyyyyMatch;
+    const d = parseInt(day, 10);
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    // Basic validation: month 1-12, day 1-31, year reasonable
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31 && y >= 1900 && y <= 2100) {
+      return true;
+    }
+  }
+  
+  // Try YYYY-MM-DD format (ISO)
+  const isoMatch = strValue.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    const d = parseInt(day, 10);
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31 && y >= 1900 && y <= 2100) {
+      return true;
+    }
+  }
+  
+  // Fallback to native Date parsing
   const date = new Date(value);
   return !isNaN(date.getTime());
 }
@@ -615,8 +644,36 @@ class ImportService {
       return new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
     }
 
-    // Handle date strings
-    const date = new Date(String(value));
+    const strValue = String(value).trim();
+
+    // Try DD/MM/YYYY or DD-MM-YYYY format first
+    const ddmmyyyyMatch = strValue.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (ddmmyyyyMatch) {
+      const [, day, month, year] = ddmmyyyyMatch;
+      const d = parseInt(day, 10);
+      const m = parseInt(month, 10) - 1; // JavaScript months are 0-indexed
+      const y = parseInt(year, 10);
+      const date = new Date(y, m, d);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+
+    // Try YYYY-MM-DD format (ISO)
+    const isoMatch = strValue.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch;
+      const d = parseInt(day, 10);
+      const m = parseInt(month, 10) - 1; // JavaScript months are 0-indexed
+      const y = parseInt(year, 10);
+      const date = new Date(y, m, d);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+
+    // Fallback to native Date parsing
+    const date = new Date(strValue);
     return isNaN(date.getTime()) ? null : date;
   }
 

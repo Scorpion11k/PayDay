@@ -36,7 +36,11 @@
     "results": "תוצאות",
     "showing": "מציג",
     "of": "מתוך",
-    "rowsPerPage": "שורות בעמוד"
+    "rowsPerPage": "שורות בעמוד",
+    "male": "זכר",
+    "female": "נקבה",
+    "other": "אחר",
+    "preferNotToSay": "מעדיף/ה לא לציין"
   },
   "nav": {
     "home": "בית",
@@ -85,8 +89,12 @@
       "name": "שם",
       "contact": "פרטי קשר",
       "externalRef": "מזהה חיצוני",
+      "gender": "מין",
+      "dateOfBirth": "תאריך לידה",
+      "religion": "דת",
       "status": "סטטוס",
       "overdue": "באיחור",
+      "overdueDays": "{{days}} ימים",
       "totalDebt": "סה\"כ חוב",
       "payments": "תשלומים",
       "created": "נוצר"
