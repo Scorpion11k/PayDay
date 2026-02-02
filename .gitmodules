@@ -1,0 +1,3 @@
+[submodule "LovableApp"]
+	path = LovableApp
+	url = https://github.com/omerlevy7/payday-ai.git

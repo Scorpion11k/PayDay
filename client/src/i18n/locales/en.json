@@ -50,6 +50,7 @@
   "nav": {
     "home": "Home",
     "customers": "Customers",
+    "templates": "Templates",
     "activities": "Activities",
     "dashboards": "Dashboards",
     "flows": "Flows",

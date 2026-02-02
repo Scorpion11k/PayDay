@@ -169,7 +169,7 @@ export default function TemplatesPage() {
       if (toneFilter) params.set('tone', toneFilter);
       if (statusFilter) params.set('status', statusFilter);
 
-      const response = await fetch(`http://localhost:3001/api/templates?${params}`);
+      const response = await fetch(`/api/templates?${params}`);
       const data = await response.json();
 
       if (data.success) {
@@ -212,7 +212,7 @@ export default function TemplatesPage() {
   const handleEditClick = async (template: Template) => {
     // Fetch full template data
     try {
-      const response = await fetch(`http://localhost:3001/api/templates/${template.id}`);
+      const response = await fetch(`/api/templates/${template.id}`);
       const data = await response.json();
       if (data.success) {
         setSelectedTemplate(data.data);
@@ -230,7 +230,7 @@ export default function TemplatesPage() {
     setPreviewDialogOpen(true);
 
     try {
-      const response = await fetch(`http://localhost:3001/api/templates/${template.id}/preview`, {
+      const response = await fetch(`/api/templates/${template.id}/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -250,7 +250,7 @@ export default function TemplatesPage() {
     if (!confirm(`Archive template "${template.name}"?`)) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/templates/${template.id}`, {
+      const response = await fetch(`/api/templates/${template.id}`, {
         method: 'DELETE',
       });
       const data = await response.json();
@@ -291,7 +291,7 @@ export default function TemplatesPage() {
     setSubmitting(true);
 
     try {
-      const response = await fetch(`http://localhost:3001/api/templates/${selectedTemplate?.id}`, {
+      const response = await fetch(`/api/templates/${selectedTemplate?.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
