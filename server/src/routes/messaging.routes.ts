@@ -13,6 +13,9 @@ router.post('/send-reminder', asyncHandler(messagingController.sendReminder.bind
 // POST /api/messaging/preview-reminder - Preview reminder without sending
 router.post('/preview-reminder', asyncHandler(messagingController.previewReminder.bind(messagingController)));
 
+// POST /api/messaging/bulk-send - Send notifications to multiple customers
+router.post('/bulk-send', asyncHandler(messagingController.bulkSend.bind(messagingController)));
+
 // POST /api/messaging/test-email - Test email configuration
 router.post('/test-email', asyncHandler(messagingController.testEmail.bind(messagingController)));
 

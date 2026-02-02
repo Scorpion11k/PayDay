@@ -10,14 +10,28 @@ const createCustomerSchema = z.object({
   phone: z.string().max(50).optional(),
   email: z.string().email('Invalid email format').optional(),
   status: z.enum(['active', 'do_not_contact', 'blocked']).optional(),
+  gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional(),
+  dateOfBirth: z.string().optional(),
+  region: z.string().max(255).optional(),
+  religion: z.string().max(100).optional(),
+  preferredChannel: z.enum(['email', 'sms', 'whatsapp', 'call_task']).optional(),
+  preferredLanguage: z.enum(['en', 'he', 'ar']).optional(),
+  preferredTone: z.enum(['calm', 'medium', 'heavy']).optional(),
 });
 
 const updateCustomerSchema = z.object({
   fullName: z.string().min(1).max(255).optional(),
-  externalRef: z.string().max(255).nullable().optional(),
-  phone: z.string().max(50).nullable().optional(),
-  email: z.string().email('Invalid email format').nullable().optional(),
+  externalRef: z.string().max(255).nullish(),
+  phone: z.string().max(50).nullish(),
+  email: z.union([z.string().email('Invalid email format'), z.literal(''), z.null()]).optional(),
   status: z.enum(['active', 'do_not_contact', 'blocked']).optional(),
+  gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).nullish(),
+  dateOfBirth: z.string().nullish(),
+  region: z.string().max(255).nullish(),
+  religion: z.string().max(100).nullish(),
+  preferredChannel: z.enum(['email', 'sms', 'whatsapp', 'call_task']).nullish(),
+  preferredLanguage: z.enum(['en', 'he', 'ar']).nullish(),
+  preferredTone: z.enum(['calm', 'medium', 'heavy']).nullish(),
 });
 
 const querySchema = z.object({
@@ -81,15 +95,9 @@ class CustomersController {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
-    // Transform null values to undefined for the service
-    const data = {
-      ...validation.data,
-      externalRef: validation.data.externalRef ?? undefined,
-      phone: validation.data.phone ?? undefined,
-      email: validation.data.email ?? undefined,
-    };
-
-    const customer = await customersService.update(id, data);
+    // Pass through all validated data including null values
+    // The service will handle null vs undefined appropriately
+    const customer = await customersService.update(id, validation.data);
 
     res.json({
       success: true,

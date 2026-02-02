@@ -8,6 +8,7 @@ import voiceService from '../services/voice.service';
 import templateService from '../services/template.service';
 import { ValidationError, NotFoundError } from '../types';
 import { TemplateLanguage, TemplateTone, NotificationChannel } from '@prisma/client';
+import { isEligibleForChannel, recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from '../services/preference.service';
 
 const sendReminderSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
@@ -25,6 +26,14 @@ const previewReminderSchema = z.object({
   templateKey: z.string().optional().default('debt_reminder'),
   language: z.enum(['en', 'he', 'ar']).optional(),
   tone: z.enum(['calm', 'medium', 'heavy']).optional()
+});
+
+const bulkSendSchema = z.object({
+  customerIds: z.array(z.string().uuid()).min(1, 'At least one customer required').max(500, 'Maximum 500 customers per batch'),
+  templateKey: z.string().optional().default('debt_reminder'),
+  overrideChannel: z.enum(['email', 'whatsapp', 'sms', 'call_task']).optional(),
+  overrideLanguage: z.enum(['en', 'he', 'ar']).optional(),
+  overrideTone: z.enum(['calm', 'medium', 'heavy']).optional(),
 });
 
 class MessagingController {
@@ -538,6 +547,232 @@ class MessagingController {
       success: true,
       message: 'Test SMS sent successfully',
       data: { messageSid: result.messageSid },
+    });
+  }
+
+  /**
+   * Bulk send notifications to multiple customers
+   * Uses customer preferences for channel/language/tone unless overridden
+   */
+  async bulkSend(req: Request, res: Response) {
+    const validation = bulkSendSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      throw new ValidationError(validation.error.issues[0].message);
+    }
+
+    const { customerIds, templateKey, overrideChannel, overrideLanguage, overrideTone } = validation.data;
+
+    // Fetch all customers with their preferences and debts
+    const customers = await prisma.customer.findMany({
+      where: {
+        id: { in: customerIds },
+        status: { notIn: ['blocked', 'do_not_contact'] }
+      },
+      include: {
+        debts: {
+          where: { status: { in: ['open', 'in_collection'] } },
+          select: {
+            id: true,
+            originalAmount: true,
+            currentBalance: true,
+            currency: true,
+          },
+        },
+      },
+    });
+
+    // Initialize results tracking
+    const results = {
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      breakdown: {} as Record<string, { sent: number; failed: number; skipped: number }>,
+      errors: [] as Array<{ customerId: string; error: string }>,
+    };
+
+    // Initialize services
+    await Promise.all([
+      emailService.initialize(),
+      whatsappService.initialize(),
+      smsService.initialize(),
+      voiceService.initialize()
+    ]);
+
+    // Process each customer
+    for (const customer of customers) {
+      // Resolve channel - use override, preference, or auto-calculate
+      const channel = overrideChannel || 
+                      customer.preferredChannel || 
+                      recommendChannelByAge(customer.dateOfBirth);
+      
+      // Resolve language - use override, preference, or auto-calculate
+      const language = (overrideLanguage || 
+                       customer.preferredLanguage || 
+                       recommendLanguageByRegion(customer.region)) as TemplateLanguage;
+      
+      // Resolve tone - use override, preference, or default
+      const tone = (overrideTone || 
+                   customer.preferredTone || 
+                   getDefaultTone()) as TemplateTone;
+
+      // Initialize channel breakdown if not exists
+      if (!results.breakdown[channel]) {
+        results.breakdown[channel] = { sent: 0, failed: 0, skipped: 0 };
+      }
+
+      // Check eligibility for the channel
+      if (!isEligibleForChannel(customer, channel)) {
+        results.skipped++;
+        results.breakdown[channel].skipped++;
+        continue;
+      }
+
+      try {
+        // Resolve template
+        const template = await templateService.resolveTemplate(
+          templateKey,
+          channel as NotificationChannel,
+          language,
+          tone
+        );
+
+        if (!template) {
+          results.failed++;
+          results.breakdown[channel].failed++;
+          results.errors.push({
+            customerId: customer.id,
+            error: `No template found for ${templateKey}/${channel}/${language}/${tone}`
+          });
+          continue;
+        }
+
+        // Get debt
+        const debt = customer.debts[0] || null;
+
+        // Build payload
+        const notificationId = crypto.randomUUID();
+        const payload = templateService.buildPayload(
+          customer,
+          debt,
+          null,
+          notificationId,
+          language
+        );
+
+        // Render template
+        const rendered = templateService.render(template, payload);
+
+        // Send based on channel
+        let result: { success: boolean; messageId?: string; messageSid?: string; callSid?: string; error?: string };
+        let provider: string;
+
+        switch (channel) {
+          case 'email':
+            if (!emailService.isAvailable()) {
+              throw new Error('Email service is not configured');
+            }
+            result = await emailService.sendEmail({
+              to: customer.email!,
+              subject: rendered.subject || 'Payment Reminder',
+              html: rendered.bodyHtml,
+              text: rendered.bodyText
+            });
+            provider = 'gmail';
+            break;
+
+          case 'whatsapp':
+            if (!whatsappService.isAvailable()) {
+              throw new Error('WhatsApp service is not configured');
+            }
+            result = await whatsappService.sendMessage({
+              to: customer.phone!,
+              message: rendered.bodyText
+            });
+            provider = 'twilio_whatsapp';
+            break;
+
+          case 'sms':
+            if (!smsService.isAvailable()) {
+              throw new Error('SMS service is not configured');
+            }
+            result = await smsService.sendSMS({
+              to: customer.phone!,
+              message: rendered.bodyText
+            });
+            provider = 'twilio_sms';
+            break;
+
+          case 'call_task':
+            // For bulk operations, skip voice calls (too expensive/intensive)
+            results.skipped++;
+            results.breakdown[channel].skipped++;
+            continue;
+
+          default:
+            throw new Error(`Unsupported channel: ${channel}`);
+        }
+
+        if (result.success) {
+          // Create notification record
+          const notification = await prisma.notification.create({
+            data: {
+              id: notificationId,
+              customerId: customer.id,
+              debtId: debt?.id,
+              channel: channel as NotificationChannel,
+              templateKey,
+              payloadSnapshot: {
+                ...payload,
+                language,
+                tone
+              },
+              createdBy: 'bulk_send',
+            },
+          });
+
+          // Create delivery record
+          await prisma.notificationDelivery.create({
+            data: {
+              notificationId: notification.id,
+              attemptNo: 1,
+              provider,
+              providerMessageId: result.messageId || result.messageSid || null,
+              status: 'sent',
+              sentAt: new Date(),
+            },
+          });
+
+          results.sent++;
+          results.breakdown[channel].sent++;
+        } else {
+          results.failed++;
+          results.breakdown[channel].failed++;
+          results.errors.push({
+            customerId: customer.id,
+            error: result.error || 'Unknown error'
+          });
+        }
+      } catch (error) {
+        results.failed++;
+        results.breakdown[channel].failed++;
+        results.errors.push({
+          customerId: customer.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    // Add info about customers that were excluded (blocked/do_not_contact)
+    const excludedCount = customerIds.length - customers.length;
+    if (excludedCount > 0) {
+      results.skipped += excludedCount;
+    }
+
+    res.json({
+      success: true,
+      message: `Bulk send completed: ${results.sent} sent, ${results.failed} failed, ${results.skipped} skipped`,
+      data: results,
     });
   }
 

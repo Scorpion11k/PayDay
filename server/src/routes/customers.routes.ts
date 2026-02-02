@@ -19,8 +19,9 @@ router.get('/:id/stats', asyncHandler(customersController.getStats.bind(customer
 // POST /api/customers - Create new customer
 router.post('/', asyncHandler(customersController.create.bind(customersController)));
 
-// PUT /api/customers/:id - Update customer
+// PUT/PATCH /api/customers/:id - Update customer
 router.put('/:id', asyncHandler(customersController.update.bind(customersController)));
+router.patch('/:id', asyncHandler(customersController.update.bind(customersController)));
 
 // DELETE /api/customers/:id - Delete customer
 router.delete('/:id', asyncHandler(customersController.delete.bind(customersController)));

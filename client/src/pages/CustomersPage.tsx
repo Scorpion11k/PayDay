@@ -35,6 +35,7 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
+  Checkbox,
 } from '@mui/material';
 import {
   People as CustomersIcon,
@@ -63,8 +64,12 @@ interface Customer {
   email: string | null;
   gender: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
   dateOfBirth: string | null;
+  region: string | null;
   religion: string | null;
   status: 'active' | 'do_not_contact' | 'blocked';
+  preferredLanguage: 'en' | 'he' | 'ar' | null;
+  preferredTone: 'calm' | 'medium' | 'heavy' | null;
+  preferredChannel: 'sms' | 'email' | 'whatsapp' | 'call_task' | null;
   createdAt: string;
   updatedAt: string;
   _count: {
@@ -95,6 +100,11 @@ interface NewCustomerForm {
   phone: string;
   externalRef: string;
   status: 'active' | 'do_not_contact' | 'blocked';
+  dateOfBirth: string;
+  region: string;
+  preferredChannel: 'sms' | 'email' | 'whatsapp' | 'call_task' | '';
+  preferredLanguage: 'en' | 'he' | 'ar' | '';
+  preferredTone: 'calm' | 'medium' | 'heavy' | '';
 }
 
 const initialFormState: NewCustomerForm = {
@@ -103,6 +113,11 @@ const initialFormState: NewCustomerForm = {
   phone: '',
   externalRef: '',
   status: 'active',
+  dateOfBirth: '',
+  region: '',
+  preferredChannel: '',
+  preferredLanguage: '',
+  preferredTone: '',
 };
 
 const statusColors: Record<Customer['status'], 'success' | 'warning' | 'error'> = {
@@ -171,6 +186,16 @@ export default function CustomersPage() {
   const [editFormErrors, setEditFormErrors] = useState<Partial<Record<keyof NewCustomerForm, string>>>({});
   const [updating, setUpdating] = useState(false);
 
+  // Bulk Selection & Send
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
+  const [bulkSendDialogOpen, setBulkSendDialogOpen] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
+
+  // Bulk Update Channel
+  const [bulkChannelDialogOpen, setBulkChannelDialogOpen] = useState(false);
+  const [bulkChannelValue, setBulkChannelValue] = useState<'sms' | 'email' | 'whatsapp' | 'call_task' | ''>('');
+  const [bulkUpdatingChannel, setBulkUpdatingChannel] = useState(false);
+
   // Status labels with translations
   const getStatusLabel = (status: Customer['status']): string => {
     const labels: Record<Customer['status'], string> = {
@@ -181,26 +206,144 @@ export default function CustomersPage() {
     return labels[status];
   };
 
-  // Gender labels with translations
-  const getGenderLabel = (gender: Customer['gender']): string => {
-    if (!gender) return '—';
-    const labels: Record<NonNullable<Customer['gender']>, string> = {
-      male: t('common.male') || 'Male',
-      female: t('common.female') || 'Female',
-      other: t('common.other') || 'Other',
-      prefer_not_to_say: t('common.preferNotToSay') || 'Prefer not to say',
+
+  // Get channel icon and label
+  const getChannelChip = (channel: Customer['preferredChannel']) => {
+    if (!channel) return null;
+    const channelConfig: Record<NonNullable<Customer['preferredChannel']>, { label: string; color: 'primary' | 'success' | 'warning' | 'secondary'; icon: React.ReactElement }> = {
+      email: { label: t('common.email'), color: 'primary', icon: <EmailIcon sx={{ fontSize: 16 }} /> },
+      sms: { label: 'SMS', color: 'warning', icon: <SmsIcon sx={{ fontSize: 16 }} /> },
+      whatsapp: { label: 'WhatsApp', color: 'success', icon: <WhatsAppIcon sx={{ fontSize: 16 }} /> },
+      call_task: { label: t('common.voiceCall'), color: 'secondary', icon: <CallIcon sx={{ fontSize: 16 }} /> },
     };
-    return labels[gender] || gender;
+    const config = channelConfig[channel];
+    return <Chip size="small" icon={config.icon} label={config.label} color={config.color} variant="outlined" />;
   };
 
-  // Format date of birth
-  const formatDateOfBirth = (dateString: string | null) => {
-    if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+  // Get language chip
+  const getLanguageChip = (lang: Customer['preferredLanguage']) => {
+    if (!lang) return null;
+    const langLabels: Record<NonNullable<Customer['preferredLanguage']>, string> = {
+      en: 'EN',
+      he: 'HE',
+      ar: 'AR',
+    };
+    return <Chip size="small" label={langLabels[lang]} variant="outlined" sx={{ minWidth: 40 }} />;
+  };
+
+  // Bulk selection handlers
+  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.checked) {
+      setSelectedCustomerIds(new Set(customers.map(c => c.id)));
+    } else {
+      setSelectedCustomerIds(new Set());
+    }
+  };
+
+  const handleSelectCustomer = (customerId: string) => {
+    setSelectedCustomerIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(customerId)) {
+        newSet.delete(customerId);
+      } else {
+        newSet.add(customerId);
+      }
+      return newSet;
     });
+  };
+
+  const isAllSelected = customers.length > 0 && selectedCustomerIds.size === customers.length;
+  const isSomeSelected = selectedCustomerIds.size > 0 && selectedCustomerIds.size < customers.length;
+
+  // Handle bulk send
+  const handleBulkSend = async () => {
+    if (selectedCustomerIds.size === 0) return;
+    
+    setBulkSending(true);
+    try {
+      const response = await fetch('/api/messaging/bulk-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerIds: Array.from(selectedCustomerIds),
+          templateKey: 'debt_reminder',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || t('notifications.error.sendNotification'));
+      }
+
+      setSnackbar({
+        open: true,
+        message: t('bulkSend.completed', { 
+          sent: data.data.sent, 
+          failed: data.data.failed, 
+          skipped: data.data.skipped 
+        }),
+        severity: 'success',
+      });
+      setBulkSendDialogOpen(false);
+      setSelectedCustomerIds(new Set());
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : t('notifications.error.sendNotification'),
+        severity: 'error',
+      });
+    } finally {
+      setBulkSending(false);
+    }
+  };
+
+  // Handle bulk update channel
+  const handleBulkUpdateChannel = async () => {
+    if (selectedCustomerIds.size === 0 || !bulkChannelValue) return;
+    
+    setBulkUpdatingChannel(true);
+    let successCount = 0;
+    let failCount = 0;
+    
+    try {
+      // Update each selected customer
+      for (const customerId of selectedCustomerIds) {
+        try {
+          const response = await fetch(`/api/customers/${customerId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preferredChannel: bulkChannelValue }),
+          });
+          
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch {
+          failCount++;
+        }
+      }
+
+      setSnackbar({
+        open: true,
+        message: t('bulkUpdateChannel.completed', { success: successCount, failed: failCount }),
+        severity: failCount === 0 ? 'success' : 'info',
+      });
+      setBulkChannelDialogOpen(false);
+      setBulkChannelValue('');
+      setSelectedCustomerIds(new Set());
+      fetchCustomers(); // Refresh the list
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : t('common.error'),
+        severity: 'error',
+      });
+    } finally {
+      setBulkUpdatingChannel(false);
+    }
   };
 
   // Debounce search input
@@ -234,7 +377,7 @@ export default function CustomersPage() {
         params.set('sortOrder', sortOrder);
       }
 
-      const response = await fetch(`http://localhost:3001/api/customers?${params}`);
+      const response = await fetch(`/api/customers?${params}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -348,8 +491,13 @@ export default function CustomersPage() {
       if (formData.email.trim()) payload.email = formData.email.trim();
       if (formData.phone.trim()) payload.phone = formData.phone.trim();
       if (formData.externalRef.trim()) payload.externalRef = formData.externalRef.trim();
+      if (formData.dateOfBirth) payload.dateOfBirth = formData.dateOfBirth;
+      if (formData.region.trim()) payload.region = formData.region.trim();
+      if (formData.preferredChannel) payload.preferredChannel = formData.preferredChannel;
+      if (formData.preferredLanguage) payload.preferredLanguage = formData.preferredLanguage;
+      if (formData.preferredTone) payload.preferredTone = formData.preferredTone;
 
-      const response = await fetch('http://localhost:3001/api/customers', {
+      const response = await fetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -398,7 +546,7 @@ export default function CustomersPage() {
     setDeleting(true);
 
     try {
-      const response = await fetch(`http://localhost:3001/api/customers/${selectedCustomer.id}`, {
+      const response = await fetch(`/api/customers/${selectedCustomer.id}`, {
         method: 'DELETE',
       });
 
@@ -431,7 +579,7 @@ export default function CustomersPage() {
     setDeletingAll(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/customers/all', {
+      const response = await fetch('/api/customers/all', {
         method: 'DELETE',
       });
 
@@ -468,6 +616,11 @@ export default function CustomersPage() {
         phone: selectedCustomer.phone || '',
         externalRef: selectedCustomer.externalRef || '',
         status: selectedCustomer.status,
+        dateOfBirth: selectedCustomer.dateOfBirth ? selectedCustomer.dateOfBirth.split('T')[0] : '',
+        region: selectedCustomer.region || '',
+        preferredChannel: selectedCustomer.preferredChannel || '',
+        preferredLanguage: selectedCustomer.preferredLanguage || '',
+        preferredTone: selectedCustomer.preferredTone || '',
       });
       setEditFormErrors({});
       handleActionsClose();
@@ -513,8 +666,13 @@ export default function CustomersPage() {
       payload.email = editFormData.email.trim() || null;
       payload.phone = editFormData.phone.trim() || null;
       payload.externalRef = editFormData.externalRef.trim() || null;
+      payload.dateOfBirth = editFormData.dateOfBirth || null;
+      payload.region = editFormData.region.trim() || null;
+      payload.preferredChannel = editFormData.preferredChannel || null;
+      payload.preferredLanguage = editFormData.preferredLanguage || null;
+      payload.preferredTone = editFormData.preferredTone || null;
 
-      const response = await fetch(`http://localhost:3001/api/customers/${selectedCustomer.id}`, {
+      const response = await fetch(`/api/customers/${selectedCustomer.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -551,7 +709,7 @@ export default function CustomersPage() {
   ) => {
     setLoadingPreview(true);
     try {
-      const response = await fetch('http://localhost:3001/api/messaging/preview-reminder', {
+      const response = await fetch('/api/messaging/preview-reminder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -578,13 +736,19 @@ export default function CustomersPage() {
   const handleSendNotification = (type: 'email' | 'whatsapp' | 'sms' | 'call_task') => {
     handleActionsClose();
     setNotificationType(type);
-    setSelectedLanguage('en');
-    setSelectedTone('calm');
+    
+    // Use customer preferences as defaults instead of hardcoded values
+    const defaultLanguage = selectedCustomer?.preferredLanguage || 'he';
+    const defaultTone = selectedCustomer?.preferredTone || 'calm';
+    
+    setSelectedLanguage(defaultLanguage);
+    setSelectedTone(defaultTone);
     setTemplatePreview(null);
     setNotificationDialogOpen(true);
-    // Fetch preview for the selected customer
+    
+    // Fetch preview for the selected customer with their preferences
     if (selectedCustomer) {
-      fetchTemplatePreview(selectedCustomer.id, type, 'en', 'calm');
+      fetchTemplatePreview(selectedCustomer.id, type, defaultLanguage, defaultTone);
     }
   };
 
@@ -602,7 +766,7 @@ export default function CustomersPage() {
 
     try {
       // Use the messaging API to actually send the reminder
-      const response = await fetch('http://localhost:3001/api/messaging/send-reminder', {
+      const response = await fetch('/api/messaging/send-reminder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -664,6 +828,28 @@ export default function CustomersPage() {
           )}
         </Box>
         <Stack direction="row" spacing={1}>
+          {selectedCustomerIds.size > 0 && (
+            <>
+              <Button
+                variant="outlined"
+                color="secondary"
+                startIcon={<EditIcon />}
+                onClick={() => setBulkChannelDialogOpen(true)}
+                sx={{ textTransform: 'none' }}
+              >
+                {t('bulkUpdateChannel.updateChannel', { count: selectedCustomerIds.size })}
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<SendIcon />}
+                onClick={() => setBulkSendDialogOpen(true)}
+                sx={{ textTransform: 'none' }}
+              >
+                {t('bulkSend.sendToSelected', { count: selectedCustomerIds.size })}
+              </Button>
+            </>
+          )}
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenDialog} sx={{ textTransform: 'none' }}>
             {t('customers.addCustomer')}
           </Button>
@@ -727,6 +913,13 @@ export default function CustomersPage() {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    checked={isAllSelected}
+                    indeterminate={isSomeSelected}
+                    onChange={handleSelectAll}
+                  />
+                </TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>
                   <TableSortLabel
                     active={sortBy === 'fullName'}
@@ -745,10 +938,9 @@ export default function CustomersPage() {
                     {t('customers.columns.contact')}
                   </TableSortLabel>
                 </TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('customers.preferredChannel')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('customers.preferredLanguage')}</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.externalRef')}</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.gender')}</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.dateOfBirth')}</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.religion')}</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>
                   <TableSortLabel
                     active={sortBy === 'status'}
@@ -820,7 +1012,21 @@ export default function CustomersPage() {
                 </TableRow>
               ) : (
                 customers.map((customer) => (
-                  <TableRow key={customer.id} hover sx={{ '&:last-child td': { border: 0 } }}>
+                  <TableRow 
+                    key={customer.id} 
+                    hover 
+                    sx={{ 
+                      '&:last-child td': { border: 0 },
+                      bgcolor: selectedCustomerIds.has(customer.id) ? 'action.selected' : 'inherit',
+                    }}
+                  >
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={selectedCustomerIds.has(customer.id)}
+                        onChange={() => handleSelectCustomer(customer.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body1" fontWeight={500}>{customer.fullName}</Typography>
                     </TableCell>
@@ -844,16 +1050,13 @@ export default function CustomersPage() {
                       </Stack>
                     </TableCell>
                     <TableCell>
+                      {getChannelChip(customer.preferredChannel) || <Typography variant="body2" color="text.disabled">—</Typography>}
+                    </TableCell>
+                    <TableCell>
+                      {getLanguageChip(customer.preferredLanguage) || <Typography variant="body2" color="text.disabled">—</Typography>}
+                    </TableCell>
+                    <TableCell>
                       <Typography variant="body2" color="text.secondary">{customer.externalRef || '—'}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{getGenderLabel(customer.gender)}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{formatDateOfBirth(customer.dateOfBirth)}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{customer.religion || '—'}</Typography>
                     </TableCell>
                     <TableCell>
                       <Chip label={getStatusLabel(customer.status)} color={statusColors[customer.status]} size="small" variant="outlined" />
@@ -1185,6 +1388,22 @@ export default function CustomersPage() {
               fullWidth
               helperText={t('forms.externalRefHelper')}
             />
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label={t('customers.columns.dateOfBirth')}
+                type="date"
+                value={formData.dateOfBirth}
+                onChange={handleFormChange('dateOfBirth')}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label={t('customers.region')}
+                value={formData.region}
+                onChange={handleFormChange('region')}
+                fullWidth
+              />
+            </Stack>
             <FormControl fullWidth>
               <InputLabel>{t('forms.status')}</InputLabel>
               <Select
@@ -1197,6 +1416,50 @@ export default function CustomersPage() {
                 <MenuItem value="blocked">{t('customers.status.blocked')}</MenuItem>
               </Select>
             </FormControl>
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" color="text.secondary">{t('customers.communicationPreferences')}</Typography>
+            <Stack direction="row" spacing={2}>
+              <FormControl size="small" sx={{ flex: 1 }}>
+                <InputLabel>{t('customers.preferredChannel')}</InputLabel>
+                <Select
+                  value={formData.preferredChannel}
+                  label={t('customers.preferredChannel')}
+                  onChange={(e) => handleFormChange('preferredChannel')({ target: { value: e.target.value } })}
+                >
+                  <MenuItem value="">{t('common.auto')}</MenuItem>
+                  <MenuItem value="email">{t('common.email')}</MenuItem>
+                  <MenuItem value="sms">SMS</MenuItem>
+                  <MenuItem value="whatsapp">WhatsApp</MenuItem>
+                  <MenuItem value="call_task">{t('common.voiceCall')}</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ flex: 1 }}>
+                <InputLabel>{t('customers.preferredLanguage')}</InputLabel>
+                <Select
+                  value={formData.preferredLanguage}
+                  label={t('customers.preferredLanguage')}
+                  onChange={(e) => handleFormChange('preferredLanguage')({ target: { value: e.target.value } })}
+                >
+                  <MenuItem value="">{t('common.auto')}</MenuItem>
+                  <MenuItem value="en">English</MenuItem>
+                  <MenuItem value="he">עברית</MenuItem>
+                  <MenuItem value="ar">العربية</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ flex: 1 }}>
+                <InputLabel>{t('customers.preferredTone')}</InputLabel>
+                <Select
+                  value={formData.preferredTone}
+                  label={t('customers.preferredTone')}
+                  onChange={(e) => handleFormChange('preferredTone')({ target: { value: e.target.value } })}
+                >
+                  <MenuItem value="">{t('common.auto')}</MenuItem>
+                  <MenuItem value="calm">{t('common.friendly')}</MenuItem>
+                  <MenuItem value="medium">{t('common.firm')}</MenuItem>
+                  <MenuItem value="heavy">{t('common.urgent')}</MenuItem>
+                </Select>
+              </FormControl>
+            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
@@ -1247,6 +1510,22 @@ export default function CustomersPage() {
               fullWidth
               helperText={t('forms.externalRefHelper')}
             />
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label={t('customers.columns.dateOfBirth')}
+                type="date"
+                value={editFormData.dateOfBirth}
+                onChange={handleEditFormChange('dateOfBirth')}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label={t('customers.region')}
+                value={editFormData.region}
+                onChange={handleEditFormChange('region')}
+                fullWidth
+              />
+            </Stack>
             <FormControl fullWidth>
               <InputLabel>{t('forms.status')}</InputLabel>
               <Select
@@ -1259,6 +1538,50 @@ export default function CustomersPage() {
                 <MenuItem value="blocked">{t('customers.status.blocked')}</MenuItem>
               </Select>
             </FormControl>
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" color="text.secondary">{t('customers.communicationPreferences')}</Typography>
+            <Stack direction="row" spacing={2}>
+              <FormControl size="small" sx={{ flex: 1 }}>
+                <InputLabel>{t('customers.preferredChannel')}</InputLabel>
+                <Select
+                  value={editFormData.preferredChannel}
+                  label={t('customers.preferredChannel')}
+                  onChange={(e) => handleEditFormChange('preferredChannel')({ target: { value: e.target.value } })}
+                >
+                  <MenuItem value="">{t('common.auto')}</MenuItem>
+                  <MenuItem value="email">{t('common.email')}</MenuItem>
+                  <MenuItem value="sms">SMS</MenuItem>
+                  <MenuItem value="whatsapp">WhatsApp</MenuItem>
+                  <MenuItem value="call_task">{t('common.voiceCall')}</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ flex: 1 }}>
+                <InputLabel>{t('customers.preferredLanguage')}</InputLabel>
+                <Select
+                  value={editFormData.preferredLanguage}
+                  label={t('customers.preferredLanguage')}
+                  onChange={(e) => handleEditFormChange('preferredLanguage')({ target: { value: e.target.value } })}
+                >
+                  <MenuItem value="">{t('common.auto')}</MenuItem>
+                  <MenuItem value="en">English</MenuItem>
+                  <MenuItem value="he">עברית</MenuItem>
+                  <MenuItem value="ar">العربية</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ flex: 1 }}>
+                <InputLabel>{t('customers.preferredTone')}</InputLabel>
+                <Select
+                  value={editFormData.preferredTone}
+                  label={t('customers.preferredTone')}
+                  onChange={(e) => handleEditFormChange('preferredTone')({ target: { value: e.target.value } })}
+                >
+                  <MenuItem value="">{t('common.auto')}</MenuItem>
+                  <MenuItem value="calm">{t('common.friendly')}</MenuItem>
+                  <MenuItem value="medium">{t('common.firm')}</MenuItem>
+                  <MenuItem value="heavy">{t('common.urgent')}</MenuItem>
+                </Select>
+              </FormControl>
+            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
@@ -1270,6 +1593,162 @@ export default function CustomersPage() {
             startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <EditIcon />}
           >
             {updating ? t('actions.updating') : t('actions.updateCustomer')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Send Dialog */}
+      <Dialog open={bulkSendDialogOpen} onClose={() => setBulkSendDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>
+          {t('bulkSend.title')}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            {t('bulkSend.confirmMessage', { count: selectedCustomerIds.size })}
+          </DialogContentText>
+          
+          {/* Channel breakdown */}
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>{t('bulkSend.channelBreakdown')}</Typography>
+            <Stack spacing={1}>
+              {(() => {
+                const selected = customers.filter(c => selectedCustomerIds.has(c.id));
+                const breakdown = {
+                  email: selected.filter(c => (c.preferredChannel || 'email') === 'email'),
+                  sms: selected.filter(c => c.preferredChannel === 'sms'),
+                  whatsapp: selected.filter(c => c.preferredChannel === 'whatsapp'),
+                };
+                return Object.entries(breakdown).filter(([_, list]) => list.length > 0).map(([channel, list]) => (
+                  <Box key={channel} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2">
+                      {channel === 'email' ? t('common.email') : channel === 'sms' ? 'SMS' : 'WhatsApp'}
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Chip 
+                        size="small" 
+                        label={`${list.filter(c => channel === 'email' ? c.email : c.phone).length} ${t('bulkSend.eligible')}`}
+                        color="success"
+                        variant="outlined"
+                      />
+                      {list.filter(c => !(channel === 'email' ? c.email : c.phone)).length > 0 && (
+                        <Chip 
+                          size="small" 
+                          label={`${list.filter(c => !(channel === 'email' ? c.email : c.phone)).length} ${t('bulkSend.skipped')}`}
+                          color="warning"
+                          variant="outlined"
+                        />
+                      )}
+                    </Stack>
+                  </Box>
+                ));
+              })()}
+            </Stack>
+          </Paper>
+
+          {/* Language breakdown */}
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>{t('bulkSend.languageBreakdown')}</Typography>
+            <Stack direction="row" spacing={1}>
+              {(() => {
+                const selected = customers.filter(c => selectedCustomerIds.has(c.id));
+                const langBreakdown = {
+                  he: selected.filter(c => (c.preferredLanguage || 'he') === 'he').length,
+                  en: selected.filter(c => c.preferredLanguage === 'en').length,
+                  ar: selected.filter(c => c.preferredLanguage === 'ar').length,
+                };
+                return Object.entries(langBreakdown).filter(([_, count]) => count > 0).map(([lang, count]) => (
+                  <Chip 
+                    key={lang} 
+                    size="small" 
+                    label={`${lang === 'he' ? 'עברית' : lang === 'en' ? 'English' : 'العربية'}: ${count}`}
+                    variant="outlined"
+                  />
+                ));
+              })()}
+            </Stack>
+          </Paper>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setBulkSendDialogOpen(false)} color="inherit">{t('common.cancel')}</Button>
+          <Button
+            onClick={handleBulkSend}
+            variant="contained"
+            disabled={bulkSending}
+            startIcon={bulkSending ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
+          >
+            {bulkSending ? t('bulkSend.sending') : t('bulkSend.send')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Update Channel Dialog */}
+      <Dialog 
+        open={bulkChannelDialogOpen} 
+        onClose={() => !bulkUpdatingChannel && setBulkChannelDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EditIcon color="secondary" />
+          {t('bulkUpdateChannel.title')}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 3 }}>
+            {t('bulkUpdateChannel.description', { count: selectedCustomerIds.size })}
+          </DialogContentText>
+          <FormControl fullWidth>
+            <InputLabel>{t('customers.preferredChannel')}</InputLabel>
+            <Select
+              value={bulkChannelValue}
+              label={t('customers.preferredChannel')}
+              onChange={(e) => setBulkChannelValue(e.target.value as typeof bulkChannelValue)}
+            >
+              <MenuItem value="email">
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <EmailIcon fontSize="small" />
+                  <span>{t('common.email')}</span>
+                </Stack>
+              </MenuItem>
+              <MenuItem value="sms">
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <SmsIcon fontSize="small" />
+                  <span>SMS</span>
+                </Stack>
+              </MenuItem>
+              <MenuItem value="whatsapp">
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <WhatsAppIcon fontSize="small" />
+                  <span>WhatsApp</span>
+                </Stack>
+              </MenuItem>
+              <MenuItem value="call_task">
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <CallIcon fontSize="small" />
+                  <span>{t('common.voiceCall')}</span>
+                </Stack>
+              </MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button 
+            onClick={() => {
+              setBulkChannelDialogOpen(false);
+              setBulkChannelValue('');
+            }} 
+            color="inherit"
+            disabled={bulkUpdatingChannel}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            onClick={handleBulkUpdateChannel}
+            variant="contained"
+            color="secondary"
+            disabled={bulkUpdatingChannel || !bulkChannelValue}
+            startIcon={bulkUpdatingChannel ? <CircularProgress size={18} color="inherit" /> : <EditIcon />}
+          >
+            {bulkUpdatingChannel ? t('bulkUpdateChannel.updating') : t('bulkUpdateChannel.update')}
           </Button>
         </DialogActions>
       </Dialog>

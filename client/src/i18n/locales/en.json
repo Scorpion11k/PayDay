@@ -45,7 +45,28 @@
     "firm": "firm",
     "urgent": "urgent",
     "sms": "SMS",
-    "voiceCall": "Voice Call"
+    "voiceCall": "Voice Call",
+    "auto": "Auto"
+  },
+  "bulkSend": {
+    "title": "Bulk Send Notifications",
+    "sendToSelected": "Send to {{count}} Selected",
+    "confirmMessage": "You are about to send notifications to {{count}} customers. Each customer will receive a message via their preferred channel.",
+    "channelBreakdown": "Channel Breakdown",
+    "languageBreakdown": "Language Breakdown",
+    "eligible": "Eligible",
+    "skipped": "Skipped",
+    "send": "Send All",
+    "sending": "Sending...",
+    "completed": "Sent: {{sent}}, Failed: {{failed}}, Skipped: {{skipped}}"
+  },
+  "bulkUpdateChannel": {
+    "title": "Update Preferred Channel",
+    "updateChannel": "Update Channel ({{count}})",
+    "description": "Select a new preferred communication channel for {{count}} selected customers.",
+    "update": "Update",
+    "updating": "Updating...",
+    "completed": "Updated: {{success}}, Failed: {{failed}}"
   },
   "nav": {
     "home": "Home",
@@ -104,7 +125,8 @@
       "overdueDays": "{{days}} days",
       "totalDebt": "Total Debt",
       "payments": "Payments",
-      "created": "Created"
+      "created": "Created",
+      "preferences": "Preferences"
     },
     "status": {
       "active": "Active",
@@ -113,7 +135,12 @@
     },
     "noContactInfo": "No contact info",
     "noEmailAddress": "No email address",
-    "noPhoneNumber": "No phone number"
+    "noPhoneNumber": "No phone number",
+    "region": "Region",
+    "communicationPreferences": "Communication Preferences",
+    "preferredChannel": "Preferred Channel",
+    "preferredLanguage": "Preferred Language",
+    "preferredTone": "Preferred Tone"
   },
   "forms": {
     "fullName": "Full Name",

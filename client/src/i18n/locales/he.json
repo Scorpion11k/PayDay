@@ -45,7 +45,28 @@
     "firm": "נחושה",
     "urgent": "דחופה",
     "sms": "SMS",
-    "voiceCall": "שיחה קולית"
+    "voiceCall": "שיחה קולית",
+    "auto": "אוטומטי"
+  },
+  "bulkSend": {
+    "title": "שליחה מרוכזת של התראות",
+    "sendToSelected": "שלח ל-{{count}} נבחרים",
+    "confirmMessage": "אתה עומד לשלוח התראות ל-{{count}} לקוחות. כל לקוח יקבל הודעה בערוץ המועדף עליו.",
+    "channelBreakdown": "חלוקה לפי ערוץ",
+    "languageBreakdown": "חלוקה לפי שפה",
+    "eligible": "זכאי",
+    "skipped": "דילוג",
+    "send": "שלח הכל",
+    "sending": "שולח...",
+    "completed": "נשלחו: {{sent}}, נכשלו: {{failed}}, דילוג: {{skipped}}"
+  },
+  "bulkUpdateChannel": {
+    "title": "עדכון ערוץ מועדף",
+    "updateChannel": "עדכן ערוץ ({{count}})",
+    "description": "בחר ערוץ תקשורת מועדף חדש עבור {{count}} לקוחות שנבחרו.",
+    "update": "עדכן",
+    "updating": "מעדכן...",
+    "completed": "עודכנו: {{success}}, נכשלו: {{failed}}"
   },
   "nav": {
     "home": "בית",
@@ -104,7 +125,8 @@
       "overdueDays": "{{days}} ימים",
       "totalDebt": "סה\"כ חוב",
       "payments": "תשלומים",
-      "created": "נוצר"
+      "created": "נוצר",
+      "preferences": "העדפות"
     },
     "status": {
       "active": "פעיל",
@@ -113,7 +135,12 @@
     },
     "noContactInfo": "אין פרטי קשר",
     "noEmailAddress": "אין כתובת דוא\"ל",
-    "noPhoneNumber": "אין מספר טלפון"
+    "noPhoneNumber": "אין מספר טלפון",
+    "region": "אזור",
+    "communicationPreferences": "העדפות תקשורת",
+    "preferredChannel": "ערוץ מועדף",
+    "preferredLanguage": "שפה מועדפת",
+    "preferredTone": "טון מועדף"
   },
   "forms": {
     "fullName": "שם מלא",

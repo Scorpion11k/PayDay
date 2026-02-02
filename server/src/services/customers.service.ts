@@ -1,6 +1,7 @@
 import prisma from '../config/database';
-import { CustomerStatus, Prisma } from '@prisma/client';
+import { CustomerStatus, Prisma, NotificationChannel, TemplateLanguage, TemplateTone } from '@prisma/client';
 import { NotFoundError } from '../types';
+import { recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from './preference.service';
 
 export interface CreateCustomerDto {
   fullName: string;
@@ -8,14 +9,28 @@ export interface CreateCustomerDto {
   phone?: string;
   email?: string;
   status?: CustomerStatus;
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  dateOfBirth?: string;
+  region?: string;
+  religion?: string;
+  preferredChannel?: NotificationChannel;
+  preferredLanguage?: TemplateLanguage;
+  preferredTone?: TemplateTone;
 }
 
 export interface UpdateCustomerDto {
   fullName?: string;
-  externalRef?: string;
-  phone?: string;
-  email?: string;
+  externalRef?: string | null | undefined;
+  phone?: string | null | undefined;
+  email?: string | null | undefined;
   status?: CustomerStatus;
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null | undefined;
+  dateOfBirth?: string | null | undefined;
+  region?: string | null | undefined;
+  religion?: string | null | undefined;
+  preferredChannel?: NotificationChannel | null | undefined;
+  preferredLanguage?: TemplateLanguage | null | undefined;
+  preferredTone?: TemplateTone | null | undefined;
 }
 
 export interface CustomerFilters {
@@ -194,6 +209,14 @@ class CustomersService {
   }
 
   async create(data: CreateCustomerDto) {
+    // Parse dateOfBirth if provided
+    const dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
+    
+    // Apply auto-preference logic if preferences not explicitly set
+    const preferredChannel = data.preferredChannel || recommendChannelByAge(dateOfBirth);
+    const preferredLanguage = data.preferredLanguage || recommendLanguageByRegion(data.region || null);
+    const preferredTone = data.preferredTone || getDefaultTone();
+
     return prisma.customer.create({
       data: {
         fullName: data.fullName,
@@ -201,17 +224,80 @@ class CustomersService {
         phone: data.phone,
         email: data.email,
         status: data.status || 'active',
+        gender: data.gender,
+        dateOfBirth: dateOfBirth,
+        region: data.region,
+        religion: data.religion,
+        preferredChannel,
+        preferredLanguage,
+        preferredTone,
       },
     });
   }
 
   async update(id: string, data: UpdateCustomerDto) {
-    // Check if customer exists
-    await this.findById(id);
+    // Check if customer exists and get current data
+    const existing = await this.findById(id);
+
+    // Prepare update data
+    const updateData: Prisma.CustomerUpdateInput = {};
+
+    // Helper to convert empty strings to null
+    const emptyToNull = (val: string | null | undefined): string | null | undefined => {
+      if (val === '') return null;
+      return val;
+    };
+
+    // Handle basic fields
+    if (data.fullName !== undefined) updateData.fullName = data.fullName;
+    if (data.externalRef !== undefined) updateData.externalRef = emptyToNull(data.externalRef);
+    if (data.phone !== undefined) updateData.phone = emptyToNull(data.phone);
+    if (data.email !== undefined) updateData.email = emptyToNull(data.email);
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.gender !== undefined) updateData.gender = data.gender;
+    if (data.religion !== undefined) updateData.religion = emptyToNull(data.religion);
+
+    // Handle dateOfBirth - may trigger auto-preference recalculation
+    let newDateOfBirth = existing.dateOfBirth;
+    if (data.dateOfBirth !== undefined) {
+      newDateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
+      updateData.dateOfBirth = newDateOfBirth;
+    }
+
+    // Handle region - may trigger auto-preference recalculation
+    let newRegion = existing.region;
+    if (data.region !== undefined) {
+      newRegion = data.region;
+      updateData.region = data.region;
+    }
+
+    // Handle preference fields
+    // If explicitly set, use the provided value
+    // If null explicitly passed, clear the preference (will use auto-logic at runtime)
+    // If undefined, don't change
+    if (data.preferredChannel !== undefined) {
+      updateData.preferredChannel = data.preferredChannel;
+    }
+    if (data.preferredLanguage !== undefined) {
+      updateData.preferredLanguage = data.preferredLanguage;
+    }
+    if (data.preferredTone !== undefined) {
+      updateData.preferredTone = data.preferredTone;
+    }
+
+    // If dateOfBirth changed and preferredChannel was auto-assigned (null), recalculate
+    if (data.dateOfBirth !== undefined && !existing.preferredChannel && data.preferredChannel === undefined) {
+      updateData.preferredChannel = recommendChannelByAge(newDateOfBirth);
+    }
+
+    // If region changed and preferredLanguage was auto-assigned (null), recalculate
+    if (data.region !== undefined && !existing.preferredLanguage && data.preferredLanguage === undefined) {
+      updateData.preferredLanguage = recommendLanguageByRegion(newRegion);
+    }
 
     return prisma.customer.update({
       where: { id },
-      data,
+      data: updateData,
     });
   }
 
