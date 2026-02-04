@@ -21,13 +21,13 @@ export interface AISuggestionsResponse {
 /**
  * Send a natural language query to the AI endpoint
  */
-export async function queryAI(query: string): Promise<AIQueryResponse> {
+export async function queryAI(query: string, language?: string): Promise<AIQueryResponse> {
   const response = await fetch(`${API_BASE_URL}/ai/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, language }),
   });
 
   if (!response.ok) {
@@ -41,8 +41,9 @@ export async function queryAI(query: string): Promise<AIQueryResponse> {
 /**
  * Get suggested queries from the AI endpoint
  */
-export async function getAISuggestions(): Promise<AISuggestionsResponse> {
-  const response = await fetch(`${API_BASE_URL}/ai/suggestions`);
+export async function getAISuggestions(language?: string): Promise<AISuggestionsResponse> {
+  const query = language ? `?language=${encodeURIComponent(language)}` : '';
+  const response = await fetch(`${API_BASE_URL}/ai/suggestions${query}`);
 
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);

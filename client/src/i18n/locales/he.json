@@ -54,6 +54,7 @@
     "confirmMessage": "אתה עומד לשלוח התראות ל-{{count}} לקוחות. כל לקוח יקבל הודעה בערוץ המועדף עליו.",
     "channelBreakdown": "חלוקה לפי ערוץ",
     "languageBreakdown": "חלוקה לפי שפה",
+    "breakdownNote": "הפירוט מבוסס על תצוגת העמוד הנוכחי.",
     "eligible": "זכאי",
     "skipped": "דילוג",
     "send": "שלח הכל",
@@ -140,7 +141,13 @@
     "communicationPreferences": "העדפות תקשורת",
     "preferredChannel": "ערוץ מועדף",
     "preferredLanguage": "שפה מועדפת",
-    "preferredTone": "טון מועדף"
+    "preferredTone": "טון מועדף",
+    "bulkSelection": {
+      "selectedOnPage": "נבחרו {{count}} לקוחות.",
+      "allSelected": "נבחרו כל {{count}} הלקוחות.",
+      "selectAll": "בחר את כל {{count}} הלקוחות",
+      "clear": "נקה בחירה"
+    }
   },
   "forms": {
     "fullName": "שם מלא",
@@ -219,7 +226,124 @@
     "poweredBy": "מופעל על ידי Google Gemini AI",
     "error": "מצטער, נתקלתי בשגיאה בעיבוד השאילתה שלך.",
     "copyJson": "העתק JSON",
-    "noResultsFound": "לא נמצאו תוצאות"
+    "noResultsFound": "לא נמצאו תוצאות",
+    "resultColumns": {
+      "id": "מזהה",
+      "fullName": "שם מלא",
+      "full_name": "שם מלא",
+      "externalRef": "מזהה חיצוני",
+      "external_ref": "מזהה חיצוני",
+      "phone": "טלפון",
+      "email": "דוא\"ל",
+      "status": "סטטוס",
+      "gender": "מין",
+      "dateOfBirth": "תאריך לידה",
+      "date_of_birth": "תאריך לידה",
+      "region": "אזור",
+      "religion": "דת",
+      "createdAt": "נוצר בתאריך",
+      "created_at": "נוצר בתאריך",
+      "updatedAt": "עודכן בתאריך",
+      "updated_at": "עודכן בתאריך",
+      "customerId": "מזהה לקוח",
+      "customer_id": "מזהה לקוח",
+      "debtId": "מזהה חוב",
+      "debt_id": "מזהה חוב",
+      "installmentId": "מזהה תשלום",
+      "installment_id": "מזהה תשלום",
+      "paymentId": "מזהה תשלום",
+      "payment_id": "מזהה תשלום",
+      "originalAmount": "סכום מקורי",
+      "original_amount": "סכום מקורי",
+      "currentBalance": "יתרה נוכחית",
+      "current_balance": "יתרה נוכחית",
+      "amountDue": "סכום לתשלום",
+      "amount_due": "סכום לתשלום",
+      "amountPaid": "סכום ששולם",
+      "amount_paid": "סכום ששולם",
+      "amount": "סכום",
+      "currency": "מטבע",
+      "method": "שיטה",
+      "channel": "ערוץ",
+      "sequenceNo": "מספר רצף",
+      "sequence_no": "מספר רצף",
+      "dueDate": "תאריך פירעון",
+      "due_date": "תאריך פירעון",
+      "receivedAt": "התקבל בתאריך",
+      "received_at": "התקבל בתאריך",
+      "openedAt": "נפתח בתאריך",
+      "opened_at": "נפתח בתאריך",
+      "closedAt": "נסגר בתאריך",
+      "closed_at": "נסגר בתאריך",
+      "providerTxnId": "מזהה עסקה אצל ספק",
+      "provider_txn_id": "מזהה עסקה אצל ספק",
+      "templateKey": "תבנית",
+      "template_key": "תבנית",
+      "createdBy": "נוצר על ידי",
+      "created_by": "נוצר על ידי",
+      "language": "שפה",
+      "preferredLanguage": "שפה מועדפת",
+      "preferredChannel": "ערוץ מועדף",
+      "preferredTone": "טון מועדף",
+      "totalBalance": "יתרה כוללת",
+      "total_balance": "יתרה כוללת",
+      "totalDebt": "סך חוב",
+      "total_debt": "סך חוב"
+    },
+    "resultValues": {
+      "status": {
+        "active": "פעיל",
+        "do_not_contact": "אל תיצור קשר",
+        "blocked": "חסום",
+        "open": "פתוח",
+        "in_collection": "בטיפול גבייה",
+        "settled": "סולק",
+        "written_off": "נמחק",
+        "disputed": "במחלוקת",
+        "due": "לתשלום",
+        "overdue": "באיחור",
+        "partially_paid": "שולם חלקית",
+        "paid": "שולם",
+        "canceled": "בוטל",
+        "received": "התקבל",
+        "reversed": "הוחזר",
+        "failed": "נכשל",
+        "queued": "בתור",
+        "sent": "נשלח",
+        "delivered": "נמסר",
+        "draft": "טיוטה",
+        "archived": "בארכיון"
+      },
+      "gender": {
+        "male": "זכר",
+        "female": "נקבה",
+        "other": "אחר",
+        "prefer_not_to_say": "מעדיף/ה לא לציין"
+      },
+      "method": {
+        "bank_transfer": "העברה בנקאית",
+        "card": "כרטיס",
+        "cash": "מזומן",
+        "check": "צ'ק",
+        "other": "אחר"
+      },
+      "channel": {
+        "sms": "SMS",
+        "email": "דוא\"ל",
+        "whatsapp": "WhatsApp",
+        "call_task": "משימת שיחה"
+      },
+      "language": {
+        "en": "אנגלית",
+        "he": "עברית",
+        "ar": "ערבית"
+      },
+      "tone": {
+        "calm": "רגוע",
+        "medium": "בינוני",
+        "heavy": "תקיף"
+      }
+    }
   },
   "pages": {
     "activities": {
@@ -354,4 +478,3 @@
     }
   }
 }
-

@@ -188,6 +188,8 @@ export default function CustomersPage() {
 
   // Bulk Selection & Send
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
+  const [selectAllMode, setSelectAllMode] = useState(false);
+  const [excludedCustomerIds, setExcludedCustomerIds] = useState<Set<string>>(new Set());
   const [bulkSendDialogOpen, setBulkSendDialogOpen] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
 
@@ -231,16 +233,54 @@ export default function CustomersPage() {
     return <Chip size="small" label={langLabels[lang]} variant="outlined" sx={{ minWidth: 40 }} />;
   };
 
+  const clearSelection = useCallback(() => {
+    setSelectedCustomerIds(new Set());
+    setSelectAllMode(false);
+    setExcludedCustomerIds(new Set());
+  }, []);
+
+  const isCustomerSelected = useCallback((customerId: string) => {
+    return selectAllMode ? !excludedCustomerIds.has(customerId) : selectedCustomerIds.has(customerId);
+  }, [excludedCustomerIds, selectAllMode, selectedCustomerIds]);
+
+  const selectedCount = selectAllMode
+    ? Math.max(pagination.total - excludedCustomerIds.size, 0)
+    : selectedCustomerIds.size;
+  const bulkUpdateCount = selectAllMode ? 0 : selectedCustomerIds.size;
+
+  const areAllOnPageSelected = customers.length > 0 && customers.every((c) => isCustomerSelected(c.id));
+  const areSomeOnPageSelected = customers.some((c) => isCustomerSelected(c.id)) && !areAllOnPageSelected;
+
   // Bulk selection handlers
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      setSelectedCustomerIds(new Set(customers.map(c => c.id)));
-    } else {
-      setSelectedCustomerIds(new Set());
+    if (selectAllMode) {
+      setExcludedCustomerIds(prev => {
+        const next = new Set(prev);
+        if (event.target.checked) {
+          customers.forEach(c => next.delete(c.id));
+        } else {
+          customers.forEach(c => next.add(c.id));
+        }
+        return next;
+      });
+      return;
     }
+    setSelectedCustomerIds(event.target.checked ? new Set(customers.map(c => c.id)) : new Set());
   };
 
   const handleSelectCustomer = (customerId: string) => {
+    if (selectAllMode) {
+      setExcludedCustomerIds(prev => {
+        const next = new Set(prev);
+        if (next.has(customerId)) {
+          next.delete(customerId);
+        } else {
+          next.add(customerId);
+        }
+        return next;
+      });
+      return;
+    }
     setSelectedCustomerIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(customerId)) {
@@ -252,12 +292,15 @@ export default function CustomersPage() {
     });
   };
 
-  const isAllSelected = customers.length > 0 && selectedCustomerIds.size === customers.length;
-  const isSomeSelected = selectedCustomerIds.size > 0 && selectedCustomerIds.size < customers.length;
+  const handleSelectAllAcrossPages = () => {
+    setSelectAllMode(true);
+    setExcludedCustomerIds(new Set());
+    setSelectedCustomerIds(new Set());
+  };
 
   // Handle bulk send
   const handleBulkSend = async () => {
-    if (selectedCustomerIds.size === 0) return;
+    if (selectedCount === 0) return;
     
     setBulkSending(true);
     try {
@@ -265,7 +308,16 @@ export default function CustomersPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerIds: Array.from(selectedCustomerIds),
+          ...(selectAllMode
+            ? {
+                selectAll: true,
+                excludedCustomerIds: Array.from(excludedCustomerIds),
+                filters: {
+                  search: searchDebounce || undefined,
+                  status: statusFilter || undefined,
+                },
+              }
+            : { customerIds: Array.from(selectedCustomerIds) }),
           templateKey: 'debt_reminder',
         }),
       });
@@ -286,7 +338,7 @@ export default function CustomersPage() {
         severity: 'success',
       });
       setBulkSendDialogOpen(false);
-      setSelectedCustomerIds(new Set());
+      clearSelection();
     } catch (err) {
       setSnackbar({
         open: true,
@@ -300,7 +352,7 @@ export default function CustomersPage() {
 
   // Handle bulk update channel
   const handleBulkUpdateChannel = async () => {
-    if (selectedCustomerIds.size === 0 || !bulkChannelValue) return;
+    if (selectedCustomerIds.size === 0 || !bulkChannelValue || selectAllMode) return;
     
     setBulkUpdatingChannel(true);
     let successCount = 0;
@@ -333,7 +385,7 @@ export default function CustomersPage() {
       });
       setBulkChannelDialogOpen(false);
       setBulkChannelValue('');
-      setSelectedCustomerIds(new Set());
+      clearSelection();
       fetchCustomers(); // Refresh the list
     } catch (err) {
       setSnackbar({
@@ -405,6 +457,7 @@ export default function CustomersPage() {
   // Reset to page 1 when search or filter changes
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
+    clearSelection();
   }, [searchDebounce, statusFilter]);
 
   const handleChangePage = (_: unknown, newPage: number) => {
@@ -828,27 +881,27 @@ export default function CustomersPage() {
           )}
         </Box>
         <Stack direction="row" spacing={1}>
-          {selectedCustomerIds.size > 0 && (
-            <>
-              <Button
-                variant="outlined"
-                color="secondary"
-                startIcon={<EditIcon />}
-                onClick={() => setBulkChannelDialogOpen(true)}
-                sx={{ textTransform: 'none' }}
-              >
-                {t('bulkUpdateChannel.updateChannel', { count: selectedCustomerIds.size })}
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<SendIcon />}
-                onClick={() => setBulkSendDialogOpen(true)}
-                sx={{ textTransform: 'none' }}
-              >
-                {t('bulkSend.sendToSelected', { count: selectedCustomerIds.size })}
-              </Button>
-            </>
+          {bulkUpdateCount > 0 && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<EditIcon />}
+              onClick={() => setBulkChannelDialogOpen(true)}
+              sx={{ textTransform: 'none' }}
+            >
+              {t('bulkUpdateChannel.updateChannel', { count: bulkUpdateCount })}
+            </Button>
+          )}
+          {selectedCount > 0 && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<SendIcon />}
+              onClick={() => setBulkSendDialogOpen(true)}
+              sx={{ textTransform: 'none' }}
+            >
+              {t('bulkSend.sendToSelected', { count: selectedCount })}
+            </Button>
           )}
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenDialog} sx={{ textTransform: 'none' }}>
             {t('customers.addCustomer')}
@@ -907,6 +960,31 @@ export default function CustomersPage() {
         </Alert>
       )}
 
+      {/* Selection Summary */}
+      {customers.length > 0 && (selectedCount > 0 || areAllOnPageSelected) && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+            <Typography variant="body2">
+              {selectAllMode
+                ? t('customers.bulkSelection.allSelected', { count: selectedCount })
+                : t('customers.bulkSelection.selectedOnPage', { count: selectedCustomerIds.size })}
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              {!selectAllMode && areAllOnPageSelected && pagination.total > customers.length && (
+                <Button size="small" onClick={handleSelectAllAcrossPages}>
+                  {t('customers.bulkSelection.selectAll', { count: pagination.total })}
+                </Button>
+              )}
+              {selectedCount > 0 && (
+                <Button size="small" onClick={clearSelection}>
+                  {t('customers.bulkSelection.clear')}
+                </Button>
+              )}
+            </Stack>
+          </Stack>
+        </Alert>
+      )}
+
       {/* Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
         <TableContainer>
@@ -915,8 +993,8 @@ export default function CustomersPage() {
               <TableRow>
                 <TableCell padding="checkbox">
                   <Checkbox
-                    checked={isAllSelected}
-                    indeterminate={isSomeSelected}
+                    checked={areAllOnPageSelected}
+                    indeterminate={areSomeOnPageSelected}
                     onChange={handleSelectAll}
                   />
                 </TableCell>
@@ -1017,12 +1095,12 @@ export default function CustomersPage() {
                     hover 
                     sx={{ 
                       '&:last-child td': { border: 0 },
-                      bgcolor: selectedCustomerIds.has(customer.id) ? 'action.selected' : 'inherit',
+                      bgcolor: isCustomerSelected(customer.id) ? 'action.selected' : 'inherit',
                     }}
                   >
                     <TableCell padding="checkbox">
                       <Checkbox
-                        checked={selectedCustomerIds.has(customer.id)}
+                        checked={isCustomerSelected(customer.id)}
                         onChange={() => handleSelectCustomer(customer.id)}
                         onClick={(e) => e.stopPropagation()}
                       />
@@ -1604,7 +1682,7 @@ export default function CustomersPage() {
         </DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
-            {t('bulkSend.confirmMessage', { count: selectedCustomerIds.size })}
+            {t('bulkSend.confirmMessage', { count: selectedCount })}
           </DialogContentText>
           
           {/* Channel breakdown */}
@@ -1612,13 +1690,14 @@ export default function CustomersPage() {
             <Typography variant="subtitle2" gutterBottom>{t('bulkSend.channelBreakdown')}</Typography>
             <Stack spacing={1}>
               {(() => {
-                const selected = customers.filter(c => selectedCustomerIds.has(c.id));
+                const selected = customers.filter(c => isCustomerSelected(c.id));
+                const isPagePreview = selectAllMode && pagination.total > customers.length;
                 const breakdown = {
                   email: selected.filter(c => (c.preferredChannel || 'email') === 'email'),
                   sms: selected.filter(c => c.preferredChannel === 'sms'),
                   whatsapp: selected.filter(c => c.preferredChannel === 'whatsapp'),
                 };
-                return Object.entries(breakdown).filter(([_, list]) => list.length > 0).map(([channel, list]) => (
+                const items = Object.entries(breakdown).filter(([_, list]) => list.length > 0).map(([channel, list]) => (
                   <Box key={channel} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2">
                       {channel === 'email' ? t('common.email') : channel === 'sms' ? 'SMS' : 'WhatsApp'}
@@ -1641,6 +1720,14 @@ export default function CustomersPage() {
                     </Stack>
                   </Box>
                 ));
+                if (isPagePreview) {
+                  items.push(
+                    <Typography key="bulk-preview-note" variant="caption" color="text.secondary">
+                      {t('bulkSend.breakdownNote')}
+                    </Typography>
+                  );
+                }
+                return items;
               })()}
             </Stack>
           </Paper>
@@ -1650,13 +1737,14 @@ export default function CustomersPage() {
             <Typography variant="subtitle2" gutterBottom>{t('bulkSend.languageBreakdown')}</Typography>
             <Stack direction="row" spacing={1}>
               {(() => {
-                const selected = customers.filter(c => selectedCustomerIds.has(c.id));
+                const selected = customers.filter(c => isCustomerSelected(c.id));
+                const isPagePreview = selectAllMode && pagination.total > customers.length;
                 const langBreakdown = {
                   he: selected.filter(c => (c.preferredLanguage || 'he') === 'he').length,
                   en: selected.filter(c => c.preferredLanguage === 'en').length,
                   ar: selected.filter(c => c.preferredLanguage === 'ar').length,
                 };
-                return Object.entries(langBreakdown).filter(([_, count]) => count > 0).map(([lang, count]) => (
+                const items = Object.entries(langBreakdown).filter(([_, count]) => count > 0).map(([lang, count]) => (
                   <Chip 
                     key={lang} 
                     size="small" 
@@ -1664,6 +1752,14 @@ export default function CustomersPage() {
                     variant="outlined"
                   />
                 ));
+                if (isPagePreview) {
+                  items.push(
+                    <Typography key="bulk-preview-note-lang" variant="caption" color="text.secondary">
+                      {t('bulkSend.breakdownNote')}
+                    </Typography>
+                  );
+                }
+                return items;
               })()}
             </Stack>
           </Paper>
@@ -1694,7 +1790,7 @@ export default function CustomersPage() {
         </DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 3 }}>
-            {t('bulkUpdateChannel.description', { count: selectedCustomerIds.size })}
+            {t('bulkUpdateChannel.description', { count: bulkUpdateCount })}
           </DialogContentText>
           <FormControl fullWidth>
             <InputLabel>{t('customers.preferredChannel')}</InputLabel>

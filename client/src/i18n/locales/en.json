@@ -54,6 +54,7 @@
     "confirmMessage": "You are about to send notifications to {{count}} customers. Each customer will receive a message via their preferred channel.",
     "channelBreakdown": "Channel Breakdown",
     "languageBreakdown": "Language Breakdown",
+    "breakdownNote": "Breakdown is based on the current page preview.",
     "eligible": "Eligible",
     "skipped": "Skipped",
     "send": "Send All",
@@ -140,7 +141,13 @@
     "communicationPreferences": "Communication Preferences",
     "preferredChannel": "Preferred Channel",
     "preferredLanguage": "Preferred Language",
-    "preferredTone": "Preferred Tone"
+    "preferredTone": "Preferred Tone",
+    "bulkSelection": {
+      "selectedOnPage": "Selected {{count}} customers.",
+      "allSelected": "All {{count}} customers selected.",
+      "selectAll": "Select all {{count}} customers",
+      "clear": "Clear selection"
+    }
   },
   "forms": {
     "fullName": "Full Name",
@@ -219,7 +226,124 @@
     "poweredBy": "Powered by Google Gemini AI",
     "error": "Sorry, I encountered an error processing your query.",
     "copyJson": "Copy JSON",
-    "noResultsFound": "No results found"
+    "noResultsFound": "No results found",
+    "resultColumns": {
+      "id": "ID",
+      "fullName": "Full Name",
+      "full_name": "Full Name",
+      "externalRef": "External Ref",
+      "external_ref": "External Ref",
+      "phone": "Phone",
+      "email": "Email",
+      "status": "Status",
+      "gender": "Gender",
+      "dateOfBirth": "Date of Birth",
+      "date_of_birth": "Date of Birth",
+      "region": "Region",
+      "religion": "Religion",
+      "createdAt": "Created At",
+      "created_at": "Created At",
+      "updatedAt": "Updated At",
+      "updated_at": "Updated At",
+      "customerId": "Customer ID",
+      "customer_id": "Customer ID",
+      "debtId": "Debt ID",
+      "debt_id": "Debt ID",
+      "installmentId": "Installment ID",
+      "installment_id": "Installment ID",
+      "paymentId": "Payment ID",
+      "payment_id": "Payment ID",
+      "originalAmount": "Original Amount",
+      "original_amount": "Original Amount",
+      "currentBalance": "Current Balance",
+      "current_balance": "Current Balance",
+      "amountDue": "Amount Due",
+      "amount_due": "Amount Due",
+      "amountPaid": "Amount Paid",
+      "amount_paid": "Amount Paid",
+      "amount": "Amount",
+      "currency": "Currency",
+      "method": "Method",
+      "channel": "Channel",
+      "sequenceNo": "Sequence",
+      "sequence_no": "Sequence",
+      "dueDate": "Due Date",
+      "due_date": "Due Date",
+      "receivedAt": "Received At",
+      "received_at": "Received At",
+      "openedAt": "Opened At",
+      "opened_at": "Opened At",
+      "closedAt": "Closed At",
+      "closed_at": "Closed At",
+      "providerTxnId": "Provider Txn ID",
+      "provider_txn_id": "Provider Txn ID",
+      "templateKey": "Template",
+      "template_key": "Template",
+      "createdBy": "Created By",
+      "created_by": "Created By",
+      "language": "Language",
+      "preferredLanguage": "Preferred Language",
+      "preferredChannel": "Preferred Channel",
+      "preferredTone": "Preferred Tone",
+      "totalBalance": "Total Balance",
+      "total_balance": "Total Balance",
+      "totalDebt": "Total Debt",
+      "total_debt": "Total Debt"
+    },
+    "resultValues": {
+      "status": {
+        "active": "Active",
+        "do_not_contact": "Do Not Contact",
+        "blocked": "Blocked",
+        "open": "Open",
+        "in_collection": "In Collection",
+        "settled": "Settled",
+        "written_off": "Written Off",
+        "disputed": "Disputed",
+        "due": "Due",
+        "overdue": "Overdue",
+        "partially_paid": "Partially Paid",
+        "paid": "Paid",
+        "canceled": "Canceled",
+        "received": "Received",
+        "reversed": "Reversed",
+        "failed": "Failed",
+        "queued": "Queued",
+        "sent": "Sent",
+        "delivered": "Delivered",
+        "draft": "Draft",
+        "archived": "Archived"
+      },
+      "gender": {
+        "male": "Male",
+        "female": "Female",
+        "other": "Other",
+        "prefer_not_to_say": "Prefer not to say"
+      },
+      "method": {
+        "bank_transfer": "Bank Transfer",
+        "card": "Card",
+        "cash": "Cash",
+        "check": "Check",
+        "other": "Other"
+      },
+      "channel": {
+        "sms": "SMS",
+        "email": "Email",
+        "whatsapp": "WhatsApp",
+        "call_task": "Call Task"
+      },
+      "language": {
+        "en": "English",
+        "he": "Hebrew",
+        "ar": "Arabic"
+      },
+      "tone": {
+        "calm": "Calm",
+        "medium": "Medium",
+        "heavy": "Heavy"
+      }
+    }
   },
   "pages": {
     "activities": {
@@ -354,4 +478,3 @@
     }
   }
 }
-

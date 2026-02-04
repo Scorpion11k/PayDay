@@ -6,6 +6,7 @@ import { ValidationError } from '../types';
 // Validation schemas
 const querySchema = z.object({
   query: z.string().min(3, 'Query must be at least 3 characters').max(500, 'Query must be at most 500 characters'),
+  language: z.enum(['en', 'he']).optional(),
 });
 
 const detectMappingSchema = z.object({
@@ -24,7 +25,7 @@ class AIController {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
-    const result = await aiService.query(validation.data.query);
+    const result = await aiService.query(validation.data.query, validation.data.language);
 
     res.json({
       success: true,
@@ -37,7 +38,8 @@ class AIController {
    * GET /api/ai/suggestions
    */
   async getSuggestions(req: Request, res: Response) {
-    const suggestions = aiService.getSuggestedQueries();
+    const language = (req.query.language as string | undefined) || undefined;
+    const suggestions = aiService.getSuggestedQueries(language);
 
     res.json({
       success: true,

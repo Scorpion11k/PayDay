@@ -5,6 +5,36 @@ import { AppError } from '../types';
 // Initialize Gemini client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+type SupportedLanguage = 'en' | 'he';
+
+const EXPLANATION_FALLBACK: Record<SupportedLanguage, string> = {
+  en: 'Query executed successfully',
+  he: 'השאילתה בוצעה בהצלחה',
+};
+
+const LANGUAGE_LABEL: Record<SupportedLanguage, string> = {
+  en: 'English',
+  he: 'Hebrew',
+};
+
+const HEBREW_REGEX = /[\u0590-\u05FF]/;
+const LATIN_REGEX = /[A-Za-z]/;
+
+function detectPromptLanguage(text: string): SupportedLanguage {
+  return HEBREW_REGEX.test(text) ? 'he' : 'en';
+}
+
+function needsTranslation(text: string, targetLanguage: SupportedLanguage): boolean {
+  if (!text || !text.trim()) return false;
+  if (targetLanguage === 'he') {
+    return !HEBREW_REGEX.test(text);
+  }
+  if (targetLanguage === 'en') {
+    return HEBREW_REGEX.test(text) && !LATIN_REGEX.test(text);
+  }
+  return false;
+}
+
 // Database schema context for the AI
 // IMPORTANT: All field names use camelCase (Prisma convention), NOT snake_case
 const DATABASE_SCHEMA = `
@@ -108,6 +138,8 @@ IMPORTANT RULES:
 6. Always include relevant related data when it makes sense
 7. Limit results to 100 by default unless specified
 8. Return results sorted by most relevant field (usually createdAt desc)
+9. The "explanation" field MUST be in the same language as the user's question
+10. Do NOT translate JSON keys, model names, or Prisma field names
 
 The JSON response should have this structure:
 {
@@ -288,7 +320,7 @@ class AIService {
   /**
    * Process a natural language query about the data
    */
-  async query(naturalLanguageQuery: string): Promise<{
+  async query(naturalLanguageQuery: string, language?: SupportedLanguage): Promise<{
     query: string;
     explanation: string;
     results: unknown;
@@ -297,6 +329,8 @@ class AIService {
     if (!process.env.GEMINI_API_KEY) {
       throw new AppError('Gemini API key not configured', 500);
     }
+
+    const targetLanguage = language || detectPromptLanguage(naturalLanguageQuery);
 
     // Get current date for date calculations
     const now = new Date();
@@ -318,6 +352,9 @@ class AIService {
 - 90 days ago: ${dates['90_days_ago']}
 - Start of month: ${dates.start_of_month}
 - Start of year: ${dates.start_of_year}
+
+Target language for "explanation": ${LANGUAGE_LABEL[targetLanguage]} (${targetLanguage}).
+Return the explanation strictly in this language. Do NOT translate JSON keys, model names, or Prisma field names.
 
 User question: "${naturalLanguageQuery}"
 
@@ -387,9 +424,22 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
       // Get result count
       const resultCount = Array.isArray(results) ? results.length : 1;
 
+      let explanation = queryConfig.explanation?.trim() || EXPLANATION_FALLBACK[targetLanguage];
+      const explanationNeedsTranslationInitial = needsTranslation(explanation, targetLanguage);
+      let explanationWasTranslated = false;
+      if (explanationNeedsTranslationInitial) {
+        const translated = await this.translateText(explanation, targetLanguage);
+        explanation = translated || EXPLANATION_FALLBACK[targetLanguage];
+        explanationWasTranslated = true;
+      }
+      const explanationNeedsTranslationFinal = needsTranslation(explanation, targetLanguage);
+      if (explanationNeedsTranslationFinal) {
+        explanation = EXPLANATION_FALLBACK[targetLanguage];
+      }
+
       return {
         query: naturalLanguageQuery,
-        explanation: queryConfig.explanation || 'Query executed successfully',
+        explanation,
         results,
         resultCount,
       };
@@ -435,6 +485,36 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
     }
 
     return obj;
+  }
+
+  private async translateText(text: string, targetLanguage: SupportedLanguage): Promise<string> {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 256,
+        },
+      });
+
+      const prompt = `You are a translation engine. Translate the following text to ${LANGUAGE_LABEL[targetLanguage]} (${targetLanguage}). 
+Return only the translated text, with no quotes, no markdown, and no extra commentary.
+
+Text: "${text}"`;
+
+      const result = await model.generateContent(prompt);
+      let responseText = result.response.text();
+      if (!responseText) return text;
+      responseText = responseText.trim();
+      // Strip simple wrapping quotes if the model adds them.
+      if ((responseText.startsWith('"') && responseText.endsWith('"')) ||
+          (responseText.startsWith('“') && responseText.endsWith('”'))) {
+        responseText = responseText.slice(1, -1).trim();
+      }
+      return responseText || text;
+    } catch {
+      return text;
+    }
   }
 
   /**
@@ -547,7 +627,22 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
   /**
    * Get suggested queries for the user
    */
-  getSuggestedQueries(): string[] {
+  getSuggestedQueries(language?: string): string[] {
+    const lang = language === 'he' ? 'he' : 'en';
+    if (lang === 'he') {
+      return [
+        'הצג את כל הלקוחות באיחור של 30 ימים',
+        'הצג 10 לקוחות עם היתרה הגבוהה ביותר',
+        'כמה תשלומים התקבלו החודש?',
+        'הצג לקוחות שמעולם לא ביצעו תשלום',
+        'מהו הסכום הכולל שנגבה השנה?',
+        'הצג את כל החובות במחלוקת',
+        'הצג לקוחות עם סטטוס חסום',
+        'מצא תשלומים שמועד פירעונם ב-7 הימים הקרובים',
+        'הצג תשלומים אחרונים מעל 1000$',
+        'הצג לקוחות עם מספר חובות פתוחים',
+      ];
+    }
     return [
       'Show all customers overdue by 30 days',
       'List top 10 customers with highest outstanding balance',

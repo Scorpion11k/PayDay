@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -46,12 +47,166 @@ interface Message {
 
 const DRAWER_WIDTH = 220;
 
+const COLUMN_LABEL_KEYS: Record<string, string> = {
+  id: 'chat.resultColumns.id',
+  fullName: 'chat.resultColumns.fullName',
+  full_name: 'chat.resultColumns.full_name',
+  externalRef: 'chat.resultColumns.externalRef',
+  external_ref: 'chat.resultColumns.external_ref',
+  phone: 'chat.resultColumns.phone',
+  email: 'chat.resultColumns.email',
+  status: 'chat.resultColumns.status',
+  gender: 'chat.resultColumns.gender',
+  dateOfBirth: 'chat.resultColumns.dateOfBirth',
+  date_of_birth: 'chat.resultColumns.date_of_birth',
+  region: 'chat.resultColumns.region',
+  religion: 'chat.resultColumns.religion',
+  createdAt: 'chat.resultColumns.createdAt',
+  created_at: 'chat.resultColumns.created_at',
+  updatedAt: 'chat.resultColumns.updatedAt',
+  updated_at: 'chat.resultColumns.updated_at',
+  customerId: 'chat.resultColumns.customerId',
+  customer_id: 'chat.resultColumns.customer_id',
+  debtId: 'chat.resultColumns.debtId',
+  debt_id: 'chat.resultColumns.debt_id',
+  installmentId: 'chat.resultColumns.installmentId',
+  installment_id: 'chat.resultColumns.installment_id',
+  paymentId: 'chat.resultColumns.paymentId',
+  payment_id: 'chat.resultColumns.payment_id',
+  originalAmount: 'chat.resultColumns.originalAmount',
+  original_amount: 'chat.resultColumns.original_amount',
+  currentBalance: 'chat.resultColumns.currentBalance',
+  current_balance: 'chat.resultColumns.current_balance',
+  amountDue: 'chat.resultColumns.amountDue',
+  amount_due: 'chat.resultColumns.amount_due',
+  amountPaid: 'chat.resultColumns.amountPaid',
+  amount_paid: 'chat.resultColumns.amount_paid',
+  amount: 'chat.resultColumns.amount',
+  currency: 'chat.resultColumns.currency',
+  method: 'chat.resultColumns.method',
+  channel: 'chat.resultColumns.channel',
+  sequenceNo: 'chat.resultColumns.sequenceNo',
+  sequence_no: 'chat.resultColumns.sequence_no',
+  dueDate: 'chat.resultColumns.dueDate',
+  due_date: 'chat.resultColumns.due_date',
+  receivedAt: 'chat.resultColumns.receivedAt',
+  received_at: 'chat.resultColumns.received_at',
+  openedAt: 'chat.resultColumns.openedAt',
+  opened_at: 'chat.resultColumns.opened_at',
+  closedAt: 'chat.resultColumns.closedAt',
+  closed_at: 'chat.resultColumns.closed_at',
+  providerTxnId: 'chat.resultColumns.providerTxnId',
+  provider_txn_id: 'chat.resultColumns.provider_txn_id',
+  templateKey: 'chat.resultColumns.templateKey',
+  template_key: 'chat.resultColumns.template_key',
+  createdBy: 'chat.resultColumns.createdBy',
+  created_by: 'chat.resultColumns.created_by',
+  language: 'chat.resultColumns.language',
+  preferredLanguage: 'chat.resultColumns.preferredLanguage',
+  preferredChannel: 'chat.resultColumns.preferredChannel',
+  preferredTone: 'chat.resultColumns.preferredTone',
+  totalBalance: 'chat.resultColumns.totalBalance',
+  total_balance: 'chat.resultColumns.total_balance',
+  totalDebt: 'chat.resultColumns.totalDebt',
+  total_debt: 'chat.resultColumns.total_debt',
+};
+
+const VALUE_LABEL_KEYS: Record<string, Record<string, string>> = {
+  status: {
+    active: 'chat.resultValues.status.active',
+    do_not_contact: 'chat.resultValues.status.do_not_contact',
+    doNotContact: 'chat.resultValues.status.do_not_contact',
+    blocked: 'chat.resultValues.status.blocked',
+    open: 'chat.resultValues.status.open',
+    in_collection: 'chat.resultValues.status.in_collection',
+    settled: 'chat.resultValues.status.settled',
+    written_off: 'chat.resultValues.status.written_off',
+    disputed: 'chat.resultValues.status.disputed',
+    due: 'chat.resultValues.status.due',
+    overdue: 'chat.resultValues.status.overdue',
+    partially_paid: 'chat.resultValues.status.partially_paid',
+    paid: 'chat.resultValues.status.paid',
+    canceled: 'chat.resultValues.status.canceled',
+    received: 'chat.resultValues.status.received',
+    reversed: 'chat.resultValues.status.reversed',
+    failed: 'chat.resultValues.status.failed',
+    queued: 'chat.resultValues.status.queued',
+    sent: 'chat.resultValues.status.sent',
+    delivered: 'chat.resultValues.status.delivered',
+    draft: 'chat.resultValues.status.draft',
+    archived: 'chat.resultValues.status.archived',
+  },
+  gender: {
+    male: 'chat.resultValues.gender.male',
+    female: 'chat.resultValues.gender.female',
+    other: 'chat.resultValues.gender.other',
+    prefer_not_to_say: 'chat.resultValues.gender.prefer_not_to_say',
+  },
+  method: {
+    bank_transfer: 'chat.resultValues.method.bank_transfer',
+    card: 'chat.resultValues.method.card',
+    cash: 'chat.resultValues.method.cash',
+    check: 'chat.resultValues.method.check',
+    other: 'chat.resultValues.method.other',
+  },
+  channel: {
+    sms: 'chat.resultValues.channel.sms',
+    email: 'chat.resultValues.channel.email',
+    whatsapp: 'chat.resultValues.channel.whatsapp',
+    call_task: 'chat.resultValues.channel.call_task',
+  },
+  language: {
+    en: 'chat.resultValues.language.en',
+    he: 'chat.resultValues.language.he',
+    ar: 'chat.resultValues.language.ar',
+  },
+  preferredLanguage: {
+    en: 'chat.resultValues.language.en',
+    he: 'chat.resultValues.language.he',
+    ar: 'chat.resultValues.language.ar',
+  },
+  preferredChannel: {
+    sms: 'chat.resultValues.channel.sms',
+    email: 'chat.resultValues.channel.email',
+    whatsapp: 'chat.resultValues.channel.whatsapp',
+    call_task: 'chat.resultValues.channel.call_task',
+  },
+  preferredTone: {
+    calm: 'chat.resultValues.tone.calm',
+    medium: 'chat.resultValues.tone.medium',
+    heavy: 'chat.resultValues.tone.heavy',
+  },
+  tone: {
+    calm: 'chat.resultValues.tone.calm',
+    medium: 'chat.resultValues.tone.medium',
+    heavy: 'chat.resultValues.tone.heavy',
+  },
+  deliveryStatus: {
+    queued: 'chat.resultValues.status.queued',
+    sent: 'chat.resultValues.status.sent',
+    delivered: 'chat.resultValues.status.delivered',
+    failed: 'chat.resultValues.status.failed',
+  },
+};
+
 // Helper to format values for display
-function formatValue(value: unknown): string {
+function formatValue(value: unknown, field: string, t: TFunction, locale: string): string {
   if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'boolean') return value ? t('common.yes') : t('common.no');
+  if (typeof value === 'string') {
+    const mapped = VALUE_LABEL_KEYS[field]?.[value];
+    if (mapped) return t(mapped);
+    const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+    if (isoDateRegex.test(value)) {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString(locale);
+      }
+    }
+    return value;
+  }
   if (typeof value === 'object') {
-    if (value instanceof Date) return value.toLocaleDateString();
+    if (value instanceof Date) return value.toLocaleDateString(locale);
     return JSON.stringify(value);
   }
   return String(value);
@@ -64,6 +219,12 @@ function formatFieldName(field: string): string {
     .replace(/_/g, ' ')
     .replace(/^./, (str) => str.toUpperCase())
     .trim();
+}
+
+function getColumnLabel(field: string, t: TFunction): string {
+  const key = COLUMN_LABEL_KEYS[field];
+  if (key) return t(key);
+  return formatFieldName(field);
 }
 
 // Get display columns from data
@@ -99,9 +260,10 @@ function getDisplayColumns(data: Record<string, unknown>[]): string[] {
 
 // Results display component
 function ResultsDisplay({ results, resultCount }: { results: unknown; resultCount: number }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
+  const locale = i18n.language?.startsWith('he') ? 'he-IL' : 'en-US';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(JSON.stringify(results, null, 2));
@@ -146,10 +308,10 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
             {Object.entries(obj).map(([key, value]) => (
               <Box key={key} sx={{ display: 'flex', gap: 2, py: 0.5 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 120 }}>
-                  {formatFieldName(key)}:
+                  {getColumnLabel(key, t)}:
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  {typeof value === 'object' ? JSON.stringify(value) : formatValue(value)}
+                  {typeof value === 'object' ? JSON.stringify(value) : formatValue(value, key, t, locale)}
                 </Typography>
               </Box>
             ))}
@@ -242,7 +404,7 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
                           fontSize: '0.75rem',
                         }}
                       >
-                        {formatFieldName(col)}
+                        {getColumnLabel(col, t)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -261,7 +423,7 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {formatValue(row[col])}
+                          {formatValue(row[col], col, t, locale)}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -313,7 +475,7 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
 
 export default function ChatPanel() {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -333,7 +495,8 @@ export default function ChatPanel() {
 
   // Load suggestions on mount
   useEffect(() => {
-    getAISuggestions()
+    const language = i18n.language?.startsWith('he') ? 'he' : 'en';
+    getAISuggestions(language)
       .then((res) => {
         if (res.success) {
           setSuggestions(res.data);
@@ -341,15 +504,23 @@ export default function ChatPanel() {
       })
       .catch(() => {
         // Use fallback suggestions
-        setSuggestions([
-          'Show all customers overdue by 30 days',
-          'List top 10 customers with highest outstanding balance',
-          'How many payments were received this month?',
-          'Show customers who have never made a payment',
-          'List all debts in dispute status',
-        ]);
+        setSuggestions(language === 'he'
+          ? [
+              'הצג את כל הלקוחות באיחור של 30 ימים',
+              'הצג 10 לקוחות עם היתרה הגבוהה ביותר',
+              'כמה תשלומים התקבלו החודש?',
+              'הצג לקוחות שמעולם לא ביצעו תשלום',
+              'הצג את כל החובות במחלוקת',
+            ]
+          : [
+              'Show all customers overdue by 30 days',
+              'List top 10 customers with highest outstanding balance',
+              'How many payments were received this month?',
+              'Show customers who have never made a payment',
+              'List all debts in dispute status',
+            ]);
       });
-  }, []);
+  }, [i18n.language]);
 
   const handleSend = async (queryText?: string) => {
     const query = queryText || input.trim();
@@ -368,7 +539,8 @@ export default function ChatPanel() {
     setShowSuggestions(false);
 
     try {
-      const response = await queryAI(query);
+      const language = i18n.language?.startsWith('he') ? 'he' : 'en';
+      const response = await queryAI(query, language);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),

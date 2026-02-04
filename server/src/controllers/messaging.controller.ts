@@ -7,7 +7,7 @@ import smsService from '../services/sms.service';
 import voiceService from '../services/voice.service';
 import templateService from '../services/template.service';
 import { ValidationError, NotFoundError } from '../types';
-import { TemplateLanguage, TemplateTone, NotificationChannel } from '@prisma/client';
+import { TemplateLanguage, TemplateTone, NotificationChannel, Prisma } from '@prisma/client';
 import { isEligibleForChannel, recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from '../services/preference.service';
 
 const sendReminderSchema = z.object({
@@ -29,11 +29,19 @@ const previewReminderSchema = z.object({
 });
 
 const bulkSendSchema = z.object({
-  customerIds: z.array(z.string().uuid()).min(1, 'At least one customer required').max(500, 'Maximum 500 customers per batch'),
+  customerIds: z.array(z.string().uuid()).min(1).max(500).optional(),
+  selectAll: z.boolean().optional(),
+  excludedCustomerIds: z.array(z.string().uuid()).optional(),
+  filters: z.object({
+    search: z.string().optional(),
+    status: z.enum(['active', 'do_not_contact', 'blocked']).optional(),
+  }).optional(),
   templateKey: z.string().optional().default('debt_reminder'),
   overrideChannel: z.enum(['email', 'whatsapp', 'sms', 'call_task']).optional(),
   overrideLanguage: z.enum(['en', 'he', 'ar']).optional(),
   overrideTone: z.enum(['calm', 'medium', 'heavy']).optional(),
+}).refine((data) => data.selectAll || (data.customerIds && data.customerIds.length > 0), {
+  message: 'Select all or provide at least one customer',
 });
 
 class MessagingController {
@@ -561,14 +569,34 @@ class MessagingController {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
-    const { customerIds, templateKey, overrideChannel, overrideLanguage, overrideTone } = validation.data;
+    const { customerIds, selectAll, excludedCustomerIds, filters, templateKey, overrideChannel, overrideLanguage, overrideTone } = validation.data;
+
+    const where: Prisma.CustomerWhereInput = {
+      status: { notIn: ['blocked', 'do_not_contact'] },
+    };
+
+    if (selectAll) {
+      if (filters?.status) {
+        where.status = filters.status;
+      }
+      if (filters?.search) {
+        where.OR = [
+          { fullName: { contains: filters.search, mode: 'insensitive' } },
+          { email: { contains: filters.search, mode: 'insensitive' } },
+          { phone: { contains: filters.search } },
+          { externalRef: { contains: filters.search } },
+        ];
+      }
+      if (excludedCustomerIds && excludedCustomerIds.length > 0) {
+        where.NOT = { id: { in: excludedCustomerIds } };
+      }
+    } else {
+      where.id = { in: customerIds };
+    }
 
     // Fetch all customers with their preferences and debts
     const customers = await prisma.customer.findMany({
-      where: {
-        id: { in: customerIds },
-        status: { notIn: ['blocked', 'do_not_contact'] }
-      },
+      where,
       include: {
         debts: {
           where: { status: { in: ['open', 'in_collection'] } },
@@ -764,9 +792,11 @@ class MessagingController {
     }
 
     // Add info about customers that were excluded (blocked/do_not_contact)
-    const excludedCount = customerIds.length - customers.length;
-    if (excludedCount > 0) {
-      results.skipped += excludedCount;
+    if (!selectAll && customerIds) {
+      const excludedCount = customerIds.length - customers.length;
+      if (excludedCount > 0) {
+        results.skipped += excludedCount;
+      }
     }
 
     res.json({
