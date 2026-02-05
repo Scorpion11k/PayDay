@@ -227,6 +227,12 @@
     "error": "מצטער, נתקלתי בשגיאה בעיבוד השאילתה שלך.",
     "copyJson": "העתק JSON",
     "noResultsFound": "לא נמצאו תוצאות",
+    "confirmUpdateMessage": "פעולה זו תעדכן {{count}} לקוחות.",
+    "confirmUpdateButton": "אשר עדכון",
+    "confirmUpdateCancel": "ביטול",
+    "updateCompleted": "העדכון הושלם עבור {{count}} לקוחות.",
+    "confirmationExpired": "תוקף האישור פג. נא להריץ את הפקודה שוב.",
+    "updateCancelled": "העדכון בוטל.",
     "resultColumns": {
       "id": "מזהה",
       "fullName": "שם מלא",

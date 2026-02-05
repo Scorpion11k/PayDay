@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { randomUUID } from 'crypto';
 import prisma from '../config/database';
 import { AppError } from '../types';
 
@@ -19,6 +20,18 @@ const LANGUAGE_LABEL: Record<SupportedLanguage, string> = {
 
 const HEBREW_REGEX = /[\u0590-\u05FF]/;
 const LATIN_REGEX = /[A-Za-z]/;
+const ALLOWED_PREFERRED_CHANNELS = ['email', 'sms', 'whatsapp', 'call_task'] as const;
+const PENDING_ACTION_TTL_MS = 10 * 60 * 1000;
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+
+type PendingAction = {
+  config: PrismaQueryResponse;
+  createdAt: number;
+  originalQuery: string;
+  language: SupportedLanguage;
+};
+
+const pendingActions = new Map<string, PendingAction>();
 
 function detectPromptLanguage(text: string): SupportedLanguage {
   return HEBREW_REGEX.test(text) ? 'he' : 'en';
@@ -35,6 +48,10 @@ function needsTranslation(text: string, targetLanguage: SupportedLanguage): bool
   return false;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 // Database schema context for the AI
 // IMPORTANT: All field names use camelCase (Prisma convention), NOT snake_case
 const DATABASE_SCHEMA = `
@@ -48,9 +65,16 @@ TABLES (Prisma models):
    - id (uuid, PK)
    - externalRef (string, unique, optional)
    - fullName (string)
+   - gender (enum: 'male', 'female', 'other', 'prefer_not_to_say')
+   - dateOfBirth (date, optional)
+   - region (string, optional)
+   - religion (string, optional)
    - phone (string, optional)
    - email (string, optional)
    - status (enum: 'active', 'do_not_contact', 'blocked')
+   - preferredLanguage (enum: 'en', 'he', 'ar', optional)
+   - preferredTone (enum: 'calm', 'medium', 'heavy', optional)
+   - preferredChannel (enum: 'sms', 'email', 'whatsapp', 'call_task', optional)
    - createdAt (timestamp)
    - updatedAt (timestamp)
    - debts (relation to debt[])
@@ -140,11 +164,14 @@ IMPORTANT RULES:
 8. Return results sorted by most relevant field (usually createdAt desc)
 9. The "explanation" field MUST be in the same language as the user's question
 10. Do NOT translate JSON keys, model names, or Prisma field names
+11. WRITE OPERATIONS: Only "updateMany" is allowed, and only for model "customer" to update "preferredChannel"
+12. For "updateMany", you MUST include a non-empty "where" clause and set only "data.preferredChannel"
+13. If updating all customers, use: { "where": { "id": { "not": "00000000-0000-0000-0000-000000000000" } } } (do NOT use null)
 
 The JSON response should have this structure:
 {
   "model": "customer" | "debt" | "installment" | "payment" | "notification",
-  "operation": "findMany" | "findFirst" | "count" | "aggregate" | "groupBy" | "rawQuery",
+  "operation": "findMany" | "findFirst" | "count" | "aggregate" | "groupBy" | "rawQuery" | "updateMany",
   "args": { /* Prisma query arguments with camelCase field names, OR { "sql": "SELECT ..." } for rawQuery */ },
   "explanation": "Brief explanation of what this query does"
 }
@@ -253,11 +280,35 @@ Response:
   },
   "explanation": "Finds customers whose total outstanding balance exceeds 5000"
 }
+
+User: "Update the preferred channel of customers under age 30 to be sms"
+Response:
+{
+  "model": "customer",
+  "operation": "updateMany",
+  "args": {
+    "where": { "dateOfBirth": { "gte": "{{DATE_30_YEARS_AGO}}" } },
+    "data": { "preferredChannel": "sms" }
+  },
+  "explanation": "Updates preferred channel to SMS for customers younger than 30"
+}
+
+User: "Update all customers preferred channel to email"
+Response:
+{
+  "model": "customer",
+  "operation": "updateMany",
+  "args": {
+    "where": { "id": { "not": "00000000-0000-0000-0000-000000000000" } },
+    "data": { "preferredChannel": "email" }
+  },
+  "explanation": "Updates preferred channel to Email for all customers"
+}
 `;
 
 interface PrismaQueryResponse {
   model: 'customer' | 'debt' | 'installment' | 'payment' | 'notification' | 'notificationDelivery';
-  operation: 'findMany' | 'findFirst' | 'count' | 'aggregate' | 'groupBy' | 'rawQuery';
+  operation: 'findMany' | 'findFirst' | 'count' | 'aggregate' | 'groupBy' | 'rawQuery' | 'updateMany';
   args: Record<string, unknown>;
   explanation: string;
 }
@@ -325,6 +376,10 @@ class AIService {
     explanation: string;
     results: unknown;
     resultCount: number;
+    requiresConfirmation?: boolean;
+    confirmToken?: string;
+    previewCount?: number;
+    confirmed?: boolean;
   }> {
     if (!process.env.GEMINI_API_KEY) {
       throw new AppError('Gemini API key not configured', 500);
@@ -334,27 +389,68 @@ class AIService {
 
     // Get current date for date calculations
     const now = new Date();
+    const yearsAgo = (years: number) => {
+      const d = new Date(now);
+      d.setFullYear(d.getFullYear() - years);
+      return d.toISOString().split('T')[0];
+    };
+
     const dates = {
       today: now.toISOString().split('T')[0],
       '7_days_ago': new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       '30_days_ago': new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       '60_days_ago': new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       '90_days_ago': new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      '18_years_ago': yearsAgo(18),
+      '21_years_ago': yearsAgo(21),
+      '30_years_ago': yearsAgo(30),
+      '40_years_ago': yearsAgo(40),
+      '50_years_ago': yearsAgo(50),
+      '60_years_ago': yearsAgo(60),
+      '65_years_ago': yearsAgo(65),
       'start_of_month': new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
       'start_of_year': new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0],
     };
 
+    const dateTokenMap: Record<string, string> = {
+      TODAY: dates.today,
+      DATE_7_DAYS_AGO: dates['7_days_ago'],
+      DATE_30_DAYS_AGO: dates['30_days_ago'],
+      DATE_60_DAYS_AGO: dates['60_days_ago'],
+      DATE_90_DAYS_AGO: dates['90_days_ago'],
+      DATE_18_YEARS_AGO: dates['18_years_ago'],
+      DATE_21_YEARS_AGO: dates['21_years_ago'],
+      DATE_30_YEARS_AGO: dates['30_years_ago'],
+      DATE_40_YEARS_AGO: dates['40_years_ago'],
+      DATE_50_YEARS_AGO: dates['50_years_ago'],
+      DATE_60_YEARS_AGO: dates['60_years_ago'],
+      DATE_65_YEARS_AGO: dates['65_years_ago'],
+      START_OF_MONTH: dates.start_of_month,
+      START_OF_YEAR: dates.start_of_year,
+    };
+
     const userPrompt = `Current date context:
 - Today: ${dates.today}
-- 7 days ago: ${dates['7_days_ago']}
-- 30 days ago: ${dates['30_days_ago']}
-- 60 days ago: ${dates['60_days_ago']}
-- 90 days ago: ${dates['90_days_ago']}
-- Start of month: ${dates.start_of_month}
-- Start of year: ${dates.start_of_year}
+- 7 days ago: ${dates['7_days_ago']} (DATE_7_DAYS_AGO)
+- 30 days ago: ${dates['30_days_ago']} (DATE_30_DAYS_AGO)
+- 60 days ago: ${dates['60_days_ago']} (DATE_60_DAYS_AGO)
+- 90 days ago: ${dates['90_days_ago']} (DATE_90_DAYS_AGO)
+- 18 years ago: ${dates['18_years_ago']} (DATE_18_YEARS_AGO)
+- 21 years ago: ${dates['21_years_ago']} (DATE_21_YEARS_AGO)
+- 30 years ago: ${dates['30_years_ago']} (DATE_30_YEARS_AGO)
+- 40 years ago: ${dates['40_years_ago']} (DATE_40_YEARS_AGO)
+- 50 years ago: ${dates['50_years_ago']} (DATE_50_YEARS_AGO)
+- 60 years ago: ${dates['60_years_ago']} (DATE_60_YEARS_AGO)
+- 65 years ago: ${dates['65_years_ago']} (DATE_65_YEARS_AGO)
+- Start of month: ${dates.start_of_month} (START_OF_MONTH)
+- Start of year: ${dates.start_of_year} (START_OF_YEAR)
 
 Target language for "explanation": ${LANGUAGE_LABEL[targetLanguage]} (${targetLanguage}).
 Return the explanation strictly in this language. Do NOT translate JSON keys, model names, or Prisma field names.
+
+For age filters, convert age to dateOfBirth:
+- "under age N": dateOfBirth >= DATE_N_YEARS_AGO
+- "over age N": dateOfBirth <= DATE_N_YEARS_AGO
 
 User question: "${naturalLanguageQuery}"
 
@@ -418,11 +514,11 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
         throw new AppError('Invalid query structure from AI', 500);
       }
 
-      // Execute the query
-      const results = await this.executeQuery(queryConfig);
+      // Validate and restrict write operations
+      this.validateWriteQuery(queryConfig);
 
-      // Get result count
-      const resultCount = Array.isArray(results) ? results.length : 1;
+      // Replace any date placeholders with concrete ISO dates
+      queryConfig.args = this.replaceDatePlaceholders(queryConfig.args, dateTokenMap) as Record<string, unknown>;
 
       let explanation = queryConfig.explanation?.trim() || EXPLANATION_FALLBACK[targetLanguage];
       const explanationNeedsTranslationInitial = needsTranslation(explanation, targetLanguage);
@@ -437,6 +533,30 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
         explanation = EXPLANATION_FALLBACK[targetLanguage];
       }
 
+      if (queryConfig.operation === 'updateMany') {
+        this.cleanupPendingActions();
+        const previewCount = await this.previewUpdateMany(queryConfig);
+        const confirmToken = this.createPendingAction(queryConfig, naturalLanguageQuery, targetLanguage);
+        return {
+          query: naturalLanguageQuery,
+          explanation,
+          results: [],
+          resultCount: previewCount,
+          requiresConfirmation: true,
+          confirmToken,
+          previewCount,
+        };
+      }
+
+      // Execute the query
+      const results = await this.executeQuery(queryConfig);
+
+      // Get result count
+      let resultCount = Array.isArray(results) ? results.length : 1;
+      if (isPlainObject(results) && typeof results.count === 'number') {
+        resultCount = results.count;
+      }
+
       return {
         query: naturalLanguageQuery,
         explanation,
@@ -449,6 +569,41 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
       }
       throw new AppError(`Failed to process query: ${(error as Error).message}`, 500);
     }
+  }
+
+  /**
+   * Confirm and execute a pending write action.
+   */
+  async confirmAction(confirmToken: string): Promise<{
+    query: string;
+    explanation: string;
+    results: unknown;
+    resultCount: number;
+    confirmed: boolean;
+  }> {
+    this.cleanupPendingActions();
+    const pending = this.consumePendingAction(confirmToken);
+    if (!pending) {
+      throw new AppError('Confirmation expired or invalid', 400);
+    }
+
+    this.validateWriteQuery(pending.config);
+
+    const results = await this.executeQuery(pending.config);
+    let resultCount = Array.isArray(results) ? results.length : 1;
+    if (isPlainObject(results) && typeof results.count === 'number') {
+      resultCount = results.count;
+    }
+
+    const explanation = pending.config.explanation?.trim() || EXPLANATION_FALLBACK[pending.language];
+
+    return {
+      query: pending.originalQuery,
+      explanation,
+      results,
+      resultCount,
+      confirmed: true,
+    };
   }
 
   /**
@@ -480,6 +635,159 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
       const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
         result[key] = this.convertDatesToObjects(value);
+      }
+      return result;
+    }
+
+    return obj;
+  }
+
+  /**
+   * Enforce strict safety rules for write operations coming from AI.
+   * Only customer.preferredChannel updates are allowed, and only via updateMany with a non-empty where clause.
+   */
+  private validateWriteQuery(config: PrismaQueryResponse): void {
+    if (config.operation !== 'updateMany') return;
+
+    if (config.model !== 'customer') {
+      throw new AppError('Only customer updates are allowed via AI', 400);
+    }
+
+    if (!isPlainObject(config.args)) {
+      throw new AppError('Invalid update arguments', 400);
+    }
+
+    const allowedArgs = new Set(['where', 'data']);
+    for (const key of Object.keys(config.args)) {
+      if (!allowedArgs.has(key)) {
+        throw new AppError(`Unsupported updateMany argument: ${key}`, 400);
+      }
+    }
+
+    const where = config.args.where;
+    if (!isPlainObject(where) || Object.keys(where).length === 0) {
+      throw new AppError('Update requires a non-empty where clause', 400);
+    }
+
+    // Normalize common "match all" patterns to avoid Prisma null errors.
+    config.args.where = this.normalizeUpdateManyWhere(where);
+
+    const data = config.args.data;
+    if (!isPlainObject(data)) {
+      throw new AppError('Update requires a data object', 400);
+    }
+
+    const dataKeys = Object.keys(data);
+    if (dataKeys.length !== 1 || dataKeys[0] !== 'preferredChannel') {
+      throw new AppError('Only preferredChannel can be updated via AI', 400);
+    }
+
+    const preferredChannel = data.preferredChannel;
+    if (typeof preferredChannel !== 'string') {
+      throw new AppError('Invalid preferredChannel value', 400);
+    }
+    const normalized = preferredChannel.toLowerCase();
+    if (!ALLOWED_PREFERRED_CHANNELS.includes(normalized as typeof ALLOWED_PREFERRED_CHANNELS[number])) {
+      throw new AppError('Invalid preferredChannel value', 400);
+    }
+    data.preferredChannel = normalized;
+  }
+
+  private normalizeUpdateManyWhere(where: Record<string, unknown>): Record<string, unknown> {
+    const normalized: Record<string, unknown> = { ...where };
+    const idClause = normalized.id;
+    if (isPlainObject(idClause)) {
+      const idObj = { ...idClause } as Record<string, unknown>;
+      if ('not' in idObj && (idObj.not === null || idObj.not === undefined)) {
+        idObj.not = ZERO_UUID;
+      } else if (typeof idObj.not === 'string' && idObj.not.trim().length === 0) {
+        idObj.not = ZERO_UUID;
+      }
+      if ('notIn' in idObj && Array.isArray(idObj.notIn) && idObj.notIn.length === 0) {
+        delete idObj.notIn;
+        idObj.not = ZERO_UUID;
+      }
+      normalized.id = idObj;
+    }
+    return normalized;
+  }
+
+  private createPendingAction(
+    config: PrismaQueryResponse,
+    originalQuery: string,
+    language: SupportedLanguage
+  ): string {
+    const token = randomUUID();
+    pendingActions.set(token, {
+      config,
+      createdAt: Date.now(),
+      originalQuery,
+      language,
+    });
+    return token;
+  }
+
+  private consumePendingAction(token: string): PendingAction | null {
+    const pending = pendingActions.get(token) || null;
+    if (!pending) return null;
+
+    const ageMs = Date.now() - pending.createdAt;
+    if (ageMs > PENDING_ACTION_TTL_MS) {
+      pendingActions.delete(token);
+      return null;
+    }
+
+    pendingActions.delete(token);
+    return pending;
+  }
+
+  private cleanupPendingActions(): void {
+    const now = Date.now();
+    for (const [token, pending] of pendingActions.entries()) {
+      if (now - pending.createdAt > PENDING_ACTION_TTL_MS) {
+        pendingActions.delete(token);
+      }
+    }
+  }
+
+  private async previewUpdateMany(config: PrismaQueryResponse): Promise<number> {
+    const where = this.normalizeUpdateManyWhere(
+      this.convertDatesToObjects(config.args.where) as Record<string, unknown>
+    );
+    return prisma.customer.count({ where: where as unknown as Record<string, unknown> });
+  }
+
+  /**
+   * Replace date placeholders (e.g., DATE_30_DAYS_AGO) with concrete ISO dates.
+   */
+  private replaceDatePlaceholders(obj: unknown, replacements: Record<string, string>): unknown {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+
+    if (typeof obj === 'string') {
+      const trimmed = obj.trim();
+      if (replacements[trimmed]) {
+        return replacements[trimmed];
+      }
+      const match = trimmed.match(/^{{?\s*([A-Z0-9_]+)\s*}}?$/);
+      if (match) {
+        const token = match[1];
+        if (replacements[token]) {
+          return replacements[token];
+        }
+      }
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.replaceDatePlaceholders(item, replacements));
+    }
+
+    if (typeof obj === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+        result[key] = this.replaceDatePlaceholders(value, replacements);
       }
       return result;
     }
@@ -553,6 +861,8 @@ Text: "${text}"`;
       case 'groupBy':
         // GroupBy has special handling
         return (prismaModel as unknown as { groupBy: (args: unknown) => Promise<unknown> }).groupBy(args);
+      case 'updateMany':
+        return (prismaModel as typeof prisma.customer).updateMany(args as Parameters<typeof prisma.customer.updateMany>[0]);
       case 'rawQuery':
         // Execute raw SQL query for complex aggregations
         return this.executeRawQuery(args);
@@ -649,6 +959,7 @@ Text: "${text}"`;
       'How many payments were received this month?',
       'Show customers who have never made a payment',
       'What is the total amount collected this year?',
+      'Update the preferred channel of customers under age 30 to be sms',
       'List all debts in dispute status',
       'Show customers with blocked status',
       'Find installments due in the next 7 days',

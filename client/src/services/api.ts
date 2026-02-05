@@ -9,6 +9,10 @@ export interface AIQueryResponse {
     explanation: string;
     results: unknown;
     resultCount: number;
+    requiresConfirmation?: boolean;
+    confirmToken?: string;
+    previewCount?: number;
+    confirmed?: boolean;
   };
   error?: string;
 }
@@ -21,13 +25,17 @@ export interface AISuggestionsResponse {
 /**
  * Send a natural language query to the AI endpoint
  */
-export async function queryAI(query: string, language?: string): Promise<AIQueryResponse> {
+export async function queryAI(query?: string, language?: string, confirmToken?: string): Promise<AIQueryResponse> {
+  const body: Record<string, unknown> = { language };
+  if (query) body.query = query;
+  if (confirmToken) body.confirmToken = confirmToken;
+
   const response = await fetch(`${API_BASE_URL}/ai/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ query, language }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

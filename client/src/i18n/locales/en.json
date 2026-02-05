@@ -227,6 +227,12 @@
     "error": "Sorry, I encountered an error processing your query.",
     "copyJson": "Copy JSON",
     "noResultsFound": "No results found",
+    "confirmUpdateMessage": "This will update {{count}} customers.",
+    "confirmUpdateButton": "Confirm Update",
+    "confirmUpdateCancel": "Cancel",
+    "updateCompleted": "Update completed for {{count}} customers.",
+    "confirmationExpired": "Confirmation expired. Please run the command again.",
+    "updateCancelled": "Update cancelled.",
     "resultColumns": {
       "id": "ID",
       "fullName": "Full Name",

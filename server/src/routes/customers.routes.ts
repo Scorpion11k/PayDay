@@ -10,6 +10,9 @@ router.get('/', asyncHandler(customersController.getAll.bind(customersController
 // DELETE /api/customers/all - Delete all customers (must be before /:id route)
 router.delete('/all', asyncHandler(customersController.deleteAll.bind(customersController)));
 
+// POST /api/customers/bulk-update-channel - Bulk update preferred channel
+router.post('/bulk-update-channel', asyncHandler(customersController.bulkUpdateChannel.bind(customersController)));
+
 // GET /api/customers/:id - Get customer by ID
 router.get('/:id', asyncHandler(customersController.getById.bind(customersController)));
 

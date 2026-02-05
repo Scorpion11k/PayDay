@@ -5,8 +5,11 @@ import { ValidationError } from '../types';
 
 // Validation schemas
 const querySchema = z.object({
-  query: z.string().min(3, 'Query must be at least 3 characters').max(500, 'Query must be at most 500 characters'),
+  query: z.string().min(3, 'Query must be at least 3 characters').max(500, 'Query must be at most 500 characters').optional(),
   language: z.enum(['en', 'he']).optional(),
+  confirmToken: z.string().uuid().optional(),
+}).refine((data) => !!data.query || !!data.confirmToken, {
+  message: 'Query or confirmation token is required',
 });
 
 const detectMappingSchema = z.object({
@@ -25,7 +28,9 @@ class AIController {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
-    const result = await aiService.query(validation.data.query, validation.data.language);
+    const result = validation.data.confirmToken
+      ? await aiService.confirmAction(validation.data.confirmToken)
+      : await aiService.query(validation.data.query!, validation.data.language);
 
     res.json({
       success: true,

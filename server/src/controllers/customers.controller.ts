@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import customersService from '../services/customers.service';
+import { recommendChannelByAge } from '../services/preference.service';
+import prisma from '../config/database';
 import { ValidationError, CustomerStatus } from '../types';
 
 // Validation schemas
@@ -32,6 +34,11 @@ const updateCustomerSchema = z.object({
   preferredChannel: z.enum(['email', 'sms', 'whatsapp', 'call_task']).nullish(),
   preferredLanguage: z.enum(['en', 'he', 'ar']).nullish(),
   preferredTone: z.enum(['calm', 'medium', 'heavy']).nullish(),
+});
+
+const bulkUpdateChannelSchema = z.object({
+  customerIds: z.array(z.string().uuid()).min(1).max(500),
+  preferredChannel: z.enum(['email', 'sms', 'whatsapp', 'call_task', 'auto']),
 });
 
 const querySchema = z.object({
@@ -135,7 +142,60 @@ class CustomersController {
       data: stats,
     });
   }
+
+  async bulkUpdateChannel(req: Request, res: Response) {
+    const validation = bulkUpdateChannelSchema.safeParse(req.body);
+    if (!validation.success) {
+      throw new ValidationError(validation.error.issues[0].message);
+    }
+
+    const { customerIds, preferredChannel } = validation.data;
+
+    if (preferredChannel !== 'auto') {
+      const result = await prisma.customer.updateMany({
+        where: { id: { in: customerIds } },
+        data: { preferredChannel },
+      });
+
+      const failed = customerIds.length - result.count;
+      res.json({
+        success: true,
+        data: { updated: result.count, failed: failed < 0 ? 0 : failed },
+        message: 'Bulk channel update completed',
+      });
+      return;
+    }
+
+    const customers = await prisma.customer.findMany({
+      where: { id: { in: customerIds } },
+      select: { id: true, dateOfBirth: true },
+    });
+
+    let updated = 0;
+    let failed = 0;
+
+    for (const customer of customers) {
+      const recommended = recommendChannelByAge(customer.dateOfBirth);
+      try {
+        await prisma.customer.update({
+          where: { id: customer.id },
+          data: { preferredChannel: recommended },
+        });
+        updated++;
+      } catch {
+        failed++;
+      }
+    }
+
+    const missing = customerIds.length - customers.length;
+    failed += missing > 0 ? missing : 0;
+
+    res.json({
+      success: true,
+      data: { updated, failed },
+      message: 'Bulk channel update completed',
+    });
+  }
 }
 
 export default new CustomersController();
-

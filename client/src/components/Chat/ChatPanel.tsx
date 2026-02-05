@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
+  Button,
   TextField,
   IconButton,
   Typography,
@@ -41,6 +42,11 @@ interface Message {
     explanation: string;
     results: unknown;
     resultCount: number;
+  };
+  confirmation?: {
+    token: string;
+    previewCount: number;
+    status: 'pending' | 'confirming' | 'confirmed' | 'cancelled' | 'expired';
   };
   error?: string;
 }
@@ -485,6 +491,16 @@ export default function ChatPanel() {
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const updateMessageConfirmation = (id: string, updates: Partial<NonNullable<Message['confirmation']>>) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === id
+          ? { ...message, confirmation: { ...message.confirmation!, ...updates } }
+          : message
+      )
+    );
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -542,16 +558,39 @@ export default function ChatPanel() {
       const language = i18n.language?.startsWith('he') ? 'he' : 'en';
       const response = await queryAI(query, language);
 
+      if (response.data.requiresConfirmation && response.data.confirmToken) {
+        const previewCount = response.data.previewCount ?? response.data.resultCount ?? 0;
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: response.data.explanation,
+          role: 'assistant',
+          timestamp: new Date(),
+          confirmation: {
+            token: response.data.confirmToken,
+            previewCount,
+            status: 'pending',
+          },
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+        return;
+      }
+
+      const messageContent = response.data.confirmed
+        ? t('chat.updateCompleted', { count: response.data.resultCount })
+        : response.data.explanation;
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: response.data.explanation,
+        content: messageContent,
         role: 'assistant',
         timestamp: new Date(),
-        data: {
-          explanation: response.data.explanation,
-          results: response.data.results,
-          resultCount: response.data.resultCount,
-        },
+        data: response.data.confirmed
+          ? undefined
+          : {
+              explanation: response.data.explanation,
+              results: response.data.results,
+              resultCount: response.data.resultCount,
+            },
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
@@ -577,6 +616,39 @@ export default function ChatPanel() {
 
   const handleSuggestionClick = (suggestion: string) => {
     handleSend(suggestion);
+  };
+
+  const handleConfirmUpdate = async (messageId: string, token: string) => {
+    updateMessageConfirmation(messageId, { status: 'confirming' });
+
+    try {
+      const language = i18n.language?.startsWith('he') ? 'he' : 'en';
+      const response = await queryAI(undefined, language, token);
+
+      updateMessageConfirmation(messageId, { status: 'confirmed' });
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: t('chat.updateCompleted', { count: response.data.resultCount }),
+        role: 'assistant',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      updateMessageConfirmation(messageId, { status: 'expired' });
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: t('chat.confirmationExpired'),
+        role: 'assistant',
+        timestamp: new Date(),
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
+  };
+
+  const handleCancelUpdate = (messageId: string) => {
+    updateMessageConfirmation(messageId, { status: 'cancelled' });
   };
 
   // Minimized state - just show a small button
@@ -735,6 +807,51 @@ export default function ChatPanel() {
                   >
                     Error: {message.error}
                   </Typography>
+                )}
+                {message.confirmation && message.confirmation.status !== 'confirmed' && (
+                  <Box
+                    sx={{
+                      mt: 1.5,
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      bgcolor: 'rgba(255, 152, 0, 0.08)',
+                      border: '1px solid rgba(255, 152, 0, 0.25)',
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                      {t('chat.confirmUpdateMessage', { count: message.confirmation.previewCount })}
+                    </Typography>
+                    {(message.confirmation.status === 'pending' || message.confirmation.status === 'confirming') ? (
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={() => handleConfirmUpdate(message.id, message.confirmation!.token)}
+                          disabled={message.confirmation.status === 'confirming'}
+                        >
+                          {t('chat.confirmUpdateButton')}
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="text"
+                          onClick={() => handleCancelUpdate(message.id)}
+                          disabled={message.confirmation.status === 'confirming'}
+                        >
+                          {t('chat.confirmUpdateCancel')}
+                        </Button>
+                      </Box>
+                    ) : null}
+                    {message.confirmation.status === 'cancelled' && (
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        {t('chat.updateCancelled')}
+                      </Typography>
+                    )}
+                    {message.confirmation.status === 'expired' && (
+                      <Typography variant="caption" sx={{ color: 'error.main' }}>
+                        {t('chat.confirmationExpired')}
+                      </Typography>
+                    )}
+                  </Box>
                 )}
                 {message.data && (
                   <ResultsDisplay

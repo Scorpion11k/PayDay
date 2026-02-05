@@ -195,7 +195,7 @@ export default function CustomersPage() {
 
   // Bulk Update Channel
   const [bulkChannelDialogOpen, setBulkChannelDialogOpen] = useState(false);
-  const [bulkChannelValue, setBulkChannelValue] = useState<'sms' | 'email' | 'whatsapp' | 'call_task' | ''>('');
+  const [bulkChannelValue, setBulkChannelValue] = useState<'sms' | 'email' | 'whatsapp' | 'call_task' | 'auto' | ''>('');
   const [bulkUpdatingChannel, setBulkUpdatingChannel] = useState(false);
 
   // Status labels with translations
@@ -355,28 +355,25 @@ export default function CustomersPage() {
     if (selectedCustomerIds.size === 0 || !bulkChannelValue || selectAllMode) return;
     
     setBulkUpdatingChannel(true);
-    let successCount = 0;
-    let failCount = 0;
     
     try {
-      // Update each selected customer
-      for (const customerId of selectedCustomerIds) {
-        try {
-          const response = await fetch(`/api/customers/${customerId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ preferredChannel: bulkChannelValue }),
-          });
-          
-          if (response.ok) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        } catch {
-          failCount++;
-        }
+      const response = await fetch('/api/customers/bulk-update-channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerIds: Array.from(selectedCustomerIds),
+          preferredChannel: bulkChannelValue,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || t('common.error'));
       }
+
+      const successCount = data.data?.updated || 0;
+      const failCount = data.data?.failed || 0;
 
       setSnackbar({
         open: true,
@@ -1799,6 +1796,11 @@ export default function CustomersPage() {
               label={t('customers.preferredChannel')}
               onChange={(e) => setBulkChannelValue(e.target.value as typeof bulkChannelValue)}
             >
+              <MenuItem value="auto">
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <span>{t('common.auto')}</span>
+                </Stack>
+              </MenuItem>
               <MenuItem value="email">
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <EmailIcon fontSize="small" />
