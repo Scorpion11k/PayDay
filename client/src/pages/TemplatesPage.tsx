@@ -36,7 +36,6 @@ import {
   Article as TemplatesIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
-  Add as AddIcon,
   Close as CloseIcon,
   Edit as EditIcon,
   Visibility as PreviewIcon,

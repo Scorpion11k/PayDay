@@ -9,17 +9,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Snackbar,
   Alert,
 } from '@mui/material';
 import {
   Save as SaveIcon,
   PlayArrow as PlayIcon,
-  Add as AddIcon,
 } from '@mui/icons-material';
 import FlowCanvas from './FlowCanvas';
 import ActionLibrary, { type ActionItem } from './ActionLibrary';
@@ -55,24 +50,19 @@ export default function FlowBuilder({
   const [nodes, setNodes] = useState<FlowNodeData[]>(initialNodes || defaultNodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
   const [insertAfterId, setInsertAfterId] = useState<string | null>(null);
-  const [showActionDialog, setShowActionDialog] = useState(false);
-  const [waitDuration, setWaitDuration] = useState('1');
-  const [waitUnit, setWaitUnit] = useState('days');
-  const [selectedAction, setSelectedAction] = useState<ActionItem | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
     severity: 'success',
   });
+  const waitDuration = '1';
+  const waitUnit = 'days';
 
   const handleAddNode = (afterId: string) => {
     setInsertAfterId(afterId);
-    setShowActionDialog(true);
   };
 
   const handleSelectAction = (item: ActionItem) => {
-    setSelectedAction(item);
-    
     if (item.type === 'wait') {
       // Show wait duration dialog - for now just insert with default
       handleInsertNode(item);
@@ -99,9 +89,7 @@ export default function FlowBuilder({
     const newNodes = [...nodes];
     newNodes.splice(insertIndex + 1, 0, newNode);
     setNodes(newNodes);
-    setShowActionDialog(false);
     setInsertAfterId(null);
-    setSelectedAction(null);
   };
 
   const handleDeleteNode = (id: string) => {

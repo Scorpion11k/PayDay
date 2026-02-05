@@ -195,13 +195,16 @@ function DataImportTab() {
     
     if (value == null) return undefined;
     if (value instanceof Date) return value;
+    if (typeof value === 'boolean') return String(value);
     if (typeof value !== 'object') return value;
     
     // Handle formula cells - get the calculated result
     if ('result' in value) {
       const result = (value as { result: unknown }).result;
       if (result instanceof Date) return result;
-      return result != null ? result : undefined;
+      if (typeof result === 'string' || typeof result === 'number') return result;
+      if (result != null) return String(result);
+      return undefined;
     }
     
     // Handle rich text cells - concatenate all text parts

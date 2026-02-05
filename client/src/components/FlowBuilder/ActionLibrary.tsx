@@ -1,4 +1,4 @@
-import { Box, Typography, Paper, List, ListItemButton, ListItemIcon, ListItemText, Divider } from '@mui/material';
+import { Typography, Paper, List, ListItemButton, ListItemIcon, ListItemText, Divider } from '@mui/material';
 import {
   Email as EmailIcon,
   Sms as SmsIcon,
