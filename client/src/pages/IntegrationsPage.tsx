@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { useChatVisibility } from '../context/ChatVisibilityContext';
 import {
   Box,
   Typography,
@@ -601,7 +602,7 @@ function DataImportTab() {
           )}
 
           {/* Column Mapping */}
-          <Paper sx={{ p: 3, mb: 3, position: 'relative' }}>
+          <Paper sx={{ p: 3, mb: 3, position: 'relative', overflow: 'hidden' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{t('integrations.dataImport.mapping.columnMapping')}</Typography>
               <Chip 
@@ -614,10 +615,10 @@ function DataImportTab() {
               {MAPPING_FIELDS.map(field => {
                 const status = getFieldStatus(field.key, field.required);
                 return (
-                  <Box key={field.key} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box key={field.key} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
                     <FormControl 
                       size="small" 
-                      sx={{ flex: 1 }}
+                      sx={{ flex: 1, minWidth: 0 }}
                       error={status === 'missing'}
                     >
                       <InputLabel 
@@ -840,7 +841,16 @@ function DataImportTab() {
 
 export default function IntegrationsPage() {
   const { t } = useTranslation();
+  const { setChatHidden } = useChatVisibility();
   const [tabValue, setTabValue] = useState(0);
+
+  const isDataImportTab = tabValue === 1;
+
+  // Hide chat panel when Data Import tab is active; restore on unmount
+  useEffect(() => {
+    setChatHidden(isDataImportTab);
+    return () => setChatHidden(false);
+  }, [isDataImportTab, setChatHidden]);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -856,7 +866,7 @@ export default function IntegrationsPage() {
   ];
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3, overflow: 'hidden' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

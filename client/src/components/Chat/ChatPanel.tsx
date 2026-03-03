@@ -32,6 +32,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { queryAI, getAISuggestions } from '../../services/api';
+import { useChatVisibility } from '../../context/ChatVisibilityContext';
 
 interface Message {
   id: string;
@@ -482,6 +483,7 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
 export default function ChatPanel() {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
+  const { isChatHidden } = useChatVisibility();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -650,6 +652,11 @@ export default function ChatPanel() {
   const handleCancelUpdate = (messageId: string) => {
     updateMessageConfirmation(messageId, { status: 'cancelled' });
   };
+
+  // Hidden by page request (e.g. Data Import tab)
+  if (isChatHidden) {
+    return null;
+  }
 
   // Minimized state - just show a small button
   if (isMinimized) {
