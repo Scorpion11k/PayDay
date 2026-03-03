@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import {
   Box,
@@ -18,6 +19,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   LinearProgress,
   Alert,
   Select,
@@ -169,25 +171,57 @@ interface ValidationError {
 // Required fields for import
 const REQUIRED_FIELDS = ['customerName', 'debtAmount'];
 
+// Module-level cache to persist import state across navigation
+interface ImportStateCache {
+  file: File | null;
+  headers: string[];
+  allRows: Record<string, unknown>[];
+  mapping: Record<string, string>;
+  aiSuggestedMapping: Record<string, string>;
+  step: 'upload' | 'mapping' | 'complete';
+  importResult: {
+    success: boolean;
+    message: string;
+    details?: { customers: number; debts: number; installments: number };
+  } | null;
+  validationErrors: ValidationError[];
+}
+
+let importStateCache: ImportStateCache | null = null;
+
 // Data Import Component
 function DataImportTab() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { isRTL } = useLanguage();
-  const [file, setFile] = useState<File | null>(null);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [sampleRows, setSampleRows] = useState<Record<string, unknown>[]>([]);
-  const [mapping, setMapping] = useState<Record<string, string>>({});
-  const [aiSuggestedMapping, setAiSuggestedMapping] = useState<Record<string, string>>({});
+  const [file, setFile] = useState<File | null>(importStateCache?.file ?? null);
+  const [headers, setHeaders] = useState<string[]>(importStateCache?.headers ?? []);
+  const [allRows, setAllRows] = useState<Record<string, unknown>[]>(importStateCache?.allRows ?? []);
+  const [mapping, setMapping] = useState<Record<string, string>>(importStateCache?.mapping ?? {});
+  const [aiSuggestedMapping, setAiSuggestedMapping] = useState<Record<string, string>>(importStateCache?.aiSuggestedMapping ?? {});
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [importing, setImporting] = useState(false);
   const [detectingMapping, setDetectingMapping] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>(importStateCache?.validationErrors ?? []);
   const [importResult, setImportResult] = useState<{
     success: boolean;
     message: string;
     details?: { customers: number; debts: number; installments: number };
-  } | null>(null);
-  const [step, setStep] = useState<'upload' | 'mapping' | 'complete'>('upload');
+  } | null>(importStateCache?.importResult ?? null);
+  const [step, setStep] = useState<'upload' | 'mapping' | 'complete'>(importStateCache?.step ?? 'upload');
+
+  // Preview pagination state
+  const [previewPage, setPreviewPage] = useState(0);
+  const [previewRowsPerPage, setPreviewRowsPerPage] = useState(10);
+
+  // Persist state to module-level cache on changes
+  const stateRef = useRef({ file, headers, allRows, mapping, aiSuggestedMapping, step, importResult, validationErrors });
+  stateRef.current = { file, headers, allRows, mapping, aiSuggestedMapping, step, importResult, validationErrors };
+  useEffect(() => {
+    return () => {
+      importStateCache = { ...stateRef.current };
+    };
+  }, []);
 
   // Helper function to extract actual cell value from Excel cells (handles formulas, rich text, etc.)
   const extractCellValue = (cell: ExcelJS.Cell): string | number | Date | undefined => {
@@ -283,7 +317,8 @@ function DataImportTab() {
       }
 
       setHeaders(fileHeaders);
-      setSampleRows(jsonData.slice(0, 10)); // Show up to 10 rows for preview
+      setAllRows(jsonData);
+      setPreviewPage(0);
       setValidationErrors([]);
 
       // Use AI to detect column mappings
@@ -450,12 +485,14 @@ function DataImportTab() {
   const resetImport = () => {
     setFile(null);
     setHeaders([]);
-    setSampleRows([]);
+    setAllRows([]);
     setMapping({});
     setAiSuggestedMapping({});
     setImportResult(null);
     setValidationErrors([]);
+    setPreviewPage(0);
     setStep('upload');
+    importStateCache = null;
   };
 
   // Get field mapping status for styling
@@ -549,7 +586,7 @@ function DataImportTab() {
             <Box>
               <Typography variant="h6">{t('integrations.dataImport.mapping.title')}</Typography>
               <Typography variant="body2" color="text.secondary">
-                {t('integrations.dataImport.mapping.fileInfo', { fileName: file?.name, rowCount: sampleRows.length })}
+                {t('integrations.dataImport.mapping.fileInfo', { fileName: file?.name, rowCount: allRows.length })}
               </Typography>
             </Box>
             <Button variant="outlined" onClick={resetImport}>{t('common.cancel')}</Button>
@@ -573,47 +610,48 @@ function DataImportTab() {
                 color={allRequiredMapped ? 'success' : 'warning'}
               />
             </Box>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               {MAPPING_FIELDS.map(field => {
                 const status = getFieldStatus(field.key, field.required);
                 return (
-                  <FormControl 
-                    key={field.key} 
-                    size="small" 
-                    fullWidth
-                    error={status === 'missing'}
-                  >
-                    <InputLabel 
-                      sx={{ 
-                        color: status === 'missing' ? 'error.main' : status === 'mapped' ? 'success.main' : undefined 
-                      }}
+                  <Box key={field.key} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <FormControl 
+                      size="small" 
+                      sx={{ flex: 1 }}
+                      error={status === 'missing'}
                     >
-                      {t(field.labelKey)}{field.required ? ' *' : ''}
-                    </InputLabel>
-                    <Select
-                      value={mapping[field.key] || ''}
-                      onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                      label={t(field.labelKey) + (field.required ? ' *' : '')}
-                      sx={{
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: status === 'missing' ? 'error.main' : status === 'mapped' ? 'success.main' : undefined,
-                          borderWidth: status !== 'unmapped' ? 2 : 1,
-                        },
-                      }}
-                      endAdornment={
-                        status === 'mapped' ? (
-                          <SuccessIcon color="success" sx={{ mr: 1, fontSize: 18 }} />
-                        ) : status === 'missing' ? (
-                          <ErrorIcon color="error" sx={{ mr: 1, fontSize: 18 }} />
-                        ) : null
-                      }
-                    >
-                      <MenuItem value="">{t('integrations.dataImport.mapping.notMapped')}</MenuItem>
-                      {headers.map(header => (
-                        <MenuItem key={header} value={header}>{header}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                      <InputLabel 
+                        sx={{ 
+                          color: status === 'missing' ? 'error.main' : status === 'mapped' ? 'success.main' : undefined 
+                        }}
+                      >
+                        {t(field.labelKey)}{field.required ? ' *' : ''}
+                      </InputLabel>
+                      <Select
+                        value={mapping[field.key] || ''}
+                        onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                        label={t(field.labelKey) + (field.required ? ' *' : '')}
+                        sx={{
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: status === 'missing' ? 'error.main' : status === 'mapped' ? 'success.main' : undefined,
+                            borderWidth: status !== 'unmapped' ? 2 : 1,
+                          },
+                        }}
+                      >
+                        <MenuItem value="">{t('integrations.dataImport.mapping.notMapped')}</MenuItem>
+                        {headers.map(header => (
+                          <MenuItem key={header} value={header}>{header}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    {status === 'mapped' ? (
+                      <SuccessIcon color="success" sx={{ fontSize: 22 }} />
+                    ) : status === 'missing' ? (
+                      <ErrorIcon color="error" sx={{ fontSize: 22 }} />
+                    ) : (
+                      <Box sx={{ width: 22 }} />
+                    )}
+                  </Box>
                 );
               })}
             </Box>
@@ -645,7 +683,7 @@ function DataImportTab() {
           {/* Data Preview */}
           <Paper sx={{ mb: 3 }}>
             <Typography variant="subtitle2" sx={{ p: 2, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-              {t('integrations.dataImport.preview.title')} ({sampleRows.length} {t('integrations.dataImport.preview.rows') || 'rows'})
+              {t('integrations.dataImport.preview.title')} ({allRows.length} {t('integrations.dataImport.preview.rows') || 'rows'})
             </Typography>
             <TableContainer sx={{ maxHeight: 400 }}>
               <Table size="small" stickyHeader>
@@ -653,7 +691,6 @@ function DataImportTab() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600, bgcolor: '#f5f5f5', minWidth: 50 }}>#</TableCell>
                     {headers.map(header => {
-                      // Check if this header is mapped to a field
                       const mappedField = Object.entries(mapping).find(([, h]) => h === header)?.[0];
                       const fieldDef = mappedField ? MAPPING_FIELDS.find(f => f.key === mappedField) : null;
                       return (
@@ -674,41 +711,56 @@ function DataImportTab() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {sampleRows.map((row, idx) => {
-                    // Check if this row has validation errors
-                    const rowErrors = validationErrors.filter(e => e.row === idx + 2);
-                    return (
-                      <TableRow key={idx} sx={{ bgcolor: rowErrors.length > 0 ? '#ffebee' : undefined }}>
-                        <TableCell sx={{ color: 'text.secondary' }}>{idx + 2}</TableCell>
-                        {headers.map(header => {
-                          const cellError = rowErrors.find(e => {
-                            const mappedField = Object.entries(mapping).find(([, h]) => h === header)?.[0];
-                            return mappedField === e.field;
-                          });
-                          return (
-                            <TableCell 
-                              key={header}
-                              sx={{ 
-                                color: cellError ? 'error.main' : undefined,
-                                fontWeight: cellError ? 600 : undefined,
-                              }}
-                            >
-                              {cellError ? (
-                                <Tooltip title={cellError.message}>
-                                  <span>{String(row[header] ?? '')}</span>
-                                </Tooltip>
-                              ) : (
-                                String(row[header] ?? '')
-                              )}
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    );
-                  })}
+                  {allRows
+                    .slice(previewPage * previewRowsPerPage, previewPage * previewRowsPerPage + previewRowsPerPage)
+                    .map((row, idx) => {
+                      const absoluteIdx = previewPage * previewRowsPerPage + idx;
+                      const rowErrors = validationErrors.filter(e => e.row === absoluteIdx + 2);
+                      return (
+                        <TableRow key={absoluteIdx} sx={{ bgcolor: rowErrors.length > 0 ? '#ffebee' : undefined }}>
+                          <TableCell sx={{ color: 'text.secondary' }}>{absoluteIdx + 1}</TableCell>
+                          {headers.map(header => {
+                            const cellError = rowErrors.find(e => {
+                              const mappedField = Object.entries(mapping).find(([, h]) => h === header)?.[0];
+                              return mappedField === e.field;
+                            });
+                            return (
+                              <TableCell 
+                                key={header}
+                                sx={{ 
+                                  color: cellError ? 'error.main' : undefined,
+                                  fontWeight: cellError ? 600 : undefined,
+                                }}
+                              >
+                                {cellError ? (
+                                  <Tooltip title={cellError.message}>
+                                    <span>{String(row[header] ?? '')}</span>
+                                  </Tooltip>
+                                ) : (
+                                  String(row[header] ?? '')
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      );
+                    })}
                 </TableBody>
               </Table>
             </TableContainer>
+            <TablePagination
+              component="div"
+              count={allRows.length}
+              page={previewPage}
+              onPageChange={(_e, newPage) => setPreviewPage(newPage)}
+              rowsPerPage={previewRowsPerPage}
+              onRowsPerPageChange={(e) => {
+                setPreviewRowsPerPage(parseInt(e.target.value, 10));
+                setPreviewPage(0);
+              }}
+              rowsPerPageOptions={[10, 20, 50, 100]}
+              labelRowsPerPage={t('common.rowsPerPage')}
+            />
           </Paper>
 
           {/* Import Button */}
@@ -772,9 +824,14 @@ function DataImportTab() {
             </Box>
           )}
 
-          <Button variant="contained" onClick={resetImport} sx={{ bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}>
-            {t('integrations.dataImport.importAnother')}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Button variant="contained" onClick={() => navigate('/customers')} sx={{ bgcolor: '#1e3a5f', '&:hover': { bgcolor: '#2c4a6f' } }}>
+              {t('integrations.dataImport.goToCustomers')}
+            </Button>
+            <Button variant="outlined" onClick={resetImport}>
+              {t('integrations.dataImport.importAnother')}
+            </Button>
+          </Box>
         </Paper>
       )}
     </Box>

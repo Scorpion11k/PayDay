@@ -411,7 +411,7 @@
       },
       "mapping": {
         "title": "Map Columns",
-        "fileInfo": "File: {{fileName}} ({{rowCount}} rows preview)",
+        "fileInfo": "File: {{fileName}} ({{rowCount}} rows)",
         "columnMapping": "Column Mapping",
         "notMapped": "-- Not Mapped --",
         "aiDetecting": "AI is analyzing your file...",
@@ -452,6 +452,7 @@
       "importing": "Importing...",
       "importData": "Import Data",
       "importAnother": "Import Another File",
+      "goToCustomers": "Go to Customers",
       "success": {
         "title": "Import Successful!",
         "customers": "Customers",
