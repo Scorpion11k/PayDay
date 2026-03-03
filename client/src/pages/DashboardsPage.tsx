@@ -21,6 +21,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import { CircularGauge, DonutChart, StatCard, BarChart } from '../components/Dashboard';
 
+// API Base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 interface DashboardStats {
   totalCustomers: number;
   activeCustomers: number;
@@ -52,7 +55,7 @@ export default function DashboardsPage() {
 
     try {
       // Fetch real data from API
-      const response = await fetch('/api/customers?limit=1000');
+      const response = await fetch(`${API_BASE_URL}/customers?limit=1000`);
       const customersData = await response.json();
 
       // Calculate stats from customer data
@@ -74,7 +77,7 @@ export default function DashboardsPage() {
       };
 
       // Calculate collection amount from payments
-      const paymentsResponse = await fetch('/api/payments?limit=1000');
+      const paymentsResponse = await fetch(`${API_BASE_URL}/payments?limit=1000`);
       const paymentsData = await paymentsResponse.json();
       const payments = paymentsData.data || [];
       const collectedAmount = payments.reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0);

@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+
+// API Base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 import {
   Box,
   Typography,
@@ -304,7 +307,7 @@ export default function CustomersPage() {
     
     setBulkSending(true);
     try {
-      const response = await fetch('/api/messaging/bulk-send', {
+      const response = await fetch(`${API_BASE_URL}/messaging/bulk-send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -357,7 +360,7 @@ export default function CustomersPage() {
     setBulkUpdatingChannel(true);
     
     try {
-      const response = await fetch('/api/customers/bulk-update-channel', {
+      const response = await fetch(`${API_BASE_URL}/customers/bulk-update-channel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -426,7 +429,7 @@ export default function CustomersPage() {
         params.set('sortOrder', sortOrder);
       }
 
-      const response = await fetch(`/api/customers?${params}`);
+      const response = await fetch(`${API_BASE_URL}/customers?${params}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -547,7 +550,7 @@ export default function CustomersPage() {
       if (formData.preferredLanguage) payload.preferredLanguage = formData.preferredLanguage;
       if (formData.preferredTone) payload.preferredTone = formData.preferredTone;
 
-      const response = await fetch('/api/customers', {
+      const response = await fetch(`${API_BASE_URL}/customers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -596,7 +599,7 @@ export default function CustomersPage() {
     setDeleting(true);
 
     try {
-      const response = await fetch(`/api/customers/${selectedCustomer.id}`, {
+      const response = await fetch(`${API_BASE_URL}/customers/${selectedCustomer.id}`, {
         method: 'DELETE',
       });
 
@@ -629,7 +632,7 @@ export default function CustomersPage() {
     setDeletingAll(true);
 
     try {
-      const response = await fetch('/api/customers/all', {
+      const response = await fetch(`${API_BASE_URL}/customers/all`, {
         method: 'DELETE',
       });
 
@@ -722,7 +725,7 @@ export default function CustomersPage() {
       payload.preferredLanguage = editFormData.preferredLanguage || null;
       payload.preferredTone = editFormData.preferredTone || null;
 
-      const response = await fetch(`/api/customers/${selectedCustomer.id}`, {
+      const response = await fetch(`${API_BASE_URL}/customers/${selectedCustomer.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -759,7 +762,7 @@ export default function CustomersPage() {
   ) => {
     setLoadingPreview(true);
     try {
-      const response = await fetch('/api/messaging/preview-reminder', {
+      const response = await fetch(`${API_BASE_URL}/messaging/preview-reminder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -816,7 +819,7 @@ export default function CustomersPage() {
 
     try {
       // Use the messaging API to actually send the reminder
-      const response = await fetch('/api/messaging/send-reminder', {
+      const response = await fetch(`${API_BASE_URL}/messaging/send-reminder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
