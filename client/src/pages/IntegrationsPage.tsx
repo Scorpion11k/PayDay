@@ -602,7 +602,7 @@ function DataImportTab() {
           )}
 
           {/* Column Mapping */}
-          <Paper sx={{ p: 3, mb: 3, position: 'relative', overflow: 'hidden' }}>
+          <Paper sx={{ p: 3, mb: 3, position: 'relative' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{t('integrations.dataImport.mapping.columnMapping')}</Typography>
               <Chip 
@@ -611,7 +611,7 @@ function DataImportTab() {
                 color={allRequiredMapped ? 'success' : 'warning'}
               />
             </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, width: '100%' }}>
               {MAPPING_FIELDS.map(field => {
                 const status = getFieldStatus(field.key, field.required);
                 return (
@@ -866,7 +866,7 @@ export default function IntegrationsPage() {
   ];
 
   return (
-    <Box sx={{ p: 3, overflow: 'hidden' }}>
+    <Box sx={{ p: 3, maxWidth: '100%', boxSizing: 'border-box' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
