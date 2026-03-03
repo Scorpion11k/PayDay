@@ -14,6 +14,7 @@ import {
 import { Menu as MenuIcon } from '@mui/icons-material';
 import SidebarNav from '../components/SidebarNav';
 import ChatPanel from '../components/Chat/ChatPanel';
+import { useChatVisibility } from '../context/ChatVisibilityContext';
 
 const DRAWER_WIDTH = 220;
 
@@ -24,6 +25,7 @@ interface AppShellProps {
 export default function AppShell({ children }: AppShellProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { isChatHidden } = useChatVisibility();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -76,6 +78,7 @@ export default function AppShell({ children }: AppShellProps) {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
+          minWidth: 0,
           minHeight: '100vh',
           bgcolor: 'background.default',
         }}
@@ -146,7 +149,7 @@ export default function AppShell({ children }: AppShellProps) {
             flex: 1,
             overflow: 'auto',
             position: 'relative',
-            pb: '200px', // Space for chat panel (input + suggestions)
+            pb: isChatHidden ? 0 : '200px', // Space for chat panel (input + suggestions)
           }}
         >
           {children}

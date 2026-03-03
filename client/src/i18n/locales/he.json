@@ -411,7 +411,7 @@
       },
       "mapping": {
         "title": "מיפוי עמודות",
-        "fileInfo": "קובץ: {{fileName}} (תצוגה מקדימה של {{rowCount}} שורות)",
+        "fileInfo": "קובץ: {{fileName}} ({{rowCount}} שורות)",
         "columnMapping": "מיפוי עמודות",
         "notMapped": "-- לא ממופה --",
         "aiDetecting": "הבינה המלאכותית מנתחת את הקובץ שלך...",
@@ -452,6 +452,7 @@
       "importing": "מייבא...",
       "importData": "ייבא נתונים",
       "importAnother": "ייבא קובץ נוסף",
+      "goToCustomers": "עבור למסך עבודה",
       "success": {
         "title": "הייבוא הצליח!",
         "customers": "לקוחות",

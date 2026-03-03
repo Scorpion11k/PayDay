@@ -32,6 +32,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { queryAI, getAISuggestions } from '../../services/api';
+import { useChatVisibility } from '../../context/ChatVisibilityContext';
 
 interface Message {
   id: string;
@@ -482,6 +483,7 @@ function ResultsDisplay({ results, resultCount }: { results: unknown; resultCoun
 export default function ChatPanel() {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
+  const { isChatHidden } = useChatVisibility();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -651,6 +653,11 @@ export default function ChatPanel() {
     updateMessageConfirmation(messageId, { status: 'cancelled' });
   };
 
+  // Hidden by page request (e.g. Data Import tab)
+  if (isChatHidden) {
+    return null;
+  }
+
   // Minimized state - just show a small button
   if (isMinimized) {
     return (
@@ -696,56 +703,7 @@ export default function ChatPanel() {
         zIndex: 1000,
       }}
     >
-      {/* Minimize Button */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: -40,
-          insetInlineEnd: 16,
-          display: 'flex',
-          gap: 0.5,
-        }}
-      >
-        <Tooltip title={t('chat.minimizeChat')}>
-          <IconButton
-            size="small"
-            onClick={() => setIsMinimized(true)}
-            sx={{
-              bgcolor: 'background.paper',
-              border: '1px solid',
-              borderColor: 'divider',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              '&:hover': {
-                bgcolor: 'grey.100',
-              },
-            }}
-          >
-            <MinimizeIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        {messages.length > 0 && (
-          <Tooltip title={t('chat.clearChat')}>
-            <IconButton
-              size="small"
-              onClick={() => {
-                setMessages([]);
-                setShowSuggestions(true);
-              }}
-              sx={{
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                '&:hover': {
-                  bgcolor: 'grey.100',
-                },
-              }}
-            >
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
+      {/* Minimize & Clear buttons - inline in chat header */}
 
       {/* Messages Display */}
       {messages.length > 0 && (
@@ -988,6 +946,45 @@ export default function ChatPanel() {
           >
             <SendIcon sx={{ fontSize: 20 }} />
           </IconButton>
+          <Tooltip title={t('chat.minimizeChat')}>
+            <IconButton
+              size="small"
+              onClick={() => setIsMinimized(true)}
+              sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                width: 36,
+                height: 36,
+                '&:hover': {
+                  bgcolor: 'grey.100',
+                },
+              }}
+            >
+              <MinimizeIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          {messages.length > 0 && (
+            <Tooltip title={t('chat.clearChat')}>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  setMessages([]);
+                  setShowSuggestions(true);
+                }}
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  width: 36,
+                  height: 36,
+                  '&:hover': {
+                    bgcolor: 'grey.100',
+                  },
+                }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
         <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
           {t('chat.pressEnter')} • {t('chat.shiftEnter')} • {t('chat.poweredBy')}
