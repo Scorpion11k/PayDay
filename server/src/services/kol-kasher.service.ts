@@ -112,7 +112,15 @@ class KolKasherService {
           retries,
         },
       });
-    } catch (dbError) {
+    } catch (dbError: unknown) {
+      const isPrismaTableMissing =
+        dbError instanceof Error &&
+        'code' in dbError &&
+        (dbError as { code: string }).code === 'P2021';
+      if (isPrismaTableMissing) {
+        console.error('❌ Kol Kasher: voice_call_logs table missing. Run "npx prisma migrate dev" to apply migrations.');
+        return { success: false, error: 'Voice call logs table not found — run "npx prisma migrate dev" to create it' };
+      }
       console.error('❌ Failed to create voice call log:', dbError);
       return { success: false, error: 'Failed to create call log record' };
     }
