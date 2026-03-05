@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import prisma from '../config/database';
 import templateService from '../services/template.service';
 import smsService from '../services/sms.service';
+import kolKasherService from '../services/kol-kasher.service';
 import { TemplateLanguage, TemplateTone } from '@prisma/client';
 
 const router = Router();
@@ -193,6 +194,88 @@ router.post('/amd', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error handling AMD:', error);
     res.sendStatus(500);
+  }
+});
+
+/**
+ * POST /api/voice/kol-kasher/callback
+ * Handle call status updates from Kol Kasher
+ */
+router.post('/kol-kasher/callback', async (req: Request, res: Response) => {
+  try {
+    console.log('📞 Kol Kasher callback received:', JSON.stringify(req.body));
+
+    await kolKasherService.handleCallback(req.body);
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Error handling Kol Kasher callback:', error);
+    res.sendStatus(500);
+  }
+});
+
+/**
+ * GET /api/voice/kol-kasher/history/:customerId
+ * Get voice call history for a customer
+ */
+router.get('/kol-kasher/history/:customerId', async (req: Request, res: Response) => {
+  try {
+    const { customerId } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    const result = await kolKasherService.getCallHistory(customerId, page, limit);
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Error fetching voice call history:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch call history' });
+  }
+});
+
+/**
+ * GET /api/voice/kol-kasher/stats
+ * Get overall voice call statistics
+ */
+router.get('/kol-kasher/stats', async (req: Request, res: Response) => {
+  try {
+    const stats = await kolKasherService.getCallStats();
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error('Error fetching voice call stats:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch call stats' });
+  }
+});
+
+/**
+ * GET /api/voice/kol-kasher/log/:logId
+ * Get a specific voice call log entry
+ */
+router.get('/kol-kasher/log/:logId', async (req: Request, res: Response) => {
+  try {
+    const { logId } = req.params;
+
+    const log = await prisma.voiceCallLog.findUnique({
+      where: { id: logId },
+      include: {
+        customer: {
+          select: { id: true, fullName: true, phone: true, email: true },
+        },
+        notification: {
+          select: { id: true, templateKey: true, channel: true, createdAt: true },
+        },
+      },
+    });
+
+    if (!log) {
+      res.status(404).json({ success: false, error: 'Voice call log not found' });
+      return;
+    }
+
+    res.json({ success: true, data: log });
+  } catch (error) {
+    console.error('Error fetching voice call log:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch call log' });
   }
 });
 

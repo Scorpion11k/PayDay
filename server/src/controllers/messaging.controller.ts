@@ -5,6 +5,7 @@ import emailService from '../services/email.service';
 import whatsappService from '../services/whatsapp.service';
 import smsService from '../services/sms.service';
 import voiceService from '../services/voice.service';
+import kolKasherService from '../services/kol-kasher.service';
 import templateService from '../services/template.service';
 import { ValidationError, NotFoundError } from '../types';
 import { TemplateLanguage, TemplateTone, NotificationChannel, Prisma } from '@prisma/client';
@@ -50,12 +51,12 @@ class MessagingController {
    * Get messaging service status
    */
   async getStatus(req: Request, res: Response) {
-    // Initialize services if not already
     await Promise.all([
       emailService.initialize(),
       whatsappService.initialize(),
       smsService.initialize(),
-      voiceService.initialize()
+      voiceService.initialize(),
+      kolKasherService.initialize(),
     ]);
 
     res.json({
@@ -74,8 +75,8 @@ class MessagingController {
           provider: 'Twilio',
         },
         voice: {
-          available: voiceService.isAvailable(),
-          provider: 'Twilio',
+          available: kolKasherService.isAvailable(),
+          provider: 'Kol Kasher',
         },
       },
     });

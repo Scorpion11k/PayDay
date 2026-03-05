@@ -82,6 +82,7 @@ const connectedApps: Integration[] = [
   { id: '4', name: 'QuickBooks', logo: 'QB', logoColor: '#2CA01C', connected: true, lastSync: '5 hours ago' },
   { id: '5', name: 'Twilio', logo: 'TW', logoColor: '#F22F46', connected: true, lastSync: '30 minutes ago' },
   { id: '6', name: 'Stripe', logo: 'stripe', logoColor: '#635BFF', connected: true, lastSync: 'Real-time' },
+  { id: '7', name: 'Kol Kasher', logo: 'KK', logoColor: '#1B5E20', connected: true, lastSync: 'Real-time' },
 ];
 
 // Integration Card Component
