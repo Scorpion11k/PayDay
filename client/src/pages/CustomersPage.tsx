@@ -201,6 +201,25 @@ export default function CustomersPage() {
   const [bulkChannelValue, setBulkChannelValue] = useState<'sms' | 'email' | 'whatsapp' | 'call_task' | 'auto' | ''>('');
   const [bulkUpdatingChannel, setBulkUpdatingChannel] = useState(false);
 
+  // Voice Call History Dialog
+  const [callHistoryDialogOpen, setCallHistoryDialogOpen] = useState(false);
+  const [callHistoryLoading, setCallHistoryLoading] = useState(false);
+  const [callHistoryData, setCallHistoryData] = useState<Array<{
+    id: string;
+    phone: string;
+    messageText: string;
+    description: string | null;
+    status: string;
+    statusCode: number | null;
+    statusMessage: string | null;
+    kolKasherCallId: string | null;
+    errorMessage: string | null;
+    duration: number | null;
+    retries: number;
+    createdAt: string;
+  }>>([]);
+  const [callHistoryPagination, setCallHistoryPagination] = useState({ page: 1, total: 0, totalPages: 0 });
+
   // Status labels with translations
   const getStatusLabel = (status: Customer['status']): string => {
     const labels: Record<Customer['status'], string> = {
@@ -786,6 +805,30 @@ export default function CustomersPage() {
     }
   }, []);
 
+  const fetchCallHistory = useCallback(async (customerId: string, page = 1) => {
+    setCallHistoryLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/voice/kol-kasher/history/${customerId}?page=${page}&limit=10`);
+      const result = await response.json();
+      if (result.success) {
+        setCallHistoryData(result.data);
+        setCallHistoryPagination({ page: result.pagination.page, total: result.pagination.total, totalPages: result.pagination.totalPages });
+      }
+    } catch {
+      setCallHistoryData([]);
+    } finally {
+      setCallHistoryLoading(false);
+    }
+  }, []);
+
+  const handleOpenCallHistory = () => {
+    handleActionsClose();
+    if (selectedCustomer) {
+      setCallHistoryDialogOpen(true);
+      fetchCallHistory(selectedCustomer.id);
+    }
+  };
+
   const handleSendNotification = (type: 'email' | 'whatsapp' | 'sms' | 'call_task') => {
     handleActionsClose();
     setNotificationType(type);
@@ -1259,6 +1302,15 @@ export default function CustomersPage() {
             <CallIcon fontSize="small" sx={{ color: '#9c27b0' }} />
           </ListItemIcon>
           <ListItemText primary={t('actions.makeVoiceCallReminder')} secondary={!selectedCustomer?.phone ? t('customers.noPhoneNumber') : undefined} />
+        </MenuItem>
+        <MenuItem
+          onClick={handleOpenCallHistory}
+          disabled={!selectedCustomer?.phone}
+        >
+          <ListItemIcon>
+            <PhoneIcon fontSize="small" sx={{ color: '#1B5E20' }} />
+          </ListItemIcon>
+          <ListItemText primary="Voice Call History" secondary={!selectedCustomer?.phone ? t('customers.noPhoneNumber') : undefined} />
         </MenuItem>
         <Divider />
         <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>
@@ -1852,6 +1904,103 @@ export default function CustomersPage() {
             {bulkUpdatingChannel ? t('bulkUpdateChannel.updating') : t('bulkUpdateChannel.update')}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Voice Call History Dialog */}
+      <Dialog
+        open={callHistoryDialogOpen}
+        onClose={() => setCallHistoryDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CallIcon sx={{ color: '#1B5E20' }} />
+          Voice Call History — {selectedCustomer?.fullName}
+          <IconButton
+            onClick={() => setCallHistoryDialogOpen(false)}
+            sx={{ marginLeft: 'auto' }}
+            size="small"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {callHistoryLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : callHistoryData.length === 0 ? (
+            <Alert severity="info" sx={{ mt: 1 }}>No voice call history found for this customer.</Alert>
+          ) : (
+            <>
+              <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.50' }}>
+                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Message</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Duration</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Error</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {callHistoryData.map((log) => (
+                      <TableRow key={log.id} hover>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                          {new Date(log.createdAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell>{log.phone}</TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={log.status}
+                            color={
+                              log.status === 'completed' || log.status === 'delivered' || log.status === 'sent'
+                                ? 'success'
+                                : log.status === 'sending' || log.status === 'pending'
+                                  ? 'warning'
+                                  : 'error'
+                            }
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Tooltip title={log.messageText}>
+                            <span>{log.messageText}</span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell>
+                          {log.duration ? `${log.duration}s` : '—'}
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {log.errorMessage ? (
+                            <Tooltip title={log.errorMessage}>
+                              <Chip size="small" label={log.errorMessage} color="error" variant="outlined" />
+                            </Tooltip>
+                          ) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {callHistoryPagination.totalPages > 1 && (
+                <TablePagination
+                  component="div"
+                  count={callHistoryPagination.total}
+                  page={callHistoryPagination.page - 1}
+                  rowsPerPage={10}
+                  rowsPerPageOptions={[10]}
+                  onPageChange={(_e, newPage) => {
+                    if (selectedCustomer) fetchCallHistory(selectedCustomer.id, newPage + 1);
+                  }}
+                />
+              )}
+            </>
+          )}
+        </DialogContent>
       </Dialog>
 
       {/* Success/Error Snackbar */}
