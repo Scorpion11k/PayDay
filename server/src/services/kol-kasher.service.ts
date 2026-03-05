@@ -307,10 +307,10 @@ class KolKasherService {
 
     return {
       total,
-      byStatus: byStatus.reduce((acc, item) => {
+      byStatus: byStatus.reduce<Record<string, number>>((acc, item) => {
         acc[item.status] = item._count;
         return acc;
-      }, {} as Record<string, number>),
+      }, {}),
     };
   }
 
