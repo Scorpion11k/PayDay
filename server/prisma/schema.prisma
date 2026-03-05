@@ -89,6 +89,44 @@ enum TemplateStatus {
   archived
 }
 
+enum CollectionFlowStatus {
+  draft
+  published
+  archived
+}
+
+enum CollectionFlowActionType {
+  none
+  assigned_channel
+  send_email
+  send_sms
+  send_whatsapp
+  voice_call
+}
+
+enum CollectionFlowConditionType {
+  time_elapsed
+}
+
+enum CollectionFlowInstanceStatus {
+  running
+  completed_paid
+  completed_end
+  failed
+}
+
+enum CollectionFlowStateInstanceStatus {
+  upcoming
+  waiting
+  completed
+  failed
+}
+
+enum CollectionFlowAssignmentSource {
+  default_assigned
+  manual_override
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -114,9 +152,11 @@ model Customer {
   preferredChannel  NotificationChannel? @map("preferred_channel")
 
   // Relations
-  debts         Debt[]
-  payments      Payment[]
-  notifications Notification[]
+  debts          Debt[]
+  payments       Payment[]
+  notifications  Notification[]
+  flowAssignment CollectionFlowAssignment?
+  flowInstances  CollectionFlowInstance[]
 
   @@index([phone])
   @@index([email])
@@ -227,10 +267,11 @@ model Notification {
   createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
-  customer    Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  debt        Debt?                    @relation(fields: [debtId], references: [id], onDelete: SetNull)
-  installment Installment?             @relation(fields: [installmentId], references: [id], onDelete: SetNull)
-  deliveries  NotificationDelivery[]
+  customer           Customer                      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  debt               Debt?                         @relation(fields: [debtId], references: [id], onDelete: SetNull)
+  installment        Installment?                  @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+  deliveries         NotificationDelivery[]
+  flowStateInstances CollectionFlowStateInstance[]
 
   @@index([customerId])
   @@index([debtId])
@@ -260,31 +301,31 @@ model NotificationDelivery {
 
 /// Stores reusable message templates for outreach
 model MessageTemplate {
-  id          String              @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.Uuid
 
   // Template identification
-  key         String              // e.g., "debt_reminder", "payment_confirmation"
-  channel     NotificationChannel // email, sms, whatsapp, call_task
-  language    TemplateLanguage
-  tone        TemplateTone
+  key      String // e.g., "debt_reminder", "payment_confirmation"
+  channel  NotificationChannel // email, sms, whatsapp, call_task
+  language TemplateLanguage
+  tone     TemplateTone
 
   // Content
-  name        String              // Human-readable name for UI
-  description String?             // Admin notes
-  subject     String?             // Email subject line (null for non-email)
-  bodyHtml    String?             @map("body_html") @db.Text  // HTML body (email only)
-  bodyText    String              @map("body_text") @db.Text  // Plain text / script
+  name        String // Human-readable name for UI
+  description String? // Admin notes
+  subject     String? // Email subject line (null for non-email)
+  bodyHtml    String? @map("body_html") @db.Text // HTML body (email only)
+  bodyText    String  @map("body_text") @db.Text // Plain text / script
 
   // Metadata
-  placeholders String[]           // List of placeholders used, e.g., ["CustomerName", "Amount"]
-  status      TemplateStatus      @default(active)
-  version     Int                 @default(1)
+  placeholders String[] // List of placeholders used, e.g., ["CustomerName", "Amount"]
+  status       TemplateStatus @default(active)
+  version      Int            @default(1)
 
   // Audit
-  createdBy   String              @map("created_by")
-  updatedBy   String?             @map("updated_by")
-  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy String   @map("created_by")
+  updatedBy String?  @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@unique([key, channel, language, tone])
   @@index([channel])
@@ -292,4 +333,149 @@ model MessageTemplate {
   @@index([tone])
   @@index([status])
   @@map("message_templates")
+}
+
+model CollectionFlow {
+  id          String               @id @default(uuid()) @db.Uuid
+  flowKey     String               @map("flow_key")
+  version     Int
+  name        String
+  description String?
+  status      CollectionFlowStatus @default(draft)
+  isDefault   Boolean              @default(false) @map("is_default")
+  createdBy   String               @map("created_by")
+  updatedBy   String?              @map("updated_by")
+  publishedAt DateTime?            @map("published_at") @db.Timestamptz
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime             @updatedAt @map("updated_at") @db.Timestamptz
+
+  states      CollectionFlowState[]
+  transitions CollectionFlowTransition[]
+  assignments CollectionFlowAssignment[]
+  instances   CollectionFlowInstance[]
+
+  @@unique([flowKey, version])
+  @@index([status])
+  @@index([isDefault])
+  @@map("collection_flows")
+}
+
+model CollectionFlowState {
+  id              String                   @id @default(uuid()) @db.Uuid
+  flowId          String                   @map("flow_id") @db.Uuid
+  stateKey        String                   @map("state_key")
+  stateName       String                   @map("state_name")
+  actionName      String                   @map("action_name")
+  actionType      CollectionFlowActionType @map("action_type")
+  tone            TemplateTone?
+  explicitChannel NotificationChannel?     @map("explicit_channel")
+  isStart         Boolean                  @default(false) @map("is_start")
+  isEnd           Boolean                  @default(false) @map("is_end")
+  positionX       Float?                   @map("position_x")
+  positionY       Float?                   @map("position_y")
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz
+
+  flow                CollectionFlow                @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  outgoingTransitions CollectionFlowTransition[]    @relation("TransitionFromState")
+  incomingTransitions CollectionFlowTransition[]    @relation("TransitionToState")
+  stateInstances      CollectionFlowStateInstance[]
+  currentInInstances  CollectionFlowInstance[]      @relation("CurrentFlowState")
+
+  @@unique([flowId, stateKey])
+  @@index([flowId])
+  @@index([flowId, isStart])
+  @@index([flowId, isEnd])
+  @@map("collection_flow_states")
+}
+
+model CollectionFlowTransition {
+  id            String                      @id @default(uuid()) @db.Uuid
+  flowId        String                      @map("flow_id") @db.Uuid
+  fromStateId   String                      @map("from_state_id") @db.Uuid
+  toStateId     String                      @map("to_state_id") @db.Uuid
+  conditionType CollectionFlowConditionType @default(time_elapsed) @map("condition_type")
+  waitSeconds   Int                         @default(0) @map("wait_seconds")
+  label         String?
+  priority      Int                         @default(1)
+  createdAt     DateTime                    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                    @updatedAt @map("updated_at") @db.Timestamptz
+
+  flow          CollectionFlow                @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  fromState     CollectionFlowState           @relation("TransitionFromState", fields: [fromStateId], references: [id], onDelete: Cascade)
+  toState       CollectionFlowState           @relation("TransitionToState", fields: [toStateId], references: [id], onDelete: Cascade)
+  takenByStates CollectionFlowStateInstance[] @relation("TakenTransition")
+
+  @@unique([fromStateId, priority])
+  @@index([flowId, fromStateId])
+  @@index([flowId, toStateId])
+  @@map("collection_flow_transitions")
+}
+
+model CollectionFlowAssignment {
+  customerId String                         @id @map("customer_id") @db.Uuid
+  flowId     String                         @map("flow_id") @db.Uuid
+  source     CollectionFlowAssignmentSource @default(default_assigned)
+  assignedAt DateTime                       @default(now()) @map("assigned_at") @db.Timestamptz
+  updatedAt  DateTime                       @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  flow     CollectionFlow @relation(fields: [flowId], references: [id], onDelete: Restrict)
+
+  @@index([flowId])
+  @@index([source])
+  @@map("collection_flow_assignments")
+}
+
+model CollectionFlowInstance {
+  id               String                       @id @default(uuid()) @db.Uuid
+  customerId       String                       @map("customer_id") @db.Uuid
+  flowId           String                       @map("flow_id") @db.Uuid
+  currentStateId   String?                      @map("current_state_id") @db.Uuid
+  status           CollectionFlowInstanceStatus @default(running)
+  startedAt        DateTime                     @default(now()) @map("started_at") @db.Timestamptz
+  finishedAt       DateTime?                    @map("finished_at") @db.Timestamptz
+  nextEvaluationAt DateTime?                    @map("next_evaluation_at") @db.Timestamptz
+  lastEvaluatedAt  DateTime?                    @map("last_evaluated_at") @db.Timestamptz
+  lastError        String?                      @map("last_error")
+  createdAt        DateTime                     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime                     @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer      Customer                      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  flow          CollectionFlow                @relation(fields: [flowId], references: [id], onDelete: Restrict)
+  currentState  CollectionFlowState?          @relation("CurrentFlowState", fields: [currentStateId], references: [id], onDelete: SetNull)
+  stateStatuses CollectionFlowStateInstance[]
+
+  @@index([customerId, status])
+  @@index([status, nextEvaluationAt])
+  @@map("collection_flow_instances")
+}
+
+model CollectionFlowStateInstance {
+  id                String                            @id @default(uuid()) @db.Uuid
+  flowInstanceId    String                            @map("flow_instance_id") @db.Uuid
+  stateId           String                            @map("state_id") @db.Uuid
+  status            CollectionFlowStateInstanceStatus @default(upcoming)
+  dueAt             DateTime?                         @map("due_at") @db.Timestamptz
+  enteredAt         DateTime?                         @map("entered_at") @db.Timestamptz
+  executedAt        DateTime?                         @map("executed_at") @db.Timestamptz
+  completedAt       DateTime?                         @map("completed_at") @db.Timestamptz
+  failedAt          DateTime?                         @map("failed_at") @db.Timestamptz
+  notificationId    String?                           @map("notification_id") @db.Uuid
+  takenTransitionId String?                           @map("taken_transition_id") @db.Uuid
+  errorMessage      String?                           @map("error_message")
+  attemptNo         Int                               @default(0) @map("attempt_no")
+  sequenceNo        Int                               @default(0) @map("sequence_no")
+  createdAt         DateTime                          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime                          @updatedAt @map("updated_at") @db.Timestamptz
+
+  flowInstance    CollectionFlowInstance    @relation(fields: [flowInstanceId], references: [id], onDelete: Cascade)
+  state           CollectionFlowState       @relation(fields: [stateId], references: [id], onDelete: Restrict)
+  notification    Notification?             @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  takenTransition CollectionFlowTransition? @relation("TakenTransition", fields: [takenTransitionId], references: [id], onDelete: SetNull)
+
+  @@unique([flowInstanceId, stateId])
+  @@index([status, dueAt])
+  @@index([flowInstanceId, sequenceNo])
+  @@map("collection_flow_state_instances")
 }

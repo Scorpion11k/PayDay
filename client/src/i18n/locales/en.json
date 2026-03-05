@@ -434,6 +434,7 @@
         "customerName": "Full Name",
         "email": "Email",
         "phone": "Phone Number",
+        "preferredLanguage": "Preferred Language",
         "gender": "Gender",
         "dateOfBirth": "Date of Birth",
         "region": "Region",

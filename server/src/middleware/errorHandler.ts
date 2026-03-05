@@ -51,6 +51,18 @@ export const errorHandler: ErrorRequestHandler = (
           error: 'Related record not found',
         });
         return;
+      case 'P2021': {
+        // Table does not exist
+        const table = typeof err.meta?.table === 'string' ? err.meta.table : null;
+        const flowTableMissing = table?.includes('collection_flow');
+        res.status(503).json({
+          success: false,
+          error: flowTableMissing
+            ? 'Collection Flow tables are missing. Run `npm run db:migrate` in `server/` and restart the API.'
+            : 'A required database table is missing. Run `npm run db:migrate` and restart the API.',
+        });
+        return;
+      }
       default:
         res.status(400).json({
           success: false,

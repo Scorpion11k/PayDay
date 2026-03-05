@@ -1,385 +1,630 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Box,
-  Typography,
   Button,
-  Paper,
+  Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControl,
+  IconButton,
+  InputLabel,
   List,
   ListItemButton,
-  ListItemIcon,
   ListItemText,
-  Chip,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
+  MenuItem,
+  Paper,
+  Select,
   Snackbar,
-  Alert,
+  Stack,
+  Tab,
+  Tabs,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import {
   AccountTree as FlowsIcon,
   Add as AddIcon,
-  PlayArrow as PlayIcon,
-  Pause as PauseIcon,
-  Delete as DeleteIcon,
   Edit as EditIcon,
-  ContentCopy as DuplicateIcon,
+  Publish as PublishIcon,
+  Star as StarIcon,
+  ContentCopy as VersionIcon,
+  Refresh as RefreshIcon,
+  PlayArrow as RunIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-import { FlowBuilder } from '../components/FlowBuilder';
-import type { FlowNodeData } from '../components/FlowBuilder/types';
+import GraphFlowBuilder from '../components/FlowBuilder/GraphFlowBuilder';
+import FlowDiagramView from '../components/FlowBuilder/FlowDiagramView';
+import {
+  assignCustomerFlow,
+  createFlow,
+  createNewFlowVersion,
+  getCustomerCollectionFlow,
+  getFlowById,
+  listCustomersForFlowMonitor,
+  listFlows,
+  publishFlow,
+  runFlowExecutorOnce,
+  setDefaultFlow,
+  updateFlow,
+  type CreateFlowPayload,
+  type CustomerListItem,
+} from '../services/api';
+import type {
+  CustomerCollectionFlowDto,
+  FlowDefinitionDto,
+  FlowStateInstanceStatus,
+  FlowSummaryDto,
+} from '../types/flows';
 
-interface Flow {
-  id: string;
-  name: string;
-  status: 'active' | 'paused' | 'draft';
-  targetSegment: string;
-  stepsCount: number;
-  createdAt: string;
-  lastRun?: string;
-  nodes?: FlowNodeData[];
-}
-
-const sampleFlows: Flow[] = [
-  {
-    id: '1',
-    name: 'Standard Collection Flow',
-    status: 'active',
-    targetSegment: 'All',
-    stepsCount: 5,
-    createdAt: '2026-01-15',
-    lastRun: '2026-01-30',
-  },
-  {
-    id: '2',
-    name: 'High Value Reminder',
-    status: 'active',
-    targetSegment: 'Heavy (>₪50K)',
-    stepsCount: 7,
-    createdAt: '2026-01-10',
-    lastRun: '2026-01-29',
-  },
-  {
-    id: '3',
-    name: 'Gentle Reminder - Light',
-    status: 'paused',
-    targetSegment: 'Light (<₪5K)',
-    stepsCount: 3,
-    createdAt: '2026-01-05',
-  },
-  {
-    id: '4',
-    name: 'WhatsApp Priority Flow',
-    status: 'draft',
-    targetSegment: 'Medium',
-    stepsCount: 4,
-    createdAt: '2026-01-28',
-  },
-];
-
-const statusColors: Record<Flow['status'], 'success' | 'warning' | 'default'> = {
-  active: 'success',
-  paused: 'warning',
+const flowStatusColor: Record<string, 'default' | 'success' | 'warning'> = {
   draft: 'default',
+  published: 'success',
+  archived: 'warning',
+};
+
+const instanceStatusColor: Record<string, 'default' | 'success' | 'warning' | 'error'> = {
+  running: 'warning',
+  completed_paid: 'success',
+  completed_end: 'success',
+  failed: 'error',
+};
+
+const stepStatusColor: Record<FlowStateInstanceStatus, 'default' | 'success' | 'warning' | 'error'> = {
+  upcoming: 'default',
+  waiting: 'warning',
+  completed: 'success',
+  failed: 'error',
 };
 
 export default function FlowsPage() {
   const { t } = useTranslation();
-  const [flows, setFlows] = useState<Flow[]>(sampleFlows);
-  const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null);
-  const [showBuilder, setShowBuilder] = useState(false);
-  const [editingFlow, setEditingFlow] = useState<Flow | null>(null);
+  const [tab, setTab] = useState(0);
+  const [flows, setFlows] = useState<FlowSummaryDto[]>([]);
+  const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
+  const [selectedFlow, setSelectedFlow] = useState<FlowDefinitionDto | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [editingFlow, setEditingFlow] = useState<FlowDefinitionDto | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [customerFlow, setCustomerFlow] = useState<CustomerCollectionFlowDto | null>(null);
+  const [assignFlowId, setAssignFlowId] = useState<string>('');
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
     severity: 'success',
   });
 
-  const handleCreateFlow = () => {
-    setEditingFlow(null);
-    setShowBuilder(true);
-  };
+  const refreshFlows = async () => {
+    setLoading(true);
+    try {
+      const data = await listFlows();
+      setFlows(data);
 
-  const handleEditFlow = (flow: Flow) => {
-    setEditingFlow(flow);
-    setShowBuilder(true);
-  };
+      const activeId = selectedFlowId && data.some((flow) => flow.id === selectedFlowId)
+        ? selectedFlowId
+        : data[0]?.id || null;
 
-  const handleSaveFlow = (name: string, nodes: FlowNodeData[]) => {
-    if (editingFlow) {
-      // Update existing flow
-      setFlows(flows.map(f => 
-        f.id === editingFlow.id 
-          ? { ...f, name, stepsCount: nodes.length, nodes }
-          : f
-      ));
-      setSnackbar({ open: true, message: 'Flow updated successfully!', severity: 'success' });
-    } else {
-      // Create new flow
-      const newFlow: Flow = {
-        id: `flow-${Date.now()}`,
-        name,
-        status: 'draft',
-        targetSegment: 'All',
-        stepsCount: nodes.length,
-        createdAt: new Date().toISOString().split('T')[0],
-        nodes,
-      };
-      setFlows([newFlow, ...flows]);
-      setSnackbar({ open: true, message: 'Flow created successfully!', severity: 'success' });
+      setSelectedFlowId(activeId);
+      if (activeId) {
+        const detail = await getFlowById(activeId);
+        setSelectedFlow(detail);
+      } else {
+        setSelectedFlow(null);
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to load flows',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
     }
-    setShowBuilder(false);
-    setEditingFlow(null);
   };
 
-  const handleToggleStatus = (flow: Flow) => {
-    const newStatus = flow.status === 'active' ? 'paused' : 'active';
-    setFlows(flows.map(f => 
-      f.id === flow.id ? { ...f, status: newStatus } : f
-    ));
-    setSnackbar({ 
-      open: true, 
-      message: `Flow ${newStatus === 'active' ? 'activated' : 'paused'}!`, 
-      severity: 'info' 
-    });
-  };
-
-  const handleDeleteFlow = (id: string) => {
-    setFlows(flows.filter(f => f.id !== id));
-    if (selectedFlow?.id === id) {
-      setSelectedFlow(null);
+  const loadFlowDetail = async (id: string) => {
+    setSelectedFlowId(id);
+    try {
+      const detail = await getFlowById(id);
+      setSelectedFlow(detail);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to load flow',
+        severity: 'error',
+      });
     }
-    setSnackbar({ open: true, message: 'Flow deleted!', severity: 'success' });
   };
 
-  const handleDuplicateFlow = (flow: Flow) => {
-    const duplicatedFlow: Flow = {
-      ...flow,
-      id: `flow-${Date.now()}`,
-      name: `${flow.name} (Copy)`,
-      status: 'draft',
-      createdAt: new Date().toISOString().split('T')[0],
-      lastRun: undefined,
-    };
-    setFlows([duplicatedFlow, ...flows]);
-    setSnackbar({ open: true, message: 'Flow duplicated!', severity: 'success' });
+  const refreshCustomers = async () => {
+    try {
+      const data = await listCustomersForFlowMonitor(100);
+      setCustomers(data);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to load customers',
+        severity: 'error',
+      });
+    }
+  };
+
+  const fetchCustomerFlow = useCallback(async (customerId: string) => {
+    const data = await getCustomerCollectionFlow(customerId);
+    setCustomerFlow(data);
+    return data;
+  }, []);
+
+  const loadCustomerFlow = async (customerId: string) => {
+    setSelectedCustomerId(customerId);
+    try {
+      const data = await fetchCustomerFlow(customerId);
+      setAssignFlowId(data.assignment?.flowId || '');
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to load customer flow',
+        severity: 'error',
+      });
+    }
+  };
+
+  useEffect(() => {
+    refreshFlows();
+    refreshCustomers();
+  }, []);
+
+  useEffect(() => {
+    if (tab !== 1 || !selectedCustomerId) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      fetchCustomerFlow(selectedCustomerId).catch(() => undefined);
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [tab, selectedCustomerId, fetchCustomerFlow]);
+
+  const openCreate = () => {
+    setEditingFlow(null);
+    setBuilderOpen(true);
+  };
+
+  const openEdit = () => {
+    if (!selectedFlow) return;
+    if (selectedFlow.status !== 'draft') {
+      setSnackbar({
+        open: true,
+        message: 'Only draft flows can be edited directly. Create a new version first.',
+        severity: 'info',
+      });
+      return;
+    }
+    setEditingFlow(selectedFlow);
+    setBuilderOpen(true);
+  };
+
+  const saveDefinition = async (payload: CreateFlowPayload) => {
+    setSaving(true);
+    try {
+      if (editingFlow) {
+        await updateFlow(editingFlow.id, {
+          ...payload,
+          updatedBy: 'ui',
+        });
+        setSnackbar({ open: true, message: 'Flow updated successfully', severity: 'success' });
+      } else {
+        const created = await createFlow({
+          ...payload,
+          createdBy: 'ui',
+        });
+        setSelectedFlowId(created.id);
+        setSnackbar({ open: true, message: 'Flow created successfully', severity: 'success' });
+      }
+      setBuilderOpen(false);
+      setEditingFlow(null);
+      await refreshFlows();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to save flow',
+        severity: 'error',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const publishSelected = async () => {
+    if (!selectedFlow) return;
+    try {
+      await publishFlow(selectedFlow.id, 'ui');
+      setSnackbar({ open: true, message: 'Flow published', severity: 'success' });
+      await refreshFlows();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Publish failed',
+        severity: 'error',
+      });
+    }
+  };
+
+  const setDefaultSelected = async () => {
+    if (!selectedFlow) return;
+    try {
+      const result = await setDefaultFlow(selectedFlow.id, 'ui');
+      setSnackbar({
+        open: true,
+        message: `Default flow updated. Reassigned ${result.reassignedDefaultCustomers} customers.`,
+        severity: 'success',
+      });
+      await refreshFlows();
+      await refreshCustomers();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Set default failed',
+        severity: 'error',
+      });
+    }
+  };
+
+  const createVersionFromSelected = async () => {
+    if (!selectedFlow) return;
+    try {
+      const cloned = await createNewFlowVersion(selectedFlow.id, 'ui');
+      setEditingFlow(cloned);
+      setSelectedFlowId(cloned.id);
+      setBuilderOpen(true);
+      await refreshFlows();
+      await loadFlowDetail(cloned.id);
+      setSnackbar({ open: true, message: 'Draft version created', severity: 'success' });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Version creation failed',
+        severity: 'error',
+      });
+    }
+  };
+
+  const runExecutor = async () => {
+    try {
+      const result = await runFlowExecutorOnce(100);
+      setSnackbar({
+        open: true,
+        message: `Executor: advanced ${result.advanced}, completed ${result.completedPaid + result.completedEnd}, failed ${result.failed}`,
+        severity: 'info',
+      });
+      if (selectedCustomerId) {
+        await loadCustomerFlow(selectedCustomerId);
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Executor run failed',
+        severity: 'error',
+      });
+    }
+  };
+
+  const assignFlowToCustomer = async () => {
+    if (!selectedCustomerId || !assignFlowId) return;
+    try {
+      await assignCustomerFlow(selectedCustomerId, assignFlowId);
+      await loadCustomerFlow(selectedCustomerId);
+      setSnackbar({ open: true, message: 'Customer flow reassigned', severity: 'success' });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Assignment failed',
+        severity: 'error',
+      });
+    }
   };
 
   return (
-    <Box sx={{ p: 3, height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+    <Box sx={{ p: 3, height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Stack direction="row" spacing={1.5} alignItems="center">
           <FlowsIcon sx={{ fontSize: 28, color: 'primary.main' }} />
           <Typography variant="h2" sx={{ fontSize: '1.5rem', fontWeight: 600 }}>
             {t('pages.flows.title')}
           </Typography>
-          <Chip label={`${flows.length} flows`} size="small" />
+          <Chip size="small" label={`${flows.length} flows`} />
+        </Stack>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={refreshFlows} disabled={loading}>
+            Refresh
+          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+            Create Flow
+          </Button>
+        </Stack>
+      </Box>
+
+      <Tabs value={tab} onChange={(_, value) => setTab(value)}>
+        <Tab label="Definitions" />
+        <Tab label="Customer Monitor" />
+      </Tabs>
+
+      {tab === 0 && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 2, flex: 1, minHeight: 0 }}>
+          <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'auto' }}>
+            <List disablePadding>
+              {flows.map((flow) => (
+                <ListItemButton
+                  key={flow.id}
+                  selected={selectedFlowId === flow.id}
+                  onClick={() => loadFlowDetail(flow.id)}
+                >
+                  <ListItemText
+                    primary={flow.name}
+                    secondary={`v${flow.version} • ${flow.flowKey}`}
+                  />
+                  <Stack direction="row" spacing={0.5}>
+                    {flow.isDefault && <Chip size="small" label="Default" color="warning" />}
+                    <Chip size="small" label={flow.status} color={flowStatusColor[flow.status]} />
+                  </Stack>
+                </ListItemButton>
+              ))}
+            </List>
+          </Paper>
+
+          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {selectedFlow ? (
+              <>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Box>
+                    <Typography variant="h6" fontWeight={600}>{selectedFlow.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Key: {selectedFlow.flowKey} • Version: {selectedFlow.version}
+                    </Typography>
+                    {selectedFlow.description && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        {selectedFlow.description}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Stack direction="row" spacing={1}>
+                    <Tooltip title="Edit Draft">
+                      <span>
+                        <IconButton onClick={openEdit} disabled={selectedFlow.status !== 'draft'}>
+                          <EditIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Publish">
+                      <span>
+                        <IconButton onClick={publishSelected} disabled={selectedFlow.status !== 'draft'} color="success">
+                          <PublishIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Set Default">
+                      <span>
+                        <IconButton onClick={setDefaultSelected} disabled={selectedFlow.status !== 'published'} color="warning">
+                          <StarIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Create New Version">
+                      <span>
+                        <IconButton onClick={createVersionFromSelected} disabled={selectedFlow.status !== 'published'}>
+                          <VersionIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                </Box>
+
+                <Divider sx={{ mb: 2 }} />
+
+                <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                  <Chip size="small" label={`${selectedFlow.states.length} states`} />
+                  <Chip size="small" label={`${selectedFlow.transitions.length} transitions`} />
+                </Stack>
+
+                <Box sx={{ flex: 1, minHeight: 0 }}>
+                  <FlowDiagramView
+                    states={selectedFlow.states}
+                    transitions={selectedFlow.transitions}
+                  />
+                </Box>
+              </>
+            ) : (
+              <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
+                <Typography>Select a flow to view details</Typography>
+              </Box>
+            )}
+          </Paper>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateFlow}
-        >
-          Create Flow
-        </Button>
-      </Box>
+      )}
 
-      {/* Main Content */}
-      <Box sx={{ display: 'flex', gap: 3, flex: 1, minHeight: 0 }}>
-        {/* Flows List */}
-        <Paper
-          elevation={0}
-          sx={{
-            width: 360,
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: 'divider',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              Your Flows
-            </Typography>
-          </Box>
-          <List sx={{ flex: 1, overflow: 'auto', p: 1 }}>
-            {flows.map((flow) => (
-              <ListItemButton
-                key={flow.id}
-                selected={selectedFlow?.id === flow.id}
-                onClick={() => setSelectedFlow(flow)}
-                sx={{
-                  borderRadius: 1,
-                  mb: 0.5,
-                  '&.Mui-selected': {
-                    bgcolor: 'primary.light',
-                    '&:hover': {
-                      bgcolor: 'primary.light',
-                    },
-                  },
+      {tab === 1 && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 2, flex: 1, minHeight: 0 }}>
+          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Customer</InputLabel>
+              <Select
+                value={selectedCustomerId}
+                label="Customer"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value) {
+                    loadCustomerFlow(value);
+                  }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 40 }}>
-                  <FlowsIcon sx={{ color: flow.status === 'active' ? 'success.main' : 'text.disabled' }} />
-                </ListItemIcon>
-                <ListItemText
-                  primary={flow.name}
-                  secondary={`${flow.stepsCount} steps • ${flow.targetSegment}`}
-                  primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
-                  secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                />
-                <Chip
-                  size="small"
-                  label={flow.status}
-                  color={statusColors[flow.status]}
-                  sx={{ height: 20, fontSize: '0.65rem' }}
-                />
-              </ListItemButton>
-            ))}
-          </List>
-        </Paper>
+                {customers.map((customer) => (
+                  <MenuItem key={customer.id} value={customer.id}>{customer.fullName}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-        {/* Flow Details / Empty State */}
-        <Paper
-          elevation={0}
-          sx={{
-            flex: 1,
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: 'divider',
-            p: 3,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          {selectedFlow ? (
-            <>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    {selectedFlow.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Target: {selectedFlow.targetSegment} • Created: {selectedFlow.createdAt}
-                    {selectedFlow.lastRun && ` • Last run: ${selectedFlow.lastRun}`}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Tooltip title={selectedFlow.status === 'active' ? 'Pause' : 'Activate'}>
-                    <IconButton
-                      onClick={() => handleToggleStatus(selectedFlow)}
-                      color={selectedFlow.status === 'active' ? 'warning' : 'success'}
-                    >
-                      {selectedFlow.status === 'active' ? <PauseIcon /> : <PlayIcon />}
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Edit">
-                    <IconButton onClick={() => handleEditFlow(selectedFlow)}>
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Duplicate">
-                    <IconButton onClick={() => handleDuplicateFlow(selectedFlow)}>
-                      <DuplicateIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete">
-                    <IconButton color="error" onClick={() => handleDeleteFlow(selectedFlow.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Box>
-
-              <Box
-                sx={{
-                  flex: 1,
-                  bgcolor: 'background.default',
-                  borderRadius: 2,
-                  p: 4,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px dashed',
-                  borderColor: 'divider',
-                }}
+            <FormControl size="small" fullWidth>
+              <InputLabel>Assign Flow</InputLabel>
+              <Select
+                value={assignFlowId}
+                label="Assign Flow"
+                onChange={(event) => setAssignFlowId(event.target.value)}
+                disabled={!selectedCustomerId}
               >
-                <FlowsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
-                  Flow Preview
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {selectedFlow.stepsCount} steps configured
-                </Typography>
-                <Button variant="outlined" onClick={() => handleEditFlow(selectedFlow)}>
-                  Open in Editor
-                </Button>
-              </Box>
-            </>
-          ) : (
-            <Box
-              sx={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'text.secondary',
-              }}
-            >
-              <FlowsIcon sx={{ fontSize: 64, color: 'divider', mb: 2 }} />
-              <Typography variant="h6" sx={{ mb: 1 }}>
-                Select a flow to view details
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 3 }}>
-                Or create a new collection flow to get started
-              </Typography>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreateFlow}>
-                Create New Flow
+                {flows
+                  .filter((flow) => flow.status === 'published')
+                  .map((flow) => (
+                    <MenuItem key={flow.id} value={flow.id}>
+                      {flow.name} (v{flow.version})
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" onClick={assignFlowToCustomer} disabled={!selectedCustomerId || !assignFlowId}>
+                Assign
               </Button>
-            </Box>
-          )}
-        </Paper>
-      </Box>
+              <Button variant="contained" startIcon={<RunIcon />} onClick={runExecutor}>
+                Run Executor Once
+              </Button>
+            </Stack>
+          </Paper>
 
-      {/* Flow Builder Dialog */}
+          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2, overflow: 'auto' }}>
+            {customerFlow ? (
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6" fontWeight={600}>{customerFlow.customer.fullName}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Assigned flow: {customerFlow.assignment?.flow.name || 'None'}
+                  </Typography>
+                </Box>
+
+                <Stack direction="row" spacing={1}>
+                  <Chip label={`Source: ${customerFlow.assignment?.source || 'n/a'}`} size="small" />
+                  {customerFlow.instance && (
+                    <Chip
+                      label={`Instance: ${customerFlow.instance.status}`}
+                      size="small"
+                      color={instanceStatusColor[customerFlow.instance.status]}
+                    />
+                  )}
+                </Stack>
+
+                {customerFlow.instance ? (
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>State Timeline</Typography>
+                    <List dense>
+                      {customerFlow.instance.stateStatuses.map((stateStatus) => (
+                        <ListItemText
+                          key={stateStatus.id}
+                          primary={`${stateStatus.state.stateName} (${stateStatus.state.actionName})`}
+                          secondary={
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                              <Chip
+                                size="small"
+                                label={stateStatus.status}
+                                color={stepStatusColor[stateStatus.status]}
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                due: {stateStatus.dueAt ? new Date(stateStatus.dueAt).toLocaleString() : 'n/a'}
+                              </Typography>
+                              {stateStatus.errorMessage && (
+                                <Typography variant="caption" color="error.main">
+                                  {stateStatus.errorMessage}
+                                </Typography>
+                              )}
+                            </Stack>
+                          }
+                        />
+                      ))}
+                    </List>
+                  </Box>
+                ) : (
+                  <Alert severity="info">No running instance for this customer.</Alert>
+                )}
+              </Stack>
+            ) : (
+              <Box sx={{ height: '100%', display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
+                <Typography>Select a customer to monitor flow state</Typography>
+              </Box>
+            )}
+          </Paper>
+        </Box>
+      )}
+
       <Dialog
-        open={showBuilder}
-        onClose={() => setShowBuilder(false)}
+        open={builderOpen}
+        onClose={() => {
+          if (!saving) {
+            setBuilderOpen(false);
+            setEditingFlow(null);
+          }
+        }}
         maxWidth="xl"
         fullWidth
-        PaperProps={{
-          sx: { height: '90vh' },
-        }}
+        PaperProps={{ sx: { height: '90vh' } }}
       >
-        <DialogTitle sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+        <DialogTitle>
           {editingFlow ? `Edit Flow: ${editingFlow.name}` : 'Create New Flow'}
         </DialogTitle>
-        <DialogContent sx={{ p: 3, display: 'flex', flexDirection: 'column' }}>
-          <FlowBuilder
+        <DialogContent sx={{ p: 2 }}>
+          <GraphFlowBuilder
             initialName={editingFlow?.name || ''}
-            initialNodes={editingFlow?.nodes}
-            onSave={handleSaveFlow}
+            initialDescription={editingFlow?.description || ''}
+            initialStates={
+              editingFlow?.states.map((state) => ({
+                stateKey: state.stateKey,
+                stateName: state.stateName,
+                actionName: state.actionName,
+                actionType: state.actionType,
+                tone: state.tone,
+                explicitChannel: state.explicitChannel,
+                isStart: state.isStart,
+                isEnd: state.isEnd,
+                positionX: state.positionX,
+                positionY: state.positionY,
+              })) || []
+            }
+            initialTransitions={
+              editingFlow?.transitions.map((transition) => ({
+                fromStateKey: transition.fromState.stateKey,
+                toStateKey: transition.toState.stateKey,
+                conditionType: transition.conditionType,
+                waitSeconds: transition.waitSeconds,
+                label: transition.label,
+                priority: transition.priority,
+              })) || []
+            }
+            onSave={saveDefinition}
+            onCancel={() => {
+              setBuilderOpen(false);
+              setEditingFlow(null);
+            }}
+            saving={saving}
           />
         </DialogContent>
       </Dialog>
 
-      {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           variant="filled"
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
         >
           {snackbar.message}
         </Alert>
@@ -387,3 +632,6 @@ export default function FlowsPage() {
     </Box>
   );
 }
+
+
+

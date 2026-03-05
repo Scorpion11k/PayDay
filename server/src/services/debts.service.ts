@@ -1,6 +1,7 @@
 import prisma from '../config/database';
 import { DebtStatus, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../types';
+import flowRuntimeService from './flow-runtime.service';
 
 // Use Prisma.Decimal for type, create with string/number
 type Decimal = Prisma.Decimal;
@@ -136,7 +137,7 @@ class DebtsService {
       updateData.closedAt = data.closedAt;
     }
 
-    return prisma.debt.update({
+    const updated = await prisma.debt.update({
       where: { id },
       data: updateData,
       include: {
@@ -145,6 +146,12 @@ class DebtsService {
         },
       },
     });
+
+    if (updated.status === 'settled' || updated.status === 'written_off') {
+      await flowRuntimeService.completeRunningIfPaid(updated.customerId);
+    }
+
+    return updated;
   }
 
   async delete(id: string) {
@@ -180,10 +187,16 @@ class DebtsService {
       updateData.closedAt = new Date();
     }
 
-    return tx.debt.update({
+    const updated = await tx.debt.update({
       where: { id },
       data: updateData,
     });
+
+    if (updated.status === 'settled' || updated.status === 'written_off') {
+      await flowRuntimeService.completeRunningIfPaid(updated.customerId, tx);
+    }
+
+    return updated;
   }
 }
 

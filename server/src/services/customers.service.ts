@@ -2,6 +2,7 @@ import prisma from '../config/database';
 import { CustomerStatus, Prisma, NotificationChannel, TemplateLanguage, TemplateTone } from '@prisma/client';
 import { NotFoundError } from '../types';
 import { recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from './preference.service';
+import flowRuntimeService from './flow-runtime.service';
 
 export interface CreateCustomerDto {
   fullName: string;
@@ -217,7 +218,7 @@ class CustomersService {
     const preferredLanguage = data.preferredLanguage || recommendLanguageByRegion(data.region || null);
     const preferredTone = data.preferredTone || getDefaultTone();
 
-    return prisma.customer.create({
+    const customer = await prisma.customer.create({
       data: {
         fullName: data.fullName,
         externalRef: data.externalRef,
@@ -233,6 +234,10 @@ class CustomersService {
         preferredTone,
       },
     });
+
+    await flowRuntimeService.assignDefaultToCustomer(customer.id);
+
+    return customer;
   }
 
   async update(id: string, data: UpdateCustomerDto) {
@@ -346,4 +351,3 @@ class CustomersService {
 }
 
 export default new CustomersService();
-

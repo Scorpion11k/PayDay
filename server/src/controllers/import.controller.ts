@@ -7,6 +7,7 @@ const columnMappingSchema = z.object({
   customerName: z.string().optional(),
   customerEmail: z.string().optional(),
   customerPhone: z.string().optional(),
+  preferredLanguage: z.string().optional(),
   gender: z.string().optional(),
   dateOfBirth: z.string().optional(),
   region: z.string().optional(),

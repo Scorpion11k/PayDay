@@ -434,6 +434,7 @@
         "customerName": "שם מלא",
         "email": "דוא\"ל",
         "phone": "מספר טלפון",
+        "preferredLanguage": "שפה מועדפת",
         "gender": "מין",
         "dateOfBirth": "תאריך לידה",
         "region": "אזור",

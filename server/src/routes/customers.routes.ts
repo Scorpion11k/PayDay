@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import customersController from '../controllers/customers.controller';
 import { asyncHandler } from '../middleware/errorHandler';
+import flowsController from '../controllers/flows.controller';
 
 const router = Router();
 
@@ -12,6 +13,12 @@ router.delete('/all', asyncHandler(customersController.deleteAll.bind(customersC
 
 // POST /api/customers/bulk-update-channel - Bulk update preferred channel
 router.post('/bulk-update-channel', asyncHandler(customersController.bulkUpdateChannel.bind(customersController)));
+
+// GET /api/customers/:id/collection-flow - Get customer's current collection flow runtime
+router.get('/:id/collection-flow', asyncHandler(flowsController.getCustomerCollectionFlow.bind(flowsController)));
+
+// POST /api/customers/:id/collection-flow/assign - Assign a published flow to customer
+router.post('/:id/collection-flow/assign', asyncHandler(flowsController.assignCustomerFlow.bind(flowsController)));
 
 // GET /api/customers/:id - Get customer by ID
 router.get('/:id', asyncHandler(customersController.getById.bind(customersController)));

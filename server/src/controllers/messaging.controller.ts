@@ -8,7 +8,8 @@ import voiceService from '../services/voice.service';
 import templateService from '../services/template.service';
 import { ValidationError, NotFoundError } from '../types';
 import { TemplateLanguage, TemplateTone, NotificationChannel, Prisma } from '@prisma/client';
-import { isEligibleForChannel, recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from '../services/preference.service';
+import { recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from '../services/preference.service';
+import notificationDispatchService from '../services/notification-dispatch.service';
 
 const sendReminderSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
@@ -90,248 +91,32 @@ class MessagingController {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
-    const { customerId, channel, templateKey, debtId, installmentId } = validation.data;
-    let { language, tone } = validation.data;
+    const { customerId, channel, templateKey, debtId, installmentId, language, tone } = validation.data;
 
-    // Get customer with their debts and preferences
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
-      include: {
-        debts: {
-          where: debtId 
-            ? { id: debtId }
-            : { status: { in: ['open', 'in_collection'] } },
-          select: {
-            id: true,
-            originalAmount: true,
-            currentBalance: true,
-            currency: true,
-          },
-        },
-      },
+      select: { id: true, fullName: true, email: true, phone: true },
     });
-
     if (!customer) {
       throw new NotFoundError('Customer');
     }
 
-    // Check customer status
-    if (customer.status === 'do_not_contact') {
-      throw new ValidationError('Customer has opted out of contact');
-    }
-
-    if (customer.status === 'blocked') {
-      throw new ValidationError('Customer is blocked');
-    }
-
-    // Resolve language and tone from customer preferences or defaults
-    language = language || customer.preferredLanguage || 'en';
-    tone = tone || customer.preferredTone || 'calm';
-
-    // Get debt and installment if specified
-    const debt = customer.debts[0] || null;
-    let installment = null;
-    if (installmentId) {
-      installment = await prisma.installment.findUnique({
-        where: { id: installmentId }
-      });
-    }
-
-    // Resolve template
-    const template = await templateService.resolveTemplate(
+    const dispatch = await notificationDispatchService.send({
+      customerId,
+      channel,
       templateKey,
-      channel as NotificationChannel,
-      language as TemplateLanguage,
-      tone as TemplateTone
-    );
-
-    if (!template) {
-      throw new ValidationError(
-        `No template found for ${templateKey}/${channel}/${language}/${tone}`
-      );
-    }
-
-    // Build payload
-    const notificationId = crypto.randomUUID();
-    const payload = templateService.buildPayload(
-      customer,
-      debt,
-      installment,
-      notificationId,
-      language as TemplateLanguage
-    );
-
-    // Render template
-    const rendered = templateService.render(template, payload);
-
-    // Send based on channel
-    let result: { success: boolean; messageId?: string; messageSid?: string; callSid?: string; error?: string };
-    let provider: string;
-
-    switch (channel) {
-      case 'email':
-        if (!customer.email) {
-          throw new ValidationError('Customer has no email address');
-        }
-        await emailService.initialize();
-        if (!emailService.isAvailable()) {
-          throw new ValidationError('Email service is not configured');
-        }
-        result = await emailService.sendEmail({
-          to: customer.email,
-          subject: rendered.subject || 'Payment Reminder',
-          html: rendered.bodyHtml,
-          text: rendered.bodyText
-        });
-        provider = 'gmail';
-        break;
-
-      case 'whatsapp':
-        if (!customer.phone) {
-          throw new ValidationError('Customer has no phone number');
-        }
-        await whatsappService.initialize();
-        if (!whatsappService.isAvailable()) {
-          throw new ValidationError('WhatsApp service is not configured');
-        }
-        result = await whatsappService.sendMessage({
-          to: customer.phone,
-          message: rendered.bodyText
-        });
-        provider = 'twilio_whatsapp';
-        break;
-
-      case 'sms':
-        if (!customer.phone) {
-          throw new ValidationError('Customer has no phone number');
-        }
-        await smsService.initialize();
-        if (!smsService.isAvailable()) {
-          throw new ValidationError('SMS service is not configured');
-        }
-        result = await smsService.sendSMS({
-          to: customer.phone,
-          message: rendered.bodyText
-        });
-        provider = 'twilio_sms';
-        break;
-
-      case 'call_task':
-        if (!customer.phone) {
-          throw new ValidationError('Customer has no phone number');
-        }
-        await voiceService.initialize();
-        if (!voiceService.isAvailable()) {
-          throw new ValidationError('Voice service is not configured');
-        }
-
-        // Create notification first to get ID for TwiML URL
-        const voiceNotification = await prisma.notification.create({
-          data: {
-            id: notificationId,
-            customerId,
-            debtId: debt?.id,
-            installmentId,
-            channel: 'call_task',
-            templateKey,
-            payloadSnapshot: {
-              ...payload,
-              language,
-              tone
-            },
-            createdBy: 'system',
-          },
-        });
-
-        // Generate TwiML URL
-        const baseUrl = process.env.BASE_URL || 'http://localhost:3001';
-        const twimlUrl = `${baseUrl}/api/voice/twiml/${voiceNotification.id}`;
-
-        result = await voiceService.makeCall({
-          to: customer.phone,
-          twimlUrl,
-          notificationId: voiceNotification.id
-        });
-
-        // Create delivery record
-        await prisma.notificationDelivery.create({
-          data: {
-            notificationId: voiceNotification.id,
-            attemptNo: 1,
-            provider: 'twilio_voice',
-            providerMessageId: result.callSid || null,
-            status: result.success ? 'sent' : 'failed',
-            errorMessage: result.error || null,
-            sentAt: result.success ? new Date() : null,
-          },
-        });
-
-        if (!result.success) {
-          res.status(500).json({
-            success: false,
-            error: result.error || 'Failed to initiate call',
-            data: { notificationId: voiceNotification.id },
-          });
-          return;
-        }
-
-        res.json({
-          success: true,
-          message: `Voice call initiated to ${customer.fullName}`,
-          data: {
-            notificationId: voiceNotification.id,
-            callSid: result.callSid,
-            channel,
-            recipient: customer.phone,
-            templateUsed: {
-              key: templateKey,
-              language,
-              tone
-            }
-          },
-        });
-        return;
-
-      default:
-        throw new ValidationError(`Unsupported channel: ${channel}`);
-    }
-
-    // Create notification record (for non-voice channels)
-    const notification = await prisma.notification.create({
-      data: {
-        id: notificationId,
-        customerId,
-        debtId: debt?.id,
-        installmentId,
-        channel: channel as NotificationChannel,
-        templateKey,
-        payloadSnapshot: {
-          ...payload,
-          language,
-          tone
-        },
-        createdBy: 'system',
-      },
+      language: language as TemplateLanguage | undefined,
+      tone: tone as TemplateTone | undefined,
+      debtId,
+      installmentId,
+      createdBy: 'system',
     });
 
-    // Create delivery record
-    await prisma.notificationDelivery.create({
-      data: {
-        notificationId: notification.id,
-        attemptNo: 1,
-        provider,
-        providerMessageId: result.messageId || result.messageSid || null,
-        status: result.success ? 'sent' : 'failed',
-        errorMessage: result.error || null,
-        sentAt: result.success ? new Date() : null,
-      },
-    });
-
-    if (!result.success) {
+    if (!dispatch.success) {
       res.status(500).json({
         success: false,
-        error: result.error || 'Failed to send message',
-        data: { notificationId: notification.id },
+        error: dispatch.error || 'Failed to send reminder',
+        data: { notificationId: dispatch.notificationId || null },
       });
       return;
     }
@@ -340,22 +125,22 @@ class MessagingController {
       email: 'Email',
       sms: 'SMS',
       whatsapp: 'WhatsApp',
-      call_task: 'Voice Call'
-    }[channel];
+      call_task: 'Voice Call',
+    }[dispatch.channel || channel];
 
     res.json({
       success: true,
       message: `${channelLabel} reminder sent successfully to ${customer.fullName}`,
       data: {
-        notificationId: notification.id,
-        messageId: result.messageId || result.messageSid,
-        channel,
-        recipient: channel === 'email' ? customer.email : customer.phone,
+        notificationId: dispatch.notificationId,
+        messageId: dispatch.messageId || dispatch.callSid,
+        channel: dispatch.channel || channel,
+        recipient: dispatch.recipient,
         templateUsed: {
           key: templateKey,
           language,
-          tone
-        }
+          tone,
+        },
       },
     });
   }
@@ -594,19 +379,15 @@ class MessagingController {
       where.id = { in: customerIds };
     }
 
-    // Fetch all customers with their preferences and debts
     const customers = await prisma.customer.findMany({
       where,
-      include: {
-        debts: {
-          where: { status: { in: ['open', 'in_collection'] } },
-          select: {
-            id: true,
-            originalAmount: true,
-            currentBalance: true,
-            currency: true,
-          },
-        },
+      select: {
+        id: true,
+        dateOfBirth: true,
+        region: true,
+        preferredChannel: true,
+        preferredLanguage: true,
+        preferredTone: true,
       },
     });
 
@@ -619,158 +400,40 @@ class MessagingController {
       errors: [] as Array<{ customerId: string; error: string }>,
     };
 
-    // Initialize services
-    await Promise.all([
-      emailService.initialize(),
-      whatsappService.initialize(),
-      smsService.initialize(),
-      voiceService.initialize()
-    ]);
-
-    // Process each customer
     for (const customer of customers) {
-      // Resolve channel - use override, preference, or auto-calculate
       const channel = overrideChannel || 
                       customer.preferredChannel || 
                       recommendChannelByAge(customer.dateOfBirth);
       
-      // Resolve language - use override, preference, or auto-calculate
       const language = (overrideLanguage || 
                        customer.preferredLanguage || 
                        recommendLanguageByRegion(customer.region)) as TemplateLanguage;
       
-      // Resolve tone - use override, preference, or default
       const tone = (overrideTone || 
                    customer.preferredTone || 
                    getDefaultTone()) as TemplateTone;
 
-      // Initialize channel breakdown if not exists
       if (!results.breakdown[channel]) {
         results.breakdown[channel] = { sent: 0, failed: 0, skipped: 0 };
       }
 
-      // Check eligibility for the channel
-      if (!isEligibleForChannel(customer, channel)) {
+      if (channel === 'call_task') {
         results.skipped++;
         results.breakdown[channel].skipped++;
         continue;
       }
 
       try {
-        // Resolve template
-        const template = await templateService.resolveTemplate(
+        const dispatch = await notificationDispatchService.send({
+          customerId: customer.id,
+          channel,
           templateKey,
-          channel as NotificationChannel,
           language,
-          tone
-        );
+          tone,
+          createdBy: 'bulk_send',
+        });
 
-        if (!template) {
-          results.failed++;
-          results.breakdown[channel].failed++;
-          results.errors.push({
-            customerId: customer.id,
-            error: `No template found for ${templateKey}/${channel}/${language}/${tone}`
-          });
-          continue;
-        }
-
-        // Get debt
-        const debt = customer.debts[0] || null;
-
-        // Build payload
-        const notificationId = crypto.randomUUID();
-        const payload = templateService.buildPayload(
-          customer,
-          debt,
-          null,
-          notificationId,
-          language
-        );
-
-        // Render template
-        const rendered = templateService.render(template, payload);
-
-        // Send based on channel
-        let result: { success: boolean; messageId?: string; messageSid?: string; callSid?: string; error?: string };
-        let provider: string;
-
-        switch (channel) {
-          case 'email':
-            if (!emailService.isAvailable()) {
-              throw new Error('Email service is not configured');
-            }
-            result = await emailService.sendEmail({
-              to: customer.email!,
-              subject: rendered.subject || 'Payment Reminder',
-              html: rendered.bodyHtml,
-              text: rendered.bodyText
-            });
-            provider = 'gmail';
-            break;
-
-          case 'whatsapp':
-            if (!whatsappService.isAvailable()) {
-              throw new Error('WhatsApp service is not configured');
-            }
-            result = await whatsappService.sendMessage({
-              to: customer.phone!,
-              message: rendered.bodyText
-            });
-            provider = 'twilio_whatsapp';
-            break;
-
-          case 'sms':
-            if (!smsService.isAvailable()) {
-              throw new Error('SMS service is not configured');
-            }
-            result = await smsService.sendSMS({
-              to: customer.phone!,
-              message: rendered.bodyText
-            });
-            provider = 'twilio_sms';
-            break;
-
-          case 'call_task':
-            // For bulk operations, skip voice calls (too expensive/intensive)
-            results.skipped++;
-            results.breakdown[channel].skipped++;
-            continue;
-
-          default:
-            throw new Error(`Unsupported channel: ${channel}`);
-        }
-
-        if (result.success) {
-          // Create notification record
-          const notification = await prisma.notification.create({
-            data: {
-              id: notificationId,
-              customerId: customer.id,
-              debtId: debt?.id,
-              channel: channel as NotificationChannel,
-              templateKey,
-              payloadSnapshot: {
-                ...payload,
-                language,
-                tone
-              },
-              createdBy: 'bulk_send',
-            },
-          });
-
-          // Create delivery record
-          await prisma.notificationDelivery.create({
-            data: {
-              notificationId: notification.id,
-              attemptNo: 1,
-              provider,
-              providerMessageId: result.messageId || result.messageSid || null,
-              status: 'sent',
-              sentAt: new Date(),
-            },
-          });
-
+        if (dispatch.success) {
           results.sent++;
           results.breakdown[channel].sent++;
         } else {
@@ -778,7 +441,7 @@ class MessagingController {
           results.breakdown[channel].failed++;
           results.errors.push({
             customerId: customer.id,
-            error: result.error || 'Unknown error'
+            error: dispatch.error || 'Unknown error'
           });
         }
       } catch (error) {

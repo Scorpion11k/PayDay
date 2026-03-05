@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
@@ -149,6 +149,7 @@ const MAPPING_FIELDS = [
   { key: 'customerName', labelKey: 'integrations.dataImport.fields.customerName', required: true },
   { key: 'customerEmail', labelKey: 'integrations.dataImport.fields.email', required: false, validation: 'email' },
   { key: 'customerPhone', labelKey: 'integrations.dataImport.fields.phone', required: false, validation: 'phone' },
+  { key: 'preferredLanguage', labelKey: 'integrations.dataImport.fields.preferredLanguage', required: false },
   { key: 'gender', labelKey: 'integrations.dataImport.fields.gender', required: false },
   { key: 'dateOfBirth', labelKey: 'integrations.dataImport.fields.dateOfBirth', required: false, validation: 'date' },
   { key: 'region', labelKey: 'integrations.dataImport.fields.region', required: false },
@@ -171,6 +172,56 @@ interface ValidationError {
 
 // Required fields for import
 const REQUIRED_FIELDS = ['customerName', 'debtAmount'];
+
+const PREVIEW_DATE_FIELDS = new Set(['dueDate', 'dateOfBirth']);
+const israelDateFormatter = new Intl.DateTimeFormat('he-IL', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
+function parsePreviewDateValue(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const excelEpoch = new Date(1899, 11, 30);
+    const parsed = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const strValue = String(value ?? '').trim();
+  if (!strValue) return null;
+
+  const dayMonthYear = strValue.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dayMonthYear) {
+    const [, day, month, year] = dayMonthYear;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const iso = strValue.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (iso) {
+    const [, year, month, day] = iso;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(strValue);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatPreviewCellValue(value: unknown, mappedField?: string): string {
+  if (value == null) return '';
+  if (!mappedField || !PREVIEW_DATE_FIELDS.has(mappedField)) {
+    return String(value);
+  }
+
+  const parsedDate = parsePreviewDateValue(value);
+  if (!parsedDate) return String(value);
+  return israelDateFormatter.format(parsedDate);
+}
 
 // Module-level cache to persist import state across navigation
 interface ImportStateCache {
@@ -214,6 +265,15 @@ function DataImportTab() {
   // Preview pagination state
   const [previewPage, setPreviewPage] = useState(0);
   const [previewRowsPerPage, setPreviewRowsPerPage] = useState(10);
+  const mappedHeaderToField = useMemo(() => {
+    const map = new Map<string, string>();
+    Object.entries(mapping).forEach(([field, header]) => {
+      if (header) {
+        map.set(header, field);
+      }
+    });
+    return map;
+  }, [mapping]);
 
   // Persist state to module-level cache on changes
   const stateRef = useRef({ file, headers, allRows, mapping, aiSuggestedMapping, step, importResult, validationErrors });
@@ -400,6 +460,7 @@ function DataImportTab() {
       customerName: ['customer name', 'name', 'full name', 'שם לקוח', 'שם', 'שם מלא'],
       customerEmail: ['email', 'e-mail', 'אימייל', 'דוא"ל'],
       customerPhone: ['phone', 'telephone', 'mobile', 'טלפון', 'מספר טלפון'],
+      preferredLanguage: ['preferred language', 'language preference', 'language', 'lang', 'שפה מועדפת', 'שפה'],
       gender: ['gender', 'sex', 'מין'],
       dateOfBirth: ['date of birth', 'dob', 'birth date', 'birthday', 'תאריך לידה'],
       region: ['region', 'area', 'location', 'אזור'],
@@ -686,13 +747,13 @@ function DataImportTab() {
             <Typography variant="subtitle2" sx={{ p: 2, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
               {t('integrations.dataImport.preview.title')} ({allRows.length} {t('integrations.dataImport.preview.rows') || 'rows'})
             </Typography>
-            <TableContainer sx={{ maxHeight: 400 }}>
+            <TableContainer sx={{ maxHeight: 800 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600, bgcolor: '#f5f5f5', minWidth: 50 }}>#</TableCell>
                     {headers.map(header => {
-                      const mappedField = Object.entries(mapping).find(([, h]) => h === header)?.[0];
+                      const mappedField = mappedHeaderToField.get(header);
                       const fieldDef = mappedField ? MAPPING_FIELDS.find(f => f.key === mappedField) : null;
                       return (
                         <TableCell 
@@ -721,8 +782,9 @@ function DataImportTab() {
                         <TableRow key={absoluteIdx} sx={{ bgcolor: rowErrors.length > 0 ? '#ffebee' : undefined }}>
                           <TableCell sx={{ color: 'text.secondary' }}>{absoluteIdx + 1}</TableCell>
                           {headers.map(header => {
+                            const mappedField = mappedHeaderToField.get(header);
+                            const displayValue = formatPreviewCellValue(row[header], mappedField);
                             const cellError = rowErrors.find(e => {
-                              const mappedField = Object.entries(mapping).find(([, h]) => h === header)?.[0];
                               return mappedField === e.field;
                             });
                             return (
@@ -735,10 +797,10 @@ function DataImportTab() {
                               >
                                 {cellError ? (
                                   <Tooltip title={cellError.message}>
-                                    <span>{String(row[header] ?? '')}</span>
+                                    <span>{displayValue}</span>
                                   </Tooltip>
                                 ) : (
-                                  String(row[header] ?? '')
+                                  displayValue
                                 )}
                               </TableCell>
                             );

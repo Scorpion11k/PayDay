@@ -1,4 +1,5 @@
 export { default as FlowBuilder } from './FlowBuilder';
+export { default as GraphFlowBuilder } from './GraphFlowBuilder';
 export { default as FlowCanvas } from './FlowCanvas';
 export { default as FlowNode } from './FlowNode';
 export { default as ActionLibrary } from './ActionLibrary';

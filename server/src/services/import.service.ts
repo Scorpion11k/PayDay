@@ -1,7 +1,7 @@
 import prisma from '../config/database';
 import ExcelJS from 'exceljs';
 import { ValidationError } from '../types';
-import { Prisma } from '@prisma/client';
+import { Prisma, TemplateLanguage } from '@prisma/client';
 
 export interface RowValidationError {
   row: number;
@@ -32,6 +32,7 @@ export interface ColumnMapping {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  preferredLanguage?: string;
   gender?: string;
   dateOfBirth?: string;
   region?: string;
@@ -57,6 +58,7 @@ export const FIELD_DEFINITIONS: Record<keyof ColumnMapping, {
   customerName: { label: 'Full Name', required: true },
   customerEmail: { label: 'Email', required: false, validation: 'email' },
   customerPhone: { label: 'Phone Number', required: false, validation: 'phone' },
+  preferredLanguage: { label: 'Preferred Language', required: false },
   gender: { label: 'Gender', required: false },
   dateOfBirth: { label: 'Date of Birth', required: false, validation: 'date' },
   region: { label: 'Region', required: false },
@@ -81,6 +83,10 @@ const DEFAULT_MAPPINGS: Record<string, keyof ColumnMapping> = {
   'phone number': 'customerPhone',
   'telephone': 'customerPhone',
   'mobile': 'customerPhone',
+  'preferred language': 'preferredLanguage',
+  'language preference': 'preferredLanguage',
+  'preferred lang': 'preferredLanguage',
+  'language': 'preferredLanguage',
   'gender': 'gender',
   'sex': 'gender',
   'date of birth': 'dateOfBirth',
@@ -113,6 +119,8 @@ const DEFAULT_MAPPINGS: Record<string, keyof ColumnMapping> = {
   'seq': 'sequenceNo',
   '#': 'sequenceNo',
   // Hebrew
+  'שפה מועדפת': 'preferredLanguage',
+  'שפה': 'preferredLanguage',
   'שם לקוח': 'customerName',
   'שם': 'customerName',
   'שם מלא': 'customerName',
@@ -187,6 +195,42 @@ function parseGender(value: string): 'male' | 'female' | 'other' | 'prefer_not_t
   if (['female', 'f', 'נקבה', 'נ'].includes(normalized)) return 'female';
   if (['other', 'אחר'].includes(normalized)) return 'other';
   if (['prefer not to say', 'לא רוצה לציין'].includes(normalized)) return 'prefer_not_to_say';
+  return null;
+}
+
+function parsePreferredLanguage(value: string | number | Date): TemplateLanguage | null {
+  const normalized = String(value).toLowerCase().trim();
+  if (!normalized) return null;
+
+  if (
+    normalized === 'en' ||
+    normalized === 'english' ||
+    normalized === 'eng' ||
+    normalized.includes('english') ||
+    normalized.includes('אנגלית')
+  ) {
+    return 'en';
+  }
+
+  if (
+    normalized === 'he' ||
+    normalized === 'hebrew' ||
+    normalized.includes('hebrew') ||
+    normalized.includes('עברית')
+  ) {
+    return 'he';
+  }
+
+  if (
+    normalized === 'ar' ||
+    normalized === 'arabic' ||
+    normalized.includes('arabic') ||
+    normalized.includes('العربية') ||
+    normalized.includes('ערבית')
+  ) {
+    return 'ar';
+  }
+
   return null;
 }
 
@@ -482,6 +526,9 @@ class ImportService {
           const customerName = mapping.customerName 
             ? String(firstRow[mapping.customerName] || '').trim()
             : customerKey;
+          const preferredLanguageValue = mapping.preferredLanguage
+            ? firstRow[mapping.preferredLanguage]
+            : undefined;
           
           const customerData: Prisma.CustomerCreateInput = {
             fullName: customerName,
@@ -490,6 +537,9 @@ class ImportService {
               : undefined,
             phone: mapping.customerPhone
               ? String(firstRow[mapping.customerPhone] || '').trim() || undefined
+              : undefined,
+            preferredLanguage: preferredLanguageValue != null
+              ? parsePreferredLanguage(preferredLanguageValue) || undefined
               : undefined,
             gender: mapping.gender && firstRow[mapping.gender]
               ? parseGender(String(firstRow[mapping.gender])) || undefined

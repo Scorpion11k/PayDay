@@ -319,6 +319,7 @@ export interface ColumnMapping {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  preferredLanguage?: string;
   gender?: string;
   dateOfBirth?: string;
   region?: string;
@@ -345,6 +346,7 @@ Customer Info:
 - customerName: Full name (REQUIRED)
 - customerEmail: Email address
 - customerPhone: Phone/mobile number
+- preferredLanguage: Preferred language (en/he/ar)
 - gender: Gender (male/female/other)
 - dateOfBirth: Date of birth, birthday, DOB
 - region: Region, area, location
@@ -985,6 +987,7 @@ Fields:
 - customerName: Full name (REQUIRED)
 - customerEmail: Email
 - customerPhone: Phone number
+- preferredLanguage: Preferred language (en/he/ar)
 - gender: Gender (male/female)
 - dateOfBirth: Birth date, DOB
 - region: Region, area

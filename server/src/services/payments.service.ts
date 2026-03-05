@@ -3,6 +3,7 @@ import { PaymentStatus, PaymentMethod, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError, ConflictError } from '../types';
 import debtsService from './debts.service';
 import installmentsService from './installments.service';
+import flowRuntimeService from './flow-runtime.service';
 
 export interface CreatePaymentDto {
   customerId: string;
@@ -357,6 +358,8 @@ class PaymentsService {
       await tx.paymentAllocation.deleteMany({
         where: { paymentId },
       });
+
+      await flowRuntimeService.ensureRunningInstance(payment.customerId, tx);
 
       // Update payment status
       return tx.payment.update({
