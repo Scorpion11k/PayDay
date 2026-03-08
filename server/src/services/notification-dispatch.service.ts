@@ -4,6 +4,7 @@ import emailService from './email.service';
 import smsService from './sms.service';
 import templateService from './template.service';
 import voiceService from './voice.service';
+import kolKasherService from './kol-kasher.service';
 import whatsappService from './whatsapp.service';
 import { recommendChannelByAge } from './preference.service';
 
@@ -162,9 +163,9 @@ class NotificationDispatchService {
 
     try {
       if (channel === 'call_task') {
-        await voiceService.initialize();
-        if (!voiceService.isAvailable()) {
-          return { success: false, error: 'Voice service is not configured' };
+        await kolKasherService.initialize();
+        if (!kolKasherService.isAvailable()) {
+          return { success: false, error: 'Kol Kasher voice service is not configured' };
         }
 
         const voiceNotification = await prisma.notification.create({
@@ -184,12 +185,12 @@ class NotificationDispatchService {
           },
         });
 
-        const baseUrl = process.env.BASE_URL || 'http://localhost:3001';
-        const twimlUrl = `${baseUrl}/api/voice/twiml/${voiceNotification.id}`;
-
-        const call = await voiceService.makeCall({
+        const call = await kolKasherService.sendVoiceCall({
           to: customer.phone!,
-          twimlUrl,
+          message: rendered.bodyText,
+          customerName: customer.fullName,
+          description: `Debt reminder - ${customer.fullName}`,
+          customerId: customer.id,
           notificationId: voiceNotification.id,
         });
 
@@ -197,8 +198,8 @@ class NotificationDispatchService {
           data: {
             notificationId: voiceNotification.id,
             attemptNo: 1,
-            provider: 'twilio_voice',
-            providerMessageId: call.callSid || null,
+            provider: 'kol_kasher',
+            providerMessageId: call.callId || null,
             status: call.success ? 'sent' : 'failed',
             errorMessage: call.error || null,
             sentAt: call.success ? new Date() : null,
@@ -210,7 +211,7 @@ class NotificationDispatchService {
           notificationId: voiceNotification.id,
           channel,
           recipient: customer.phone,
-          callSid: call.callSid || null,
+          callSid: call.callId || null,
           error: call.error,
         };
       }

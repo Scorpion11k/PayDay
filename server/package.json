@@ -6,7 +6,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "nodemon --ext ts,js,json --watch src --exec ts-node src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "clean": "rimraf dist",
     "clean:all": "rimraf dist node_modules",
     "rebuild": "npm run clean && npm run build",

@@ -155,6 +155,7 @@ model Customer {
   debts          Debt[]
   payments       Payment[]
   notifications  Notification[]
+  voiceCallLogs  VoiceCallLog[]
   flowAssignment CollectionFlowAssignment?
   flowInstances  CollectionFlowInstance[]
 
@@ -271,6 +272,7 @@ model Notification {
   debt               Debt?                         @relation(fields: [debtId], references: [id], onDelete: SetNull)
   installment        Installment?                  @relation(fields: [installmentId], references: [id], onDelete: SetNull)
   deliveries         NotificationDelivery[]
+  voiceCallLogs      VoiceCallLog[]
   flowStateInstances CollectionFlowStateInstance[]
 
   @@index([customerId])
@@ -449,6 +451,37 @@ model CollectionFlowInstance {
   @@index([customerId, status])
   @@index([status, nextEvaluationAt])
   @@map("collection_flow_instances")
+}
+
+/// Tracks Kol Kasher voice call API interactions
+model VoiceCallLog {
+  id               String         @id @default(uuid()) @db.Uuid
+  notificationId   String?        @map("notification_id") @db.Uuid
+  customerId       String         @map("customer_id") @db.Uuid
+  phone            String
+  messageText      String         @map("message_text") @db.Text
+  description      String?
+  kolKasherCallId  String?        @map("kol_kasher_call_id")
+  status           String         @default("pending")
+  statusCode       Int?           @map("status_code")
+  statusMessage    String?        @map("status_message")
+  apiResponseBody  Json?          @map("api_response_body")
+  callbackBody     Json?          @map("callback_body")
+  errorMessage     String?        @map("error_message")
+  retries          Int            @default(1)
+  duration         Int?
+  answeredBy       String?        @map("answered_by")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([notificationId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("voice_call_logs")
 }
 
 model CollectionFlowStateInstance {
