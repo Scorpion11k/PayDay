@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import { ChatVisibilityProvider } from './context/ChatVisibilityContext';
+import { SystemModeProvider } from './context/SystemModeContext';
 import App from './App';
 import './index.css';
 
@@ -13,9 +14,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <LanguageProvider>
-        <ChatVisibilityProvider>
-          <App />
-        </ChatVisibilityProvider>
+        <SystemModeProvider>
+          <ChatVisibilityProvider>
+            <App />
+          </ChatVisibilityProvider>
+        </SystemModeProvider>
       </LanguageProvider>
     </BrowserRouter>
   </StrictMode>

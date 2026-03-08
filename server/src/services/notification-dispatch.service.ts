@@ -7,6 +7,7 @@ import voiceService from './voice.service';
 import kolKasherService from './kol-kasher.service';
 import whatsappService from './whatsapp.service';
 import { recommendChannelByAge } from './preference.service';
+import systemSettingsService from './system-settings.service';
 
 type DispatchActionType =
   | 'assigned_channel'
@@ -161,13 +162,11 @@ class NotificationDispatchService {
       return { success: false, error: 'Customer has no phone number' };
     }
 
+    const systemMode = await systemSettingsService.getMode();
+    const isDevMode = systemMode === 'development';
+
     try {
       if (channel === 'call_task') {
-        await kolKasherService.initialize();
-        if (!kolKasherService.isAvailable()) {
-          return { success: false, error: 'Kol Kasher voice service is not configured' };
-        }
-
         const voiceNotification = await prisma.notification.create({
           data: {
             id: notificationId,
@@ -180,10 +179,56 @@ class NotificationDispatchService {
               ...payload,
               language,
               tone,
+              systemMode,
             },
             createdBy,
           },
         });
+
+        if (isDevMode) {
+          console.log(`🔧 [DEV MODE] Simulated voice call to ${customer.phone} for ${customer.fullName}`);
+
+          const simCallId = `dev_${Date.now()}`;
+
+          await prisma.voiceCallLog.create({
+            data: {
+              customerId: customer.id,
+              notificationId: voiceNotification.id,
+              phone: customer.phone!,
+              messageText: rendered.bodyText,
+              description: `[DEV MODE] Debt reminder - ${customer.fullName}`,
+              kolKasherCallId: simCallId,
+              status: 'sent',
+              statusCode: 200,
+              statusMessage: 'Success (simulated)',
+              retries: 1,
+            },
+          });
+
+          await prisma.notificationDelivery.create({
+            data: {
+              notificationId: voiceNotification.id,
+              attemptNo: 1,
+              provider: 'dev_kol_kasher',
+              providerMessageId: simCallId,
+              status: 'sent',
+              sentAt: new Date(),
+            },
+          });
+
+          return {
+            success: true,
+            notificationId: voiceNotification.id,
+            channel,
+            recipient: customer.phone,
+            callSid: simCallId,
+          };
+        }
+
+        await kolKasherService.initialize();
+        if (!kolKasherService.isAvailable()) {
+          return { success: false, error: 'Kol Kasher voice service is not configured' };
+        }
 
         const call = await kolKasherService.sendVoiceCall({
           to: customer.phone!,
@@ -228,10 +273,43 @@ class NotificationDispatchService {
             ...payload,
             language,
             tone,
+            systemMode,
           },
           createdBy,
         },
       });
+
+      if (isDevMode) {
+        const providerMap: Record<string, string> = {
+          email: 'dev_gmail',
+          whatsapp: 'dev_twilio_whatsapp',
+          sms: 'dev_twilio_sms',
+        };
+        const provider = providerMap[channel] || `dev_${channel}`;
+        const simMessageId = `dev_${channel}_${Date.now()}`;
+        const recipient = channel === 'email' ? customer.email : customer.phone;
+
+        console.log(`🔧 [DEV MODE] Simulated ${channel} to ${recipient} for ${customer.fullName}`);
+
+        await prisma.notificationDelivery.create({
+          data: {
+            notificationId: notification.id,
+            attemptNo: 1,
+            provider,
+            providerMessageId: simMessageId,
+            status: 'sent',
+            sentAt: new Date(),
+          },
+        });
+
+        return {
+          success: true,
+          notificationId: notification.id,
+          channel,
+          recipient,
+          messageId: simMessageId,
+        };
+      }
 
       let provider = '';
       let result: {

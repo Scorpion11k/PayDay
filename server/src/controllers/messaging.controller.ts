@@ -11,6 +11,7 @@ import { ValidationError, NotFoundError } from '../types';
 import { TemplateLanguage, TemplateTone, NotificationChannel, Prisma } from '@prisma/client';
 import { recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from '../services/preference.service';
 import notificationDispatchService from '../services/notification-dispatch.service';
+import systemSettingsService from '../services/system-settings.service';
 
 const sendReminderSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
@@ -51,7 +52,8 @@ class MessagingController {
    * Get messaging service status
    */
   async getStatus(req: Request, res: Response) {
-    await Promise.all([
+    const [mode] = await Promise.all([
+      systemSettingsService.getMode(),
       emailService.initialize(),
       whatsappService.initialize(),
       smsService.initialize(),
@@ -59,24 +61,27 @@ class MessagingController {
       kolKasherService.initialize(),
     ]);
 
+    const isDevMode = mode === 'development';
+
     res.json({
       success: true,
       data: {
+        systemMode: mode,
         email: {
-          available: emailService.isAvailable(),
-          provider: 'Gmail (Nodemailer)',
+          available: isDevMode || emailService.isAvailable(),
+          provider: isDevMode ? 'Simulated (Dev Mode)' : 'Gmail (Nodemailer)',
         },
         whatsapp: {
-          available: whatsappService.isAvailable(),
-          provider: 'Twilio',
+          available: isDevMode || whatsappService.isAvailable(),
+          provider: isDevMode ? 'Simulated (Dev Mode)' : 'Twilio',
         },
         sms: {
-          available: smsService.isAvailable(),
-          provider: 'Twilio',
+          available: isDevMode || smsService.isAvailable(),
+          provider: isDevMode ? 'Simulated (Dev Mode)' : 'Twilio',
         },
         voice: {
-          available: kolKasherService.isAvailable(),
-          provider: 'Kol Kasher',
+          available: isDevMode || kolKasherService.isAvailable(),
+          provider: isDevMode ? 'Simulated (Dev Mode)' : 'Kol Kasher',
         },
       },
     });
@@ -236,6 +241,18 @@ class MessagingController {
       throw new ValidationError('Email address is required');
     }
 
+    const mode = await systemSettingsService.getMode();
+
+    if (mode === 'development') {
+      console.log(`🔧 [DEV MODE] Simulated test email to ${email}`);
+      res.json({
+        success: true,
+        message: 'Test email simulated successfully (development mode)',
+        data: { messageId: `dev_test_email_${Date.now()}`, simulated: true },
+      });
+      return;
+    }
+
     await emailService.initialize();
     
     if (!emailService.isAvailable()) {
@@ -282,6 +299,18 @@ class MessagingController {
       throw new ValidationError('Phone number is required');
     }
 
+    const mode = await systemSettingsService.getMode();
+
+    if (mode === 'development') {
+      console.log(`🔧 [DEV MODE] Simulated test WhatsApp to ${phone}`);
+      res.json({
+        success: true,
+        message: 'Test WhatsApp message simulated successfully (development mode)',
+        data: { messageSid: `dev_test_whatsapp_${Date.now()}`, simulated: true },
+      });
+      return;
+    }
+
     await whatsappService.initialize();
     
     if (!whatsappService.isAvailable()) {
@@ -316,6 +345,18 @@ class MessagingController {
 
     if (!phone) {
       throw new ValidationError('Phone number is required');
+    }
+
+    const mode = await systemSettingsService.getMode();
+
+    if (mode === 'development') {
+      console.log(`🔧 [DEV MODE] Simulated test SMS to ${phone}`);
+      res.json({
+        success: true,
+        message: 'Test SMS simulated successfully (development mode)',
+        data: { messageSid: `dev_test_sms_${Date.now()}`, simulated: true },
+      });
+      return;
     }
 
     await smsService.initialize();

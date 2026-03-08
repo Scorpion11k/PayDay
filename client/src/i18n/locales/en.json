@@ -483,6 +483,26 @@
     "appearance": {
       "title": "Appearance",
       "description": "Customize the look and feel of the application"
+    },
+    "systemMode": {
+      "title": "System Mode",
+      "description": "Control how the system handles notifications and communication channels",
+      "changeSuccess": "System mode changed to {{mode}}",
+      "changeError": "Failed to change system mode",
+      "modes": {
+        "demo": {
+          "label": "Demo",
+          "description": "Full system functionality with real notifications sent through all communication channels (SMS, WhatsApp, Voice Calls, Email)."
+        },
+        "development": {
+          "label": "Development",
+          "description": "Simulated mode — the system behaves identically to Demo but notifications are not actually sent. All actions are logged as if they were real."
+        },
+        "production": {
+          "label": "Production",
+          "description": "Production mode — currently behaves the same as Demo. Future updates will add production-specific behaviors."
+        }
+      }
     }
   }
 }
