@@ -11,6 +11,7 @@ import templatesRoutes from './templates.routes';
 import voiceRoutes from './voice.routes';
 import flowsRoutes from './flows.routes';
 import settingsRoutes from './settings.routes';
+import activityRoutes from './activity.routes';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.use('/templates', templatesRoutes);
 router.use('/voice', voiceRoutes);
 router.use('/flows', flowsRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/activities', activityRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -46,6 +48,7 @@ router.get('/', (req, res) => {
       voice: '/api/voice',
       flows: '/api/flows',
       settings: '/api/settings',
+      activities: '/api/activities',
     },
   });
 });

@@ -5,6 +5,7 @@ import flowExecutorService from '../services/flow-executor.service';
 import flowRuntimeService from '../services/flow-runtime.service';
 import prisma from '../config/database';
 import { ValidationError } from '../types';
+import activityService from '../services/activity.service';
 
 const stateSchema = z.object({
   stateKey: z.string().min(1),
@@ -100,12 +101,32 @@ class FlowsController {
       throw new ValidationError(parsed.error.issues[0].message);
     }
 
-    const flow = await flowDefinitionService.create(parsed.data);
-    res.status(201).json({
-      success: true,
-      data: flow,
-      message: 'Flow created successfully',
-    });
+    try {
+      const flow = await flowDefinitionService.create(parsed.data);
+
+      activityService.logCollectionFlowCreated({
+        flowId: flow.id,
+        flowName: flow.name,
+        status: 'success',
+        createdBy: parsed.data.createdBy || 'system',
+      }).catch((err) => console.error('Failed to log activity:', err));
+
+      res.status(201).json({
+        success: true,
+        data: flow,
+        message: 'Flow created successfully',
+      });
+    } catch (error) {
+      activityService.logCollectionFlowCreated({
+        flowId: '',
+        flowName: parsed.data.name,
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        createdBy: parsed.data.createdBy || 'system',
+      }).catch((err) => console.error('Failed to log activity:', err));
+
+      throw error;
+    }
   }
 
   async getById(req: Request, res: Response) {

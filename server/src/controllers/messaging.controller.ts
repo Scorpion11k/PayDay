@@ -12,6 +12,7 @@ import { TemplateLanguage, TemplateTone, NotificationChannel, Prisma } from '@pr
 import { recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from '../services/preference.service';
 import notificationDispatchService from '../services/notification-dispatch.service';
 import systemSettingsService from '../services/system-settings.service';
+import activityService from '../services/activity.service';
 
 const sendReminderSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
@@ -118,6 +119,18 @@ class MessagingController {
       createdBy: 'system',
     });
 
+    const effectiveChannel = dispatch.channel || channel;
+
+    activityService.logNotification({
+      channel: effectiveChannel,
+      customerId: customer.id,
+      customerName: customer.fullName,
+      status: dispatch.success ? 'success' : 'failed',
+      notificationId: dispatch.notificationId,
+      error: dispatch.error,
+      createdBy: 'system',
+    }).catch((err) => console.error('Failed to log activity:', err));
+
     if (!dispatch.success) {
       res.status(500).json({
         success: false,
@@ -132,7 +145,7 @@ class MessagingController {
       sms: 'SMS',
       whatsapp: 'WhatsApp',
       call_task: 'Voice Call',
-    }[dispatch.channel || channel];
+    }[effectiveChannel];
 
     res.json({
       success: true,
@@ -140,7 +153,7 @@ class MessagingController {
       data: {
         notificationId: dispatch.notificationId,
         messageId: dispatch.messageId || dispatch.callSid,
-        channel: dispatch.channel || channel,
+        channel: effectiveChannel,
         recipient: dispatch.recipient,
         templateUsed: {
           key: templateKey,
@@ -425,6 +438,7 @@ class MessagingController {
       where,
       select: {
         id: true,
+        fullName: true,
         dateOfBirth: true,
         region: true,
         preferredChannel: true,
@@ -486,6 +500,16 @@ class MessagingController {
             error: dispatch.error || 'Unknown error'
           });
         }
+
+        activityService.logNotification({
+          channel,
+          customerId: customer.id,
+          customerName: customer.fullName,
+          status: dispatch.success ? 'success' : 'failed',
+          notificationId: dispatch.notificationId,
+          error: dispatch.error,
+          createdBy: 'bulk_send',
+        }).catch((err) => console.error('Failed to log activity:', err));
       } catch (error) {
         results.failed++;
         results.breakdown[channel].failed++;
@@ -493,6 +517,15 @@ class MessagingController {
           customerId: customer.id,
           error: error instanceof Error ? error.message : 'Unknown error'
         });
+
+        activityService.logNotification({
+          channel,
+          customerId: customer.id,
+          customerName: customer.fullName,
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          createdBy: 'bulk_send',
+        }).catch((err) => console.error('Failed to log activity:', err));
       }
     }
 

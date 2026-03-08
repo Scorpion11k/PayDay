@@ -355,7 +355,20 @@
     "activities": {
       "title": "פעילויות",
       "description": "מעקב פעילויות והיסטוריה יוצגו כאן.",
-      "subtitle": "מעקב אחר כל פעילויות הגבייה והתקשורת."
+      "subtitle": "מעקב אחר כל פעילויות הגבייה והתקשורת.",
+      "timeline": "ציר זמן פעילויות",
+      "filterType": "סוג פעילות",
+      "totalActivities": "פעילויות",
+      "noActivities": "עדיין לא נרשמו פעילויות. פעילויות יופיעו כאן בעת שימוש במערכת.",
+      "types": {
+        "notification_sent": "הודעה נשלחה",
+        "chat_prompt": "שאילתת צ'אט",
+        "collection_flow_created": "תהליך גבייה נוצר"
+      },
+      "statuses": {
+        "success": "הצלחה",
+        "failed": "נכשל"
+      }
     },
     "dashboards": {
       "title": "לוחות בקרה",

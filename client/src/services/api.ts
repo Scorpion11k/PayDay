@@ -236,3 +236,56 @@ export async function listCustomersForFlowMonitor(limit = 100): Promise<Customer
   const body = (await response.json()) as { success: boolean; data: CustomerListItem[] };
   return body.data || [];
 }
+
+// ── Activities ──
+
+export interface ActivityLogItem {
+  id: string;
+  type: 'notification_sent' | 'chat_prompt' | 'collection_flow_created';
+  activityName: string;
+  description: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  status: 'success' | 'failed';
+  metadata: Record<string, unknown> | null;
+  createdBy: string;
+  createdAt: string;
+  customer: { id: string; fullName: string } | null;
+}
+
+export interface ActivityListResponse {
+  data: ActivityLogItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function listActivities(params: {
+  page?: number;
+  limit?: number;
+  type?: string;
+  status?: string;
+} = {}): Promise<ActivityListResponse> {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.type) query.set('type', params.type);
+  if (params.status) query.set('status', params.status);
+
+  const qs = query.toString();
+  const response = await fetch(`${API_BASE_URL}/activities${qs ? `?${qs}` : ''}`);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Request failed with status ${response.status}`);
+  }
+
+  const body = await response.json();
+  return {
+    data: body.data,
+    pagination: body.pagination,
+  };
+}
