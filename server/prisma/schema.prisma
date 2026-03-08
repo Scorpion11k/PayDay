@@ -127,6 +127,12 @@ enum CollectionFlowAssignmentSource {
   manual_override
 }
 
+enum SystemMode {
+  demo
+  development
+  production
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -511,4 +517,13 @@ model CollectionFlowStateInstance {
   @@index([status, dueAt])
   @@index([flowInstanceId, sequenceNo])
   @@map("collection_flow_state_instances")
+}
+
+/// Singleton table for global system settings
+model SystemSettings {
+  id        String     @id @default("singleton")
+  mode      SystemMode @default(demo)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("system_settings")
 }
