@@ -7,6 +7,13 @@ import type {
   FlowSummaryDto,
   FlowTransitionEdge,
 } from '../types/flows';
+import type {
+  GenerateHomeBrainPlanRequest,
+  GenerateHomeBrainPlanResponse,
+  HomeBrainCardMutationRequest,
+  HomeBrainCardMutationResponse,
+  HomeBrainPlan,
+} from '../types/home-brain';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -201,6 +208,47 @@ export interface RunExecutorResult {
   retried: number;
   skipped: number;
 }
+
+export const homeBrain = {
+  generatePlan: (request: GenerateHomeBrainPlanRequest) =>
+    apiFetch<GenerateHomeBrainPlanResponse>('/home-brain/plan', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+
+  getPlan: (planId: string) =>
+    apiFetch<{
+      planId: string;
+      status: string;
+      plan: HomeBrainPlan;
+      createdAt: string;
+      actions: Array<Record<string, unknown>>;
+    }>(`/home-brain/plans/${planId}`),
+
+  approveCard: (cardId: string, request: HomeBrainCardMutationRequest) =>
+    apiFetch<HomeBrainCardMutationResponse>(`/home-brain/cards/${cardId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+
+  modifyCard: (cardId: string, request: HomeBrainCardMutationRequest) =>
+    apiFetch<HomeBrainCardMutationResponse>(`/home-brain/cards/${cardId}/modify`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+
+  skipCard: (cardId: string, request: HomeBrainCardMutationRequest) =>
+    apiFetch<HomeBrainCardMutationResponse>(`/home-brain/cards/${cardId}/skip`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+
+  resolveCard: (cardId: string, request: HomeBrainCardMutationRequest) =>
+    apiFetch<HomeBrainCardMutationResponse>(`/home-brain/cards/${cardId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+};
 
 export async function runFlowExecutorOnce(limit = 50): Promise<RunExecutorResult> {
   return apiFetch<RunExecutorResult>('/flows/executor/run-once', {
