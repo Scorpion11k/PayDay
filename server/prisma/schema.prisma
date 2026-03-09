@@ -133,6 +133,17 @@ enum SystemMode {
   production
 }
 
+enum ActivityType {
+  notification_sent
+  chat_prompt
+  collection_flow_created
+}
+
+enum ActivityStatus {
+  success
+  failed
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -164,6 +175,7 @@ model Customer {
   voiceCallLogs  VoiceCallLog[]
   flowAssignment CollectionFlowAssignment?
   flowInstances  CollectionFlowInstance[]
+  activityLogs   ActivityLog[]
 
   @@index([phone])
   @@index([email])
@@ -526,4 +538,26 @@ model SystemSettings {
   updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("system_settings")
+}
+
+/// Tracks user activities for the Activity Timeline
+model ActivityLog {
+  id           String         @id @default(uuid()) @db.Uuid
+  type         ActivityType
+  activityName String         @map("activity_name")
+  description  String?
+  customerId   String?        @map("customer_id") @db.Uuid
+  customerName String?        @map("customer_name")
+  status       ActivityStatus
+  metadata     Json?
+  createdBy    String         @map("created_by")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@index([customerId])
+  @@map("activity_logs")
 }

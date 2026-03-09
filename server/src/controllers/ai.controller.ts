@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import aiService from '../services/ai.service';
 import { ValidationError } from '../types';
+import activityService from '../services/activity.service';
 
 // Validation schemas
 const querySchema = z.object({
@@ -28,14 +29,37 @@ class AIController {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
-    const result = validation.data.confirmToken
-      ? await aiService.confirmAction(validation.data.confirmToken)
-      : await aiService.query(validation.data.query!, validation.data.language);
+    const queryText = validation.data.query;
 
-    res.json({
-      success: true,
-      data: result,
-    });
+    try {
+      const result = validation.data.confirmToken
+        ? await aiService.confirmAction(validation.data.confirmToken)
+        : await aiService.query(queryText!, validation.data.language);
+
+      if (queryText) {
+        activityService.logChatPrompt({
+          query: queryText,
+          status: 'success',
+          resultCount: result.resultCount,
+          createdBy: 'system',
+        }).catch((err) => console.error('Failed to log activity:', err));
+      }
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      if (queryText) {
+        activityService.logChatPrompt({
+          query: queryText,
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          createdBy: 'system',
+        }).catch((err) => console.error('Failed to log activity:', err));
+      }
+      throw error;
+    }
   }
 
   /**

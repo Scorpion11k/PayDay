@@ -37,6 +37,8 @@ export interface DispatchNotificationResult {
   messageId?: string | null;
   callSid?: string | null;
   error?: string;
+  renderedText?: string;
+  tone?: string;
 }
 
 function mapActionTypeToChannel(actionType: DispatchActionType): NotificationChannel | null {
@@ -222,12 +224,14 @@ class NotificationDispatchService {
             channel,
             recipient: customer.phone,
             callSid: simCallId,
+            renderedText: rendered.bodyText,
+            tone: String(tone),
           };
         }
 
         await kolKasherService.initialize();
         if (!kolKasherService.isAvailable()) {
-          return { success: false, error: 'Kol Kasher voice service is not configured' };
+          return { success: false, error: 'Kol Kasher voice service is not configured', renderedText: rendered.bodyText, tone: String(tone) };
         }
 
         const call = await kolKasherService.sendVoiceCall({
@@ -258,6 +262,8 @@ class NotificationDispatchService {
           recipient: customer.phone,
           callSid: call.callId || null,
           error: call.error,
+          renderedText: rendered.bodyText,
+          tone: String(tone),
         };
       }
 
@@ -308,6 +314,8 @@ class NotificationDispatchService {
           channel,
           recipient,
           messageId: simMessageId,
+          renderedText: rendered.bodyText,
+          tone: String(tone),
         };
       }
 
@@ -331,7 +339,7 @@ class NotificationDispatchService {
               errorMessage: 'Email service is not configured',
             },
           });
-          return { success: false, error: 'Email service is not configured', notificationId: notification.id, channel };
+          return { success: false, error: 'Email service is not configured', notificationId: notification.id, channel, renderedText: rendered.bodyText, tone: String(tone) };
         }
         provider = 'gmail';
         result = await emailService.sendEmail({
@@ -352,7 +360,7 @@ class NotificationDispatchService {
               errorMessage: 'WhatsApp service is not configured',
             },
           });
-          return { success: false, error: 'WhatsApp service is not configured', notificationId: notification.id, channel };
+          return { success: false, error: 'WhatsApp service is not configured', notificationId: notification.id, channel, renderedText: rendered.bodyText, tone: String(tone) };
         }
         provider = 'twilio_whatsapp';
         result = await whatsappService.sendMessage({
@@ -371,7 +379,7 @@ class NotificationDispatchService {
               errorMessage: 'SMS service is not configured',
             },
           });
-          return { success: false, error: 'SMS service is not configured', notificationId: notification.id, channel };
+          return { success: false, error: 'SMS service is not configured', notificationId: notification.id, channel, renderedText: rendered.bodyText, tone: String(tone) };
         }
         provider = 'twilio_sms';
         result = await smsService.sendSMS({
@@ -399,6 +407,8 @@ class NotificationDispatchService {
         recipient: channel === 'email' ? customer.email : customer.phone,
         messageId: result.messageId || result.messageSid || null,
         error: result.error,
+        renderedText: rendered.bodyText,
+        tone: String(tone),
       };
     } catch (error) {
       return {

@@ -355,7 +355,29 @@
     "activities": {
       "title": "Activities",
       "description": "Activity tracking and history will be displayed here.",
-      "subtitle": "Monitor all collection activities and communications."
+      "subtitle": "Monitor all collection activities and communications.",
+      "timeline": "Activity Timeline",
+      "filterType": "Activity Type",
+      "totalActivities": "activities",
+      "noActivities": "No activities recorded yet. Activities will appear here as you use the system.",
+      "types": {
+        "notification_sent": "Notification Sent",
+        "chat_prompt": "Chat Prompt",
+        "collection_flow_created": "Collection Flow Created"
+      },
+      "statuses": {
+        "success": "Success",
+        "failed": "Failed"
+      },
+      "expand": "Show details",
+      "collapse": "Hide details",
+      "messageSent": "Message Sent",
+      "toneUsed": "Tone Used",
+      "toneLabels": {
+        "calm": "Calm",
+        "medium": "Medium",
+        "heavy": "Heavy"
+      }
     },
     "dashboards": {
       "title": "Dashboards",
