@@ -368,6 +368,15 @@
       "statuses": {
         "success": "Success",
         "failed": "Failed"
+      },
+      "expand": "Show details",
+      "collapse": "Hide details",
+      "messageSent": "Message Sent",
+      "toneUsed": "Tone Used",
+      "toneLabels": {
+        "calm": "Calm",
+        "medium": "Medium",
+        "heavy": "Heavy"
       }
     },
     "dashboards": {

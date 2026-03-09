@@ -14,6 +14,7 @@ import {
   Pagination,
   IconButton,
   Tooltip,
+  Collapse,
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import {
@@ -28,6 +29,8 @@ import {
   Cancel as FailedIcon,
   Person as PersonIcon,
   Refresh as RefreshIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { listActivities, type ActivityLogItem } from '../services/api';
@@ -58,113 +61,179 @@ function getColor(activityName: string) {
   return ACTIVITY_COLORS[activityName] || '#607d8b';
 }
 
-function formatTime(dateStr: string) {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-  });
-}
-
-function formatFullTime(dateStr: string) {
+function formatDateTime(dateStr: string) {
   return new Date(dateStr).toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
   });
 }
 
-function ActivityRow({ activity }: { activity: ActivityLogItem }) {
+const TONE_LABELS: Record<string, string> = {
+  calm: 'Calm',
+  medium: 'Medium',
+  heavy: 'Heavy',
+};
+
+function ActivityRow({ activity, t }: { activity: ActivityLogItem; t: (key: string) => string }) {
   const color = getColor(activity.activityName);
   const icon = getIcon(activity.activityName);
+  const [expanded, setExpanded] = useState(false);
+
+  const isNotification = activity.type === 'notification_sent';
+  const metadata = activity.metadata as Record<string, unknown> | null;
+  const messageText = metadata?.messageText as string | undefined;
+  const tone = metadata?.tone as string | undefined;
+  const hasDetails = isNotification && (messageText || tone);
+
+  const statusLabel = activity.status === 'success'
+    ? t('pages.activities.statuses.success')
+    : t('pages.activities.statuses.failed');
+
+  const toneLabel = tone
+    ? (t(`pages.activities.toneLabels.${tone}`) || TONE_LABELS[tone] || tone)
+    : null;
 
   return (
     <Box
       sx={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 2,
-        py: 2,
-        px: 2.5,
         borderBottom: '1px solid',
         borderColor: 'divider',
-        transition: 'background-color 0.15s',
-        '&:hover': { bgcolor: 'action.hover' },
         '&:last-child': { borderBottom: 'none' },
       }}
     >
-      {/* Icon circle */}
       <Box
         sx={{
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: `${color}14`,
-          color,
-          flexShrink: 0,
-          mt: 0.25,
+          alignItems: 'flex-start',
+          gap: 2,
+          py: 2,
+          px: 2.5,
+          transition: 'background-color 0.15s',
+          '&:hover': { bgcolor: 'action.hover' },
         }}
       >
-        {icon}
-      </Box>
-
-      {/* Content */}
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Typography variant="subtitle2" fontWeight={600} noWrap>
-            {activity.activityName}
-          </Typography>
-          <Chip
-            size="small"
-            icon={activity.status === 'success' ? <SuccessIcon /> : <FailedIcon />}
-            label={activity.status === 'success' ? 'Success' : 'Failed'}
-            color={activity.status === 'success' ? 'success' : 'error'}
-            variant="outlined"
-            sx={{ height: 22, '& .MuiChip-icon': { fontSize: 14 } }}
-          />
+        {/* Icon circle */}
+        <Box
+          sx={{
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: `${color}14`,
+            color,
+            flexShrink: 0,
+            mt: 0.25,
+          }}
+        >
+          {icon}
         </Box>
 
-        {activity.description && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
-            {activity.description}
-          </Typography>
-        )}
-
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 0.75 }}>
-          {activity.customerName && (
+        {/* Content */}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Typography variant="subtitle2" fontWeight={600} noWrap>
+              {activity.activityName}
+            </Typography>
             <Chip
               size="small"
-              icon={<PersonIcon />}
-              label={activity.customerName}
+              icon={activity.status === 'success' ? <SuccessIcon /> : <FailedIcon />}
+              label={statusLabel}
+              color={activity.status === 'success' ? 'success' : 'error'}
               variant="outlined"
               sx={{ height: 22, '& .MuiChip-icon': { fontSize: 14 } }}
             />
-          )}
-          <Tooltip title={formatFullTime(activity.createdAt)} placement="top" arrow>
-            <Typography variant="caption" color="text.disabled">
-              {formatTime(activity.createdAt)}
+          </Box>
+
+          {activity.description && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
+              {activity.description}
             </Typography>
+          )}
+
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 0.75 }}>
+            {activity.customerName && (
+              <Chip
+                size="small"
+                icon={<PersonIcon />}
+                label={activity.customerName}
+                variant="outlined"
+                sx={{ height: 22, '& .MuiChip-icon': { fontSize: 14 } }}
+              />
+            )}
+            <Typography variant="caption" color="text.disabled">
+              {formatDateTime(activity.createdAt)}
+            </Typography>
+          </Stack>
+        </Box>
+
+        {/* Expand button for notifications */}
+        {hasDetails && (
+          <Tooltip title={expanded ? t('pages.activities.collapse') : t('pages.activities.expand')}>
+            <IconButton
+              size="small"
+              onClick={() => setExpanded(!expanded)}
+              sx={{ mt: 0.5 }}
+            >
+              {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
           </Tooltip>
-        </Stack>
+        )}
       </Box>
+
+      {/* Expanded detail panel */}
+      {hasDetails && (
+        <Collapse in={expanded}>
+          <Box
+            sx={{
+              mx: 2.5,
+              mb: 2,
+              ml: 8.5,
+              p: 2,
+              bgcolor: '#f8fafc',
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            {toneLabel && (
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {t('pages.activities.toneUsed')}
+                </Typography>
+                <Box sx={{ mt: 0.5 }}>
+                  <Chip size="small" label={toneLabel} variant="outlined" color="primary" />
+                </Box>
+              </Box>
+            )}
+            {messageText && (
+              <Box>
+                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {t('pages.activities.messageSent')}
+                </Typography>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    mt: 0.5,
+                    p: 1.5,
+                    bgcolor: 'background.paper',
+                    maxHeight: 200,
+                    overflow: 'auto',
+                  }}
+                >
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {messageText}
+                  </Typography>
+                </Paper>
+              </Box>
+            )}
+          </Box>
+        </Collapse>
+      )}
     </Box>
   );
 }
@@ -295,7 +364,7 @@ export default function ActivitiesPage() {
         ) : (
           <>
             {activities.map((activity) => (
-              <ActivityRow key={activity.id} activity={activity} />
+              <ActivityRow key={activity.id} activity={activity} t={t} />
             ))}
           </>
         )}

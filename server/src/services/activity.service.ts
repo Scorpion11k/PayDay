@@ -74,6 +74,8 @@ class ActivityService {
     customerName: string;
     status: ActivityStatus;
     notificationId?: string;
+    messageText?: string;
+    tone?: string;
     error?: string;
     createdBy: string;
   }) {
@@ -99,6 +101,8 @@ class ActivityService {
       metadata: {
         channel: params.channel,
         notificationId: params.notificationId,
+        messageText: params.messageText,
+        tone: params.tone,
         error: params.error,
       },
       createdBy: params.createdBy,

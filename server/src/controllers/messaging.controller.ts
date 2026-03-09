@@ -127,6 +127,8 @@ class MessagingController {
       customerName: customer.fullName,
       status: dispatch.success ? 'success' : 'failed',
       notificationId: dispatch.notificationId,
+      messageText: dispatch.renderedText,
+      tone: dispatch.tone,
       error: dispatch.error,
       createdBy: 'system',
     }).catch((err) => console.error('Failed to log activity:', err));
@@ -507,6 +509,8 @@ class MessagingController {
           customerName: customer.fullName,
           status: dispatch.success ? 'success' : 'failed',
           notificationId: dispatch.notificationId,
+          messageText: dispatch.renderedText,
+          tone: dispatch.tone,
           error: dispatch.error,
           createdBy: 'bulk_send',
         }).catch((err) => console.error('Failed to log activity:', err));

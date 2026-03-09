@@ -368,6 +368,15 @@
       "statuses": {
         "success": "הצלחה",
         "failed": "נכשל"
+      },
+      "expand": "הצג פרטים",
+      "collapse": "הסתר פרטים",
+      "messageSent": "הודעה שנשלחה",
+      "toneUsed": "טון שנעשה בו שימוש",
+      "toneLabels": {
+        "calm": "רגוע",
+        "medium": "בינוני",
+        "heavy": "תקיף"
       }
     },
     "dashboards": {
