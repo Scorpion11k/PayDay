@@ -213,7 +213,7 @@ function buildMockPlan(context: HomeBrainContext, locale: SupportedLocale, maxCa
     title: cohort.label,
     description: `${cohort.count} customers • avg overdue ${cohort.avgOverdueDays}d`,
     count: cohort.count,
-    customerIds: cohort.sampleCustomerIds,
+    customerIds: cohort.customerIds,
     priority: cohort.riskLevel,
   }));
 

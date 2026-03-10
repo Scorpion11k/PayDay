@@ -37,6 +37,7 @@ export interface UpdateCustomerDto {
 export interface CustomerFilters {
   status?: CustomerStatus;
   search?: string;
+  customerIds?: string[];
 }
 
 export type SortField = 'fullName' | 'email' | 'status' | 'createdAt' | 'totalDebtAmount' | 'isOverdue' | 'payments';
@@ -63,6 +64,10 @@ class CustomersService {
         { phone: { contains: filters.search } },
         { externalRef: { contains: filters.search } },
       ];
+    }
+
+    if (filters.customerIds && filters.customerIds.length > 0) {
+      where.id = { in: filters.customerIds };
     }
 
     // Determine if we can sort at database level or need to sort after fetching

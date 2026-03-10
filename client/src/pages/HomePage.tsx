@@ -115,6 +115,24 @@ export default function HomePage() {
     setSearchParams(next);
   };
 
+  const openQueue = (queue: { queueId: string; title: string; description?: string; priority: string; count: number; customerIds: string[] }) => {
+    const params = new URLSearchParams();
+    params.set('queueId', queue.queueId);
+    params.set('queueTitle', queue.title);
+    params.set('queuePriority', queue.priority);
+    params.set('queueCount', String(queue.count));
+    if (queue.description) {
+      params.set('queueDescription', queue.description);
+    }
+    if (queue.customerIds.length > 0) {
+      params.set('queueCustomerIds', queue.customerIds.join(','));
+    }
+    navigate({
+      pathname: '/customers',
+      search: params.toString(),
+    });
+  };
+
   const mutateCard = async (
     card: HomeBrainRecommendationCard,
     action: 'approve' | 'modify' | 'skip' | 'resolve',
@@ -264,7 +282,7 @@ export default function HomePage() {
           <PriorityQueues
             title={t('homeBrain.priorityQueues')}
             queues={plan.dashboard.queues}
-            onOpenQueue={() => navigate('/customers')}
+            onOpenQueue={openQueue}
           />
           
 

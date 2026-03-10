@@ -54,6 +54,7 @@ export interface HomeBrainContext {
     languages: string[];
     recommendedChannelOptions: SupportedChannel[];
     riskLevel: RiskLevel;
+    customerIds: string[];
     sampleCustomerIds: string[];
   }>;
   customers: Array<{
@@ -277,6 +278,7 @@ function buildCohorts(customers: CustomerAggregate[]): HomeBrainContext['cohorts
         languages: Array.from(languages).slice(0, 4),
         recommendedChannelOptions: Array.from(channelOptions).slice(0, 4),
         riskLevel: spec.riskLevel,
+        customerIds: members.slice(0, 200).map((member) => member.id),
         sampleCustomerIds: members.slice(0, 8).map((member) => member.id),
       };
     })
