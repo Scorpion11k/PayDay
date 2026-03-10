@@ -12,6 +12,7 @@ import voiceRoutes from './voice.routes';
 import flowsRoutes from './flows.routes';
 import settingsRoutes from './settings.routes';
 import activityRoutes from './activity.routes';
+import homeBrainRoutes from './home-brain.routes';
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.use('/voice', voiceRoutes);
 router.use('/flows', flowsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/activities', activityRoutes);
+router.use('/home-brain', homeBrainRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -49,6 +51,7 @@ router.get('/', (req, res) => {
       flows: '/api/flows',
       settings: '/api/settings',
       activities: '/api/activities',
+      homeBrain: '/api/home-brain',
     },
   });
 });

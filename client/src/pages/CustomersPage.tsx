@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 
 // API Base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -135,6 +136,7 @@ type SortOrder = 'asc' | 'desc';
 export default function CustomersPage() {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,8 +147,8 @@ export default function CustomersPage() {
     total: 0,
     totalPages: 0,
   });
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
+  const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') || '');
   const [searchDebounce, setSearchDebounce] = useState('');
   const [sortBy, setSortBy] = useState<SortField>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -219,6 +221,28 @@ export default function CustomersPage() {
     createdAt: string;
   }>>([]);
   const [callHistoryPagination, setCallHistoryPagination] = useState({ page: 1, total: 0, totalPages: 0 });
+
+  const queueCustomerIds = useMemo(
+    () =>
+      (searchParams.get('queueCustomerIds') || '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    [searchParams]
+  );
+  const appliedQueue = useMemo(
+    () =>
+      queueCustomerIds.length > 0
+        ? {
+            id: searchParams.get('queueId') || '',
+            title: searchParams.get('queueTitle') || 'Queue',
+            priority: searchParams.get('queuePriority') || 'medium',
+            description: searchParams.get('queueDescription') || '',
+            count: Number(searchParams.get('queueCount') || queueCustomerIds.length),
+          }
+        : null,
+    [queueCustomerIds, searchParams]
+  );
 
   // Status labels with translations
   const getStatusLabel = (status: Customer['status']): string => {
@@ -443,6 +467,10 @@ export default function CustomersPage() {
         params.set('status', statusFilter);
       }
 
+      if (queueCustomerIds.length > 0) {
+        params.set('customerIds', queueCustomerIds.join(','));
+      }
+
       if (sortBy) {
         params.set('sortBy', sortBy);
         params.set('sortOrder', sortOrder);
@@ -467,7 +495,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, searchDebounce, statusFilter, sortBy, sortOrder]);
+  }, [pagination.page, pagination.limit, queueCustomerIds, searchDebounce, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchCustomers();
@@ -477,7 +505,18 @@ export default function CustomersPage() {
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
     clearSelection();
-  }, [searchDebounce, statusFilter]);
+  }, [queueCustomerIds, searchDebounce, statusFilter]);
+
+  const clearQueueFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('queueId');
+    next.delete('queueTitle');
+    next.delete('queuePriority');
+    next.delete('queueDescription');
+    next.delete('queueCount');
+    next.delete('queueCustomerIds');
+    setSearchParams(next);
+  };
 
   const handleChangePage = (_: unknown, newPage: number) => {
     setPagination((prev) => ({ ...prev, page: newPage + 1 }));
@@ -995,6 +1034,28 @@ export default function CustomersPage() {
           </FormControl>
         </Stack>
       </Paper>
+
+      {appliedQueue && (
+        <Alert
+          severity="info"
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small" onClick={clearQueueFilter}>
+              {t('customers.bulkSelection.clear')}
+            </Button>
+          }
+        >
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Queue applied: {appliedQueue.title}
+            </Typography>
+            <Chip size="small" label={appliedQueue.priority} />
+            <Typography variant="body2" color="text.secondary">
+              {appliedQueue.count} customers
+            </Typography>
+          </Stack>
+        </Alert>
+      )}
 
       {/* Error State */}
       {error && (

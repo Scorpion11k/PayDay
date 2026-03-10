@@ -7,6 +7,13 @@ import type {
   FlowSummaryDto,
   FlowTransitionEdge,
 } from '../types/flows';
+import type {
+  GenerateHomeBrainPlanRequest,
+  GenerateHomeBrainPlanResponse,
+  HomeBrainCardMutationRequest,
+  HomeBrainCardMutationResponse,
+  HomeBrainPlan,
+} from '../types/home-brain';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -134,6 +141,20 @@ export interface CreateFlowPayload {
   transitions: FlowTransitionEdge[];
 }
 
+export interface GenerateFlowFromPromptRequest {
+  prompt: string;
+  locale?: 'en' | 'he';
+  flowId?: string;
+  createdBy?: string;
+}
+
+export interface GenerateFlowFromPromptResponse {
+  assistantMessage: string;
+  flow: FlowDefinitionDto;
+  created: boolean;
+  updated: boolean;
+}
+
 export interface UpdateFlowPayload {
   name?: string;
   description?: string | null;
@@ -152,6 +173,15 @@ export async function getFlowById(id: string): Promise<FlowDefinitionDto> {
 
 export async function createFlow(payload: CreateFlowPayload): Promise<FlowDefinitionDto> {
   return apiFetch<FlowDefinitionDto>('/flows', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function generateFlowFromPrompt(
+  payload: GenerateFlowFromPromptRequest
+): Promise<GenerateFlowFromPromptResponse> {
+  return apiFetch<GenerateFlowFromPromptResponse>('/flows/generate-from-prompt', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -201,6 +231,47 @@ export interface RunExecutorResult {
   retried: number;
   skipped: number;
 }
+
+export const homeBrain = {
+  generatePlan: (request: GenerateHomeBrainPlanRequest) =>
+    apiFetch<GenerateHomeBrainPlanResponse>('/home-brain/plan', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+
+  getPlan: (planId: string) =>
+    apiFetch<{
+      planId: string;
+      status: string;
+      plan: HomeBrainPlan;
+      createdAt: string;
+      actions: Array<Record<string, unknown>>;
+    }>(`/home-brain/plans/${planId}`),
+
+  approveCard: (cardId: string, request: HomeBrainCardMutationRequest) =>
+    apiFetch<HomeBrainCardMutationResponse>(`/home-brain/cards/${cardId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+
+  modifyCard: (cardId: string, request: HomeBrainCardMutationRequest) =>
+    apiFetch<HomeBrainCardMutationResponse>(`/home-brain/cards/${cardId}/modify`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+
+  skipCard: (cardId: string, request: HomeBrainCardMutationRequest) =>
+    apiFetch<HomeBrainCardMutationResponse>(`/home-brain/cards/${cardId}/skip`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+
+  resolveCard: (cardId: string, request: HomeBrainCardMutationRequest) =>
+    apiFetch<HomeBrainCardMutationResponse>(`/home-brain/cards/${cardId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+};
 
 export async function runFlowExecutorOnce(limit = 50): Promise<RunExecutorResult> {
   return apiFetch<RunExecutorResult>('/flows/executor/run-once', {

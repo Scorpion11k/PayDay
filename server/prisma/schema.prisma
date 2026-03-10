@@ -144,6 +144,16 @@ enum ActivityStatus {
   failed
 }
 
+enum AiPlanStatus {
+  generated
+  approved
+  modified
+  skipped
+  resolved
+  failed
+  expired
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -560,4 +570,61 @@ model ActivityLog {
   @@index([createdAt])
   @@index([customerId])
   @@map("activity_logs")
+}
+
+model AiPlanSnapshot {
+  id               String       @id @default(uuid()) @db.Uuid
+  surface          String
+  promptVersion    String       @map("prompt_version")
+  contextVersion   String       @map("context_version")
+  locale           String
+  filtersJson      Json?        @map("filters_json")
+  contextSummary   Json         @map("context_summary")
+  outputJson       Json         @map("output_json")
+  reasoningSummary String?      @map("reasoning_summary")
+  status           AiPlanStatus @default(generated)
+  generatedBy      String       @map("generated_by")
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  actions AiPlanAction[]
+
+  @@index([surface, createdAt])
+  @@index([status])
+  @@map("ai_plan_snapshots")
+}
+
+model AiPlanAction {
+  id              String       @id @default(uuid()) @db.Uuid
+  planId          String       @map("plan_id") @db.Uuid
+  cardId          String       @map("card_id")
+  intentId        String?      @map("intent_id")
+  actionType      String       @map("action_type")
+  status          AiPlanStatus @default(generated)
+  modifiedPayload Json?        @map("modified_payload")
+  executionResult Json?        @map("execution_result")
+  performedBy     String       @map("performed_by")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  plan AiPlanSnapshot @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@index([cardId])
+  @@map("ai_plan_actions")
+}
+
+model InternalAlert {
+  id        String   @id @default(uuid()) @db.Uuid
+  severity  String
+  title     String
+  body      String   @db.Text
+  audience  String
+  metadata  Json?
+  status    String   @default("open")
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([audience, status])
+  @@map("internal_alerts")
 }

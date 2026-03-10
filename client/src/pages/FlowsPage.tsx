@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -37,6 +38,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import GraphFlowBuilder from '../components/FlowBuilder/GraphFlowBuilder';
 import FlowDiagramView from '../components/FlowBuilder/FlowDiagramView';
+import FlowPromptAssistantDialog from '../components/flows/FlowPromptAssistantDialog';
 import {
   assignCustomerFlow,
   createFlow,
@@ -81,12 +83,15 @@ const stepStatusColor: Record<FlowStateInstanceStatus, 'default' | 'success' | '
 
 export default function FlowsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(0);
   const [flows, setFlows] = useState<FlowSummaryDto[]>([]);
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
   const [selectedFlow, setSelectedFlow] = useState<FlowDefinitionDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowDefinitionDto | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -101,14 +106,16 @@ export default function FlowsPage() {
     severity: 'success',
   });
 
-  const refreshFlows = async () => {
+  const refreshFlows = async (preferredFlowId?: string | null) => {
     setLoading(true);
     try {
       const data = await listFlows();
       setFlows(data);
 
-      const activeId = selectedFlowId && data.some((flow) => flow.id === selectedFlowId)
-        ? selectedFlowId
+      const queryFlowId = searchParams.get('flowId');
+      const requestedId = preferredFlowId || queryFlowId || selectedFlowId;
+      const activeId = requestedId && data.some((flow) => flow.id === requestedId)
+        ? requestedId
         : data[0]?.id || null;
 
       setSelectedFlowId(activeId);
@@ -177,7 +184,7 @@ export default function FlowsPage() {
   };
 
   useEffect(() => {
-    refreshFlows();
+    refreshFlows(searchParams.get('flowId'));
     refreshCustomers();
   }, []);
 
@@ -196,6 +203,10 @@ export default function FlowsPage() {
   const openCreate = () => {
     setEditingFlow(null);
     setBuilderOpen(true);
+  };
+
+  const openPromptCreate = () => {
+    setPromptDialogOpen(true);
   };
 
   const openEdit = () => {
@@ -343,8 +354,11 @@ export default function FlowsPage() {
           <Chip size="small" label={`${flows.length} flows`} />
         </Stack>
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={refreshFlows} disabled={loading}>
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void refreshFlows()} disabled={loading}>
             Refresh
+          </Button>
+          <Button variant="outlined" startIcon={<FlowsIcon />} onClick={openPromptCreate}>
+            Create with Prompt
           </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
             Create Flow
@@ -614,6 +628,22 @@ export default function FlowsPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <FlowPromptAssistantDialog
+        open={promptDialogOpen}
+        onClose={() => setPromptDialogOpen(false)}
+        initialFlowId={null}
+        onFlowSaved={(flow) => {
+          setSelectedFlowId(flow.id);
+          setSelectedFlow(flow);
+          void refreshFlows(flow.id);
+        }}
+        onOpenFlow={(flowId) => {
+          setPromptDialogOpen(false);
+          void refreshFlows(flowId);
+          navigate(`/flows?flowId=${flowId}`);
+        }}
+      />
 
       <Snackbar
         open={snackbar.open}
