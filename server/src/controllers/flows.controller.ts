@@ -3,6 +3,7 @@ import { z } from 'zod';
 import flowDefinitionService from '../services/flow-definition.service';
 import flowExecutorService from '../services/flow-executor.service';
 import flowRuntimeService from '../services/flow-runtime.service';
+import flowPromptService from '../services/flow-prompt.service';
 import prisma from '../config/database';
 import { ValidationError } from '../types';
 import activityService from '../services/activity.service';
@@ -63,6 +64,13 @@ const FLOW_EXECUTOR_INTERVAL_MS = Number.isFinite(parsedExecutorInterval) && par
 const assignFlowSchema = z.object({
   flowId: z.string().uuid(),
   source: z.enum(['default_assigned', 'manual_override']).optional(),
+});
+
+const generateFromPromptSchema = z.object({
+  prompt: z.string().min(3),
+  locale: z.enum(['en', 'he']).optional().default('en'),
+  flowId: z.string().uuid().optional(),
+  createdBy: z.string().optional(),
 });
 
 function assertFlowFeatureReady() {
@@ -127,6 +135,21 @@ class FlowsController {
 
       throw error;
     }
+  }
+
+  async generateFromPrompt(req: Request, res: Response) {
+    assertFlowFeatureReady();
+    const parsed = generateFromPromptSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues[0].message);
+    }
+
+    const result = await flowPromptService.generateDraftFromPrompt(parsed.data);
+    res.status(result.created ? 201 : 200).json({
+      success: true,
+      data: result,
+      message: result.created ? 'Draft flow created from prompt' : 'Draft flow updated from prompt',
+    });
   }
 
   async getById(req: Request, res: Response) {

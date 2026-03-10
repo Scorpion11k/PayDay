@@ -14,6 +14,27 @@ interface MaterializeFlowInput {
   description?: string;
 }
 
+interface StandaloneBlueprint {
+  name: string;
+  description?: string;
+  steps: CollectionFlowBlueprint['steps'];
+}
+
+interface MaterializeStandaloneFlowInput {
+  blueprint: StandaloneBlueprint;
+  flowName?: string;
+  description?: string;
+  createdBy?: string;
+}
+
+interface UpdateStandaloneFlowInput {
+  flowId: string;
+  blueprint: StandaloneBlueprint;
+  flowName?: string;
+  description?: string;
+  updatedBy?: string;
+}
+
 function buildActionLabel(actionType: CollectionFlowActionType, dayOffset: number): string {
   const prefix = `Day ${dayOffset}`;
   switch (actionType) {
@@ -61,16 +82,8 @@ function mapExplicitChannel(
 }
 
 class FlowMaterializerService {
-  async materialize(input: MaterializeFlowInput) {
-    const sortedSteps = [...input.blueprint.steps].sort((a, b) => a.dayOffset - b.dayOffset);
-    const description = JSON.stringify({
-      planId: input.planId,
-      cardId: input.cardId,
-      blueprintId: input.blueprint.blueprintId,
-      originalSteps: sortedSteps,
-      notes: 'AI-generated flow draft. Template and language metadata preserved here for audit only.',
-    });
-
+  private buildDefinition(steps: CollectionFlowBlueprint['steps']) {
+    const sortedSteps = [...steps].sort((a, b) => a.dayOffset - b.dayOffset);
     const states = sortedSteps.map((step, index) => {
       const actionType = step.actionType as CollectionFlowActionType;
       const actionLabel = buildActionLabel(actionType, step.dayOffset);
@@ -99,11 +112,47 @@ class FlowMaterializerService {
       };
     });
 
+    return { sortedSteps, states, transitions };
+  }
+
+  async materialize(input: MaterializeFlowInput) {
+    const { sortedSteps, states, transitions } = this.buildDefinition(input.blueprint.steps);
+    const description = JSON.stringify({
+      planId: input.planId,
+      cardId: input.cardId,
+      blueprintId: input.blueprint.blueprintId,
+      originalSteps: sortedSteps,
+      notes: 'AI-generated flow draft. Template and language metadata preserved here for audit only.',
+    });
+
     return flowDefinitionService.create({
       flowKey: `ai_generated_${Date.now()}`,
       name: input.flowName || input.blueprint.name,
       description: input.description || description,
       createdBy: 'home_brain',
+      states,
+      transitions,
+    });
+  }
+
+  async materializeStandaloneDraft(input: MaterializeStandaloneFlowInput) {
+    const { states, transitions } = this.buildDefinition(input.blueprint.steps);
+    return flowDefinitionService.create({
+      flowKey: `ai_prompt_${Date.now()}`,
+      name: input.flowName || input.blueprint.name,
+      description: input.description || input.blueprint.description || null,
+      createdBy: input.createdBy || 'home_brain',
+      states,
+      transitions,
+    });
+  }
+
+  async updateStandaloneDraft(input: UpdateStandaloneFlowInput) {
+    const { states, transitions } = this.buildDefinition(input.blueprint.steps);
+    return flowDefinitionService.update(input.flowId, {
+      name: input.flowName || input.blueprint.name,
+      description: input.description || input.blueprint.description || null,
+      updatedBy: input.updatedBy || 'home_brain',
       states,
       transitions,
     });

@@ -200,7 +200,7 @@ const internalAlertDraftSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
-const collectionFlowBlueprintStepSchema = z.object({
+export const collectionFlowBlueprintStepSchema = z.object({
   stepKey: z.string().min(1),
   dayOffset: z.number().int().min(0),
   actionType: z.enum(['assigned_channel', 'send_email', 'send_sms', 'send_whatsapp', 'voice_call']),
@@ -214,7 +214,7 @@ const collectionFlowBlueprintStepSchema = z.object({
   fallbackRule: z.string().optional(),
 });
 
-const collectionFlowBlueprintSchema = z.object({
+export const collectionFlowBlueprintSchema = z.object({
   blueprintId: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),

@@ -141,6 +141,20 @@ export interface CreateFlowPayload {
   transitions: FlowTransitionEdge[];
 }
 
+export interface GenerateFlowFromPromptRequest {
+  prompt: string;
+  locale?: 'en' | 'he';
+  flowId?: string;
+  createdBy?: string;
+}
+
+export interface GenerateFlowFromPromptResponse {
+  assistantMessage: string;
+  flow: FlowDefinitionDto;
+  created: boolean;
+  updated: boolean;
+}
+
 export interface UpdateFlowPayload {
   name?: string;
   description?: string | null;
@@ -159,6 +173,15 @@ export async function getFlowById(id: string): Promise<FlowDefinitionDto> {
 
 export async function createFlow(payload: CreateFlowPayload): Promise<FlowDefinitionDto> {
   return apiFetch<FlowDefinitionDto>('/flows', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function generateFlowFromPrompt(
+  payload: GenerateFlowFromPromptRequest
+): Promise<GenerateFlowFromPromptResponse> {
+  return apiFetch<GenerateFlowFromPromptResponse>('/flows/generate-from-prompt', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

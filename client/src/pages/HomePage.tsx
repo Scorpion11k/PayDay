@@ -19,6 +19,7 @@ import { AutoAwesome as SparkleIcon, Refresh as RefreshIcon } from '@mui/icons-m
 import { useTranslation } from 'react-i18next';
 import AiKpiRail from '../components/home/AiKpiRail';
 import CardDetailDrawer from '../components/home/CardDetailDrawer';
+import FlowPromptAssistantDialog from '../components/flows/FlowPromptAssistantDialog';
 import InternalAlertsList from '../components/home/InternalAlertsList';
 import PriorityQueues from '../components/home/PriorityQueues';
 import RecommendationCard from '../components/home/RecommendationCard';
@@ -45,6 +46,7 @@ export default function HomePage() {
   const [planState, setPlanState] = useState<Awaited<ReturnType<typeof homeBrain.generatePlan>> | null>(null);
   const [cardStatuses, setCardStatuses] = useState<Record<string, CardStatus>>({});
   const [drawerCardId, setDrawerCardId] = useState<string | null>(null);
+  const [flowPromptOpen, setFlowPromptOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' | 'info' } | null>(null);
 
   const locale = i18n.language.startsWith('he') ? 'he' : 'en';
@@ -198,6 +200,9 @@ export default function HomePage() {
             >
               {t('common.refresh')}
             </Button>
+            <Button variant="contained" onClick={() => setFlowPromptOpen(true)}>
+              {locale === 'he' ? 'צור תהליך מפרומפט' : 'Create flow from prompt'}
+            </Button>
           </Stack>
         </Stack>
 
@@ -317,6 +322,24 @@ export default function HomePage() {
       >
         {snackbar ? <Alert severity={snackbar.severity}>{snackbar.message}</Alert> : <span />}
       </Snackbar>
+
+      <FlowPromptAssistantDialog
+        open={flowPromptOpen}
+        onClose={() => setFlowPromptOpen(false)}
+        onFlowSaved={(flow) => {
+          setSnackbar({
+            message:
+              locale === 'he'
+                ? `נוצרה טיוטת תהליך: ${flow.name}`
+                : `Draft flow created: ${flow.name}`,
+            severity: 'success',
+          });
+        }}
+        onOpenFlow={(flowId) => {
+          setFlowPromptOpen(false);
+          navigate(`/flows?flowId=${flowId}`);
+        }}
+      />
     </Box>
   );
 }
