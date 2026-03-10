@@ -1,12 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { CollectionFlowActionType, TemplateLanguage, TemplateTone } from '@prisma/client';
+import { TemplateLanguage, TemplateTone } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { AppError, ValidationError } from '../types';
 import activityService from './activity.service';
 import flowDefinitionService from './flow-definition.service';
 import flowMaterializerService from './home-brain/flow-materializer.service';
-import { collectionFlowBlueprintStepSchema } from './home-brain/plan-validator';
 import emailService from './email.service';
 import smsService from './sms.service';
 import whatsappService from './whatsapp.service';
@@ -15,10 +14,22 @@ import systemSettingsService from './system-settings.service';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+const promptFlowStepSchema = z.object({
+  stepKey: z.string().min(1),
+  waitSecondsFromPrevious: z.number().int().min(0),
+  actionType: z.enum(['assigned_channel', 'send_email', 'send_sms', 'send_whatsapp', 'voice_call']),
+  explicitChannel: z.enum(['email', 'sms', 'whatsapp', 'call_task']).optional(),
+  languageMode: z.enum(['preferred', 'explicit', 'inferred']),
+  language: z.enum(['en', 'he', 'ar']).optional(),
+  toneMode: z.enum(['auto', 'explicit']),
+  tone: z.enum(['calm', 'medium', 'heavy']).optional(),
+  templateKey: z.string().min(1),
+});
+
 const promptBlueprintSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  steps: z.array(collectionFlowBlueprintStepSchema).min(1).max(10),
+  steps: z.array(promptFlowStepSchema).min(1).max(10),
 });
 
 const flowPromptModelResponseSchema = z.object({
@@ -27,6 +38,9 @@ const flowPromptModelResponseSchema = z.object({
 });
 
 type PromptBlueprint = z.infer<typeof promptBlueprintSchema>;
+type PromptStep = PromptBlueprint['steps'][number];
+type PromptActionType = PromptStep['actionType'];
+type SupportedChannel = 'email' | 'sms' | 'whatsapp' | 'call_task';
 
 interface GenerateFlowFromPromptInput {
   prompt: string;
@@ -39,11 +53,8 @@ interface ExistingDraftSummary {
   id: string;
   name: string;
   description?: string | null;
-  steps: PromptBlueprint['steps'];
+  steps: PromptStep[];
 }
-
-type SupportedChannel = 'email' | 'sms' | 'whatsapp' | 'call_task';
-type PromptActionType = PromptBlueprint['steps'][number]['actionType'];
 
 function normalizeKey(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -57,20 +68,13 @@ function cleanJsonResponse(responseText: string): unknown {
   return JSON.parse(cleaned.trim()) as unknown;
 }
 
-function parseTone(prompt: string): TemplateTone {
-  const text = prompt.toLowerCase();
-  if (/(calm|soft|gentle|friendly)/.test(text)) return 'calm';
-  if (/(heavy|urgent|final|strong|strict|legal)/.test(text)) return 'heavy';
-  if (/(medium|firm)/.test(text)) return 'medium';
-  return 'medium';
-}
-
-function parseLanguage(prompt: string): TemplateLanguage | undefined {
-  const text = prompt.toLowerCase();
-  if (/(hebrew|עברית)/.test(text)) return 'he';
-  if (/(arabic|عربي)/.test(text)) return 'ar';
-  if (/(english)/.test(text)) return 'en';
-  return undefined;
+function unitToSeconds(value: number, unit: string): number {
+  const normalized = unit.toLowerCase();
+  if (normalized.startsWith('week')) return value * 7 * 86400;
+  if (normalized.startsWith('day')) return value * 86400;
+  if (normalized.startsWith('hour')) return value * 3600;
+  if (normalized.startsWith('minute')) return value * 60;
+  return value;
 }
 
 function channelToActionType(channel: SupportedChannel): PromptActionType {
@@ -86,42 +90,110 @@ function channelToActionType(channel: SupportedChannel): PromptActionType {
   }
 }
 
+function actionTypeToChannel(actionType: PromptActionType): SupportedChannel {
+  switch (actionType) {
+    case 'send_email':
+      return 'email';
+    case 'send_sms':
+      return 'sms';
+    case 'send_whatsapp':
+      return 'whatsapp';
+    case 'voice_call':
+      return 'call_task';
+    case 'assigned_channel':
+    default:
+      return 'email';
+  }
+}
+
+function parseToneFromText(text: string): TemplateTone | undefined {
+  const normalized = text.toLowerCase();
+  if (/(escalated|heavy|urgent|final|strong|strict|legal)/.test(normalized)) return 'heavy';
+  if (/(medium|firm)/.test(normalized)) return 'medium';
+  if (/(calm|soft|gentle|friendly)/.test(normalized)) return 'calm';
+  return undefined;
+}
+
+function parseLanguageFromText(text: string): TemplateLanguage | undefined {
+  const normalized = text.toLowerCase();
+  if (/(hebrew|עברית)/.test(normalized)) return 'he';
+  if (/(arabic|عربي)/.test(normalized)) return 'ar';
+  if (/(english)/.test(normalized)) return 'en';
+  return undefined;
+}
+
+function detectChannel(text: string): SupportedChannel | null {
+  const normalized = text.toLowerCase();
+  if (/(whatsapp|wa\b)/.test(normalized)) return 'whatsapp';
+  if (/(sms|text message|text\b)/.test(normalized)) return 'sms';
+  if (/(email|e-mail|\bmail\b)/.test(normalized)) return 'email';
+  if (/(voice call|phone call|call task)/.test(normalized)) return 'call_task';
+  return null;
+}
+
+function extractFlowName(prompt: string): { sanitizedPrompt: string; flowName?: string } {
+  const patterns = [
+    /(?:call|name)\s+(?:this\s+)?flow\s+["']?([^"'.\n]+)["']?/i,
+    /(?:call|name)\s+it\s+["']?([^"'.\n]+)["']?/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    if (match) {
+      const flowName = match[1].trim();
+      const sanitizedPrompt = prompt.replace(match[0], '').replace(/\s+/g, ' ').trim();
+      return { sanitizedPrompt, flowName };
+    }
+  }
+
+  return { sanitizedPrompt: prompt.trim() };
+}
+
 function inferFlowName(prompt: string, locale: 'en' | 'he') {
   const trimmed = prompt.trim().replace(/\s+/g, ' ');
   if (trimmed.length <= 48) return trimmed;
   return locale === 'he' ? 'טיוטת תהליך AI' : 'AI prompt flow draft';
 }
 
-function segmentPrompt(prompt: string) {
-  return prompt
-    .split(/[\n,.]+|\band\b/gi)
+function splitPromptIntoClauses(prompt: string) {
+  const normalized = prompt
+    .replace(/\band after another\b/gi, '|after another')
+    .replace(/\band then\b/gi, '|then')
+    .replace(/,\s*/g, '|');
+
+  return normalized
+    .split('|')
     .map((segment) => segment.trim())
     .filter(Boolean);
 }
 
-function parseDayOffset(segment: string): number | null {
-  const text = segment.toLowerCase();
-  if (/(immediately|right away|day 0|same day|right now|start)/.test(text)) return 0;
-  const afterMatch = text.match(/(?:after|in)\s+(\d+)\s*(day|days|week|weeks|hour|hours)/);
-  if (afterMatch) {
-    const value = Number(afterMatch[1]);
-    const unit = afterMatch[2];
-    if (unit.startsWith('week')) return value * 7;
-    if (unit.startsWith('hour')) return 0;
-    return value;
-  }
-  const dayMatch = text.match(/day\s*(\d+)/);
-  if (dayMatch) return Number(dayMatch[1]);
-  return null;
+function parseWaitSecondsFromText(text: string): number | null {
+  const match = text.match(/(?:after|in)(?:\s+another)?\s+(\d+)\s*(seconds?|minutes?|hours?|days?|weeks?)/i);
+  if (!match) return null;
+  return unitToSeconds(Number(match[1]), match[2]);
 }
 
-function detectChannel(segment: string): SupportedChannel | null {
-  const text = segment.toLowerCase();
-  if (/(whatsapp|wa\b)/.test(text)) return 'whatsapp';
-  if (/(sms|text message|text\b)/.test(text)) return 'sms';
-  if (/(email|e-mail|mail\b)/.test(text)) return 'email';
-  if (/(voice|phone call|call task|call\b)/.test(text)) return 'call_task';
-  return null;
+function buildPromptStep(
+  clause: string,
+  index: number,
+  defaults: { language?: TemplateLanguage; tone?: TemplateTone }
+): PromptStep | null {
+  const channel = detectChannel(clause);
+  if (!channel) return null;
+
+  const localTone = parseToneFromText(clause);
+  const localLanguage = parseLanguageFromText(clause);
+  return {
+    stepKey: normalizeKey(`step_${index + 1}_${channel}`) || `step_${index + 1}`,
+    waitSecondsFromPrevious: index === 0 ? 0 : Math.max(0, parseWaitSecondsFromText(clause) ?? 0),
+    actionType: channelToActionType(channel),
+    explicitChannel: channel,
+    languageMode: localLanguage || defaults.language ? 'explicit' : 'preferred',
+    language: localLanguage || defaults.language,
+    toneMode: localTone || defaults.tone ? 'explicit' : 'auto',
+    tone: localTone || defaults.tone,
+    templateKey: 'debt_reminder',
+  };
 }
 
 function summarizeExistingDraft(flow: Awaited<ReturnType<typeof flowDefinitionService.getById>>): ExistingDraftSummary {
@@ -142,32 +214,23 @@ function summarizeExistingDraft(flow: Awaited<ReturnType<typeof flowDefinitionSe
       : null;
   }
 
-  let dayOffset = 0;
+  let previousStateKey: string | null = null;
   const steps = orderedStates
     .filter((state) => state.actionType !== 'none')
-    .map((state) => {
-      const outgoing = transitionsByFromKey.get(state.stateKey);
-      const channel = state.explicitChannel || (state.actionType === 'send_email'
-        ? 'email'
-        : state.actionType === 'send_sms'
-          ? 'sms'
-          : state.actionType === 'send_whatsapp'
-            ? 'whatsapp'
-            : state.actionType === 'voice_call'
-              ? 'call_task'
-              : undefined);
-      const step = {
+    .map((state, index) => {
+      const incomingWaitSeconds =
+        index === 0 || !previousStateKey ? 0 : transitionsByFromKey.get(previousStateKey)?.waitSeconds || 0;
+      previousStateKey = state.stateKey;
+      return {
         stepKey: state.stateKey,
-        dayOffset,
-        actionType: state.actionType as PromptBlueprint['steps'][number]['actionType'],
-        explicitChannel: channel as PromptBlueprint['steps'][number]['explicitChannel'],
+        waitSecondsFromPrevious: incomingWaitSeconds,
+        actionType: state.actionType as PromptActionType,
+        explicitChannel: (state.explicitChannel || actionTypeToChannel(state.actionType as PromptActionType)) as PromptStep['explicitChannel'],
         languageMode: 'preferred' as const,
         toneMode: state.tone ? ('explicit' as const) : ('auto' as const),
         tone: state.tone || undefined,
         templateKey: 'debt_reminder',
       };
-      dayOffset += Math.round((outgoing?.waitSeconds || 0) / 86400);
-      return step;
     });
 
   return {
@@ -178,145 +241,153 @@ function summarizeExistingDraft(flow: Awaited<ReturnType<typeof flowDefinitionSe
   };
 }
 
+function buildFallbackCreateBlueprint(
+  prompt: string,
+  locale: 'en' | 'he',
+  flowName?: string
+): { assistantMessage: string; blueprint: PromptBlueprint } {
+  const { sanitizedPrompt } = extractFlowName(prompt);
+  const clauses = splitPromptIntoClauses(sanitizedPrompt);
+  const defaults = {
+    language: parseLanguageFromText(sanitizedPrompt),
+    tone: parseToneFromText(sanitizedPrompt),
+  };
+
+  const steps = clauses
+    .map((clause, index) => buildPromptStep(clause, index, defaults))
+    .filter((step): step is PromptStep => Boolean(step));
+
+  const baseSteps: PromptStep[] = steps.length > 0
+    ? steps
+    : [
+        {
+          stepKey: 'step_1_email',
+          waitSecondsFromPrevious: 0,
+          actionType: 'send_email',
+          explicitChannel: 'email',
+          languageMode: defaults.language ? 'explicit' : 'preferred',
+          language: defaults.language,
+          toneMode: defaults.tone ? 'explicit' : 'auto',
+          tone: defaults.tone || 'medium',
+          templateKey: 'debt_reminder',
+        },
+      ];
+
+  const normalizedSteps: PromptStep[] = baseSteps.map((step, index) => ({
+    ...step,
+    stepKey: normalizeKey(step.stepKey) || `step_${index + 1}`,
+  }));
+
+  return {
+    assistantMessage:
+      locale === 'he'
+        ? `יצרתי טיוטת תהליך עם ${normalizedSteps.length} שלבים. ניתן להמשיך לעדכן אותה בצ'אט.`
+        : `I created a ${normalizedSteps.length}-step draft flow. You can keep refining it in chat.`,
+    blueprint: {
+      name: flowName || inferFlowName(sanitizedPrompt, locale),
+      description:
+        locale === 'he'
+          ? `טיוטת תהליך שנוצרה מהפרומפט: ${prompt}`
+          : `Draft flow generated from prompt: ${prompt}`,
+      steps: normalizedSteps,
+    },
+  };
+}
+
+function buildFallbackRefinedBlueprint(
+  prompt: string,
+  locale: 'en' | 'he',
+  existingDraft: ExistingDraftSummary,
+  flowName?: string
+): { assistantMessage: string; blueprint: PromptBlueprint } {
+  const { sanitizedPrompt } = extractFlowName(prompt);
+  const lowered = sanitizedPrompt.toLowerCase();
+  const globalTone = parseToneFromText(sanitizedPrompt);
+  const globalLanguage = parseLanguageFromText(sanitizedPrompt);
+
+  let steps = existingDraft.steps.map((step) => ({ ...step }));
+
+  if (globalTone) {
+    steps = steps.map((step) => ({
+      ...step,
+      toneMode: 'explicit',
+      tone: globalTone,
+    }));
+  }
+
+  if (globalLanguage) {
+    steps = steps.map((step) => ({
+      ...step,
+      languageMode: 'explicit',
+      language: globalLanguage,
+    }));
+  }
+
+  const addPattern =
+    /add\s+(?:another\s+)?(?:an?\s+)?(whatsapp|sms|email|voice call|phone call|call task)(?:\s+message)?(?:.*?tone\s+(calm|medium|heavy|escalated|friendly|firm|urgent))?.*?(?:after|in)(?:\s+another)?\s+(\d+)\s*(seconds?|minutes?|hours?|days?|weeks?)/gi;
+  const addMatches = Array.from(lowered.matchAll(addPattern));
+  for (const match of addMatches) {
+    const rawChannel = match[1];
+    const channel =
+      rawChannel === 'voice call' || rawChannel === 'phone call' || rawChannel === 'call task'
+        ? 'call_task'
+        : (rawChannel as SupportedChannel);
+    const tone = parseToneFromText(match[2] || '') || globalTone || 'medium';
+    steps.push({
+      stepKey: normalizeKey(`step_${steps.length + 1}_${channel}`),
+      waitSecondsFromPrevious: unitToSeconds(Number(match[3]), match[4]),
+      actionType: channelToActionType(channel),
+      explicitChannel: channel,
+      languageMode: globalLanguage ? 'explicit' : 'preferred',
+      language: globalLanguage,
+      toneMode: 'explicit',
+      tone,
+      templateKey: 'debt_reminder',
+    });
+  }
+
+  const removeMatches = Array.from(
+    lowered.matchAll(/remove\s+(whatsapp|sms|email|voice call|phone call|call task)/g)
+  );
+  for (const match of removeMatches) {
+    const rawChannel = match[1];
+    const channel =
+      rawChannel === 'voice call' || rawChannel === 'phone call' || rawChannel === 'call task'
+        ? 'call_task'
+        : (rawChannel as SupportedChannel);
+    steps = steps.filter((step) => step.explicitChannel !== channel);
+  }
+
+  const normalizedSteps = steps.map((step, index) => ({
+    ...step,
+    stepKey: normalizeKey(step.stepKey) || `step_${index + 1}`,
+  }));
+
+  return {
+    assistantMessage:
+      locale === 'he'
+        ? `עדכנתי את טיוטת התהליך ל-${normalizedSteps.length} שלבים.`
+        : `I updated the draft flow to ${normalizedSteps.length} steps.`,
+    blueprint: {
+      name: flowName || existingDraft.name,
+      description:
+        locale === 'he'
+          ? `טיוטת תהליך שנוצרה מהפרומפט: ${prompt}`
+          : `Draft flow generated from prompt: ${prompt}`,
+      steps: normalizedSteps,
+    },
+  };
+}
+
 function buildFallbackBlueprint(
   prompt: string,
   locale: 'en' | 'he',
   existingDraft?: ExistingDraftSummary | null
 ): { assistantMessage: string; blueprint: PromptBlueprint } {
-  const tone = parseTone(prompt);
-  const language = parseLanguage(prompt);
-  const lowered = prompt.toLowerCase();
-
-  let steps = existingDraft ? [...existingDraft.steps] : [];
-
-  if (steps.length === 0) {
-    const segments = segmentPrompt(prompt);
-    const parsedSteps = segments
-      .map((segment, index) => {
-        const channel = detectChannel(segment);
-        if (!channel) return null;
-        const dayOffset = parseDayOffset(segment);
-        return {
-          stepKey: normalizeKey(`step_${index + 1}_${channel}`) || `step_${index + 1}`,
-          dayOffset: dayOffset ?? index * 3,
-          actionType: channelToActionType(channel),
-          explicitChannel: channel,
-          languageMode: language ? ('explicit' as const) : ('preferred' as const),
-          language,
-          toneMode: 'explicit' as const,
-          tone,
-          templateKey: 'debt_reminder',
-        };
-      })
-      .filter((step): step is NonNullable<typeof step> => Boolean(step));
-
-    steps = parsedSteps.length
-      ? parsedSteps
-      : [
-          {
-            stepKey: 'day0_whatsapp',
-            dayOffset: 0,
-            actionType: 'send_whatsapp',
-            explicitChannel: 'whatsapp',
-            languageMode: language ? ('explicit' as const) : ('preferred' as const),
-            language,
-            toneMode: 'explicit' as const,
-            tone,
-            templateKey: 'debt_reminder',
-          },
-          {
-            stepKey: 'day3_sms',
-            dayOffset: 3,
-            actionType: 'send_sms',
-            explicitChannel: 'sms',
-            languageMode: language ? ('explicit' as const) : ('preferred' as const),
-            language,
-            toneMode: 'explicit' as const,
-            tone,
-            templateKey: 'debt_reminder',
-          },
-          {
-            stepKey: 'day7_voice',
-            dayOffset: 7,
-            actionType: 'voice_call',
-            explicitChannel: 'call_task',
-            languageMode: language ? ('explicit' as const) : ('preferred' as const),
-            language,
-            toneMode: 'explicit' as const,
-            tone: 'heavy',
-            templateKey: 'debt_reminder',
-          },
-        ];
-  } else {
-    if (/(calm|soft|gentle|friendly|medium|firm|heavy|urgent|strong|strict|legal)/.test(lowered)) {
-      steps = steps.map((step) => ({
-        ...step,
-        toneMode: 'explicit',
-        tone: step.actionType === 'voice_call' && tone === 'calm' ? 'medium' : tone,
-      }));
-    }
-
-    const addMatches = Array.from(
-      lowered.matchAll(/add\s+(whatsapp|sms|email|voice|call)\s+(?:after|in)\s+(\d+)\s*(day|days|week|weeks|hour|hours)/g)
-    );
-    for (const match of addMatches) {
-      const channelToken = match[1];
-      const channel = channelToken === 'voice' || channelToken === 'call' ? 'call_task' : (channelToken as SupportedChannel);
-      const value = Number(match[2]);
-      const unit = match[3];
-      const dayOffset = unit.startsWith('week') ? value * 7 : unit.startsWith('hour') ? 0 : value;
-      steps.push({
-        stepKey: normalizeKey(`step_${steps.length + 1}_${channel}`),
-        dayOffset,
-        actionType: channelToActionType(channel),
-        explicitChannel: channel,
-        languageMode: language ? ('explicit' as const) : ('preferred' as const),
-        language,
-        toneMode: 'explicit' as const,
-        tone,
-        templateKey: 'debt_reminder',
-      });
-    }
-
-    const removeMatches = Array.from(lowered.matchAll(/remove\s+(whatsapp|sms|email|voice|call)/g));
-    for (const match of removeMatches) {
-      const channelToken = match[1];
-      const channel = channelToken === 'voice' || channelToken === 'call' ? 'call_task' : (channelToken as SupportedChannel);
-      steps = steps.filter((step) => step.explicitChannel !== channel);
-    }
-
-    if (language) {
-      steps = steps.map((step) => ({
-        ...step,
-        languageMode: 'explicit',
-        language,
-      }));
-    }
-  }
-
-  const deduped = [...steps]
-    .sort((a, b) => a.dayOffset - b.dayOffset || a.stepKey.localeCompare(b.stepKey))
-    .map((step, index) => ({
-      ...step,
-      stepKey: normalizeKey(step.stepKey) || `step_${index + 1}`,
-    }))
-    .filter((step, index, array) => array.findIndex((candidate) => candidate.stepKey === step.stepKey) === index);
-
-  const name = existingDraft?.name || inferFlowName(prompt, locale);
-  const description = locale === 'he'
-    ? `טיוטת תהליך שנוצרה מהפרומפט: ${prompt}`
-    : `Draft flow generated from prompt: ${prompt}`;
-
-  return {
-    assistantMessage: locale === 'he'
-      ? `יצרתי טיוטת תהליך עם ${deduped.length} שלבים. ניתן להמשיך לעדכן אותה בצ'אט.`
-      : `I created a ${deduped.length}-step draft flow. You can keep refining it in chat.`,
-    blueprint: {
-      name,
-      description,
-      steps: deduped,
-    },
-  };
+  const { flowName } = extractFlowName(prompt);
+  return existingDraft
+    ? buildFallbackRefinedBlueprint(prompt, locale, existingDraft, flowName)
+    : buildFallbackCreateBlueprint(prompt, locale, flowName);
 }
 
 class FlowPromptService {
@@ -370,9 +441,12 @@ class FlowPromptService {
       '- Only these action types are allowed: assigned_channel, send_email, send_sms, send_whatsapp, voice_call',
       '- Use templateKey "debt_reminder" for every step',
       '- Prefer a simple linear sequence of steps',
-      '- Day offsets must be integers and non-decreasing',
+      '- Use waitSecondsFromPrevious as the relative delay from the prior step',
+      '- The first step must have waitSecondsFromPrevious = 0',
       '- If language is not explicitly requested, use preferred language mode',
       '- If tone is not explicitly requested, choose a reasonable explicit tone',
+      '- If the user names the flow (for example: "call this flow gil test 3"), set blueprint.name to that exact name',
+      '- Do not treat a naming instruction as a voice call step',
       `Available channels now: ${availability.availableChannels.join(', ') || 'none'}`,
       `Available debt_reminder templates: ${JSON.stringify(availability.templates)}`,
       existingDraft ? `Current draft being refined: ${JSON.stringify(existingDraft)}` : 'No existing draft yet.',
@@ -386,7 +460,7 @@ class FlowPromptService {
           steps: [
             {
               stepKey: 'day0_whatsapp',
-              dayOffset: 0,
+              waitSecondsFromPrevious: 0,
               actionType: 'send_whatsapp',
               explicitChannel: 'whatsapp',
               languageMode: 'preferred',
@@ -449,6 +523,9 @@ class FlowPromptService {
     for (const step of parsed.data.blueprint.steps) {
       if (step.explicitChannel && !availability.availableChannels.includes(step.explicitChannel)) {
         throw new ValidationError(`Channel "${step.explicitChannel}" is unavailable`);
+      }
+      if (step.waitSecondsFromPrevious < 0) {
+        throw new ValidationError('Step waitSecondsFromPrevious must be non-negative');
       }
       if (step.languageMode === 'explicit' && step.language && step.tone) {
         const key = `${step.explicitChannel || (step.actionType === 'send_email'

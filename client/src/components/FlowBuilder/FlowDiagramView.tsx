@@ -111,10 +111,16 @@ function toNode(state: FlowStateDto, index: number): Node<FlowDiagramNodeData> {
   };
 }
 
+function formatWaitLabel(waitSeconds: number): string {
+  if (waitSeconds <= 0) return 'Immediate';
+  if (waitSeconds % 86400 === 0) return `Wait ${waitSeconds / 86400}d`;
+  if (waitSeconds % 3600 === 0) return `Wait ${waitSeconds / 3600}h`;
+  if (waitSeconds % 60 === 0) return `Wait ${waitSeconds / 60}m`;
+  return `Wait ${waitSeconds}s`;
+}
+
 function toEdge(transition: FlowTransitionDto, index: number): Edge {
-  const waitLabel = transition.waitSeconds > 0
-    ? `Wait ${Math.round(transition.waitSeconds / 86400)}d`
-    : 'Immediate';
+  const waitLabel = formatWaitLabel(transition.waitSeconds);
 
   return {
     id: transition.id || `edge-${transition.fromStateId}-${transition.toStateId}-${index}`,
