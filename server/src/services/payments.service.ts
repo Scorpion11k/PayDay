@@ -38,6 +38,7 @@ export interface PaymentLinkPreviewDto {
   customer: {
     id: string;
     fullName: string;
+    preferredLanguage: string | null;
   };
   debt: {
     id: string;
@@ -59,6 +60,7 @@ export interface PaymentLinkCompletionDto {
   customer: {
     id: string;
     fullName: string;
+    preferredLanguage: string | null;
   };
   debt: {
     id: string;
@@ -86,6 +88,7 @@ interface PaymentLinkContext {
   customer: {
     id: string;
     fullName: string;
+    preferredLanguage: string | null;
   };
   debt: {
     id: string;
@@ -188,6 +191,7 @@ class PaymentsService {
       select: {
         id: true,
         fullName: true,
+        preferredLanguage: true,
       },
     });
 

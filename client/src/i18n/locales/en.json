@@ -446,6 +446,27 @@
       "title": "Customer Insight",
       "description": "Customer analytics and insights will be displayed here.",
       "subtitle": "Deep dive into customer behavior and payment patterns."
+    },
+    "payment": {
+      "securePaymentLink": "Secure Payment Link",
+      "payYourDebt": "Pay Your Debt",
+      "reviewAmount": "Review the amount below and confirm the payment in one click.",
+      "loadingDetails": "Loading payment details...",
+      "missingLink": "Missing payment link.",
+      "failedToLoad": "Failed to load payment link.",
+      "failedToComplete": "Failed to complete payment.",
+      "customer": "Customer",
+      "invoice": "Invoice",
+      "status": "Status",
+      "amountToPay": "Amount to pay",
+      "remainingBalance": "Remaining balance",
+      "processingPayment": "Processing payment...",
+      "pay": "Pay {{amount}}",
+      "paymentReceived": "Payment received for {{amount}}. Any active collection flow for this debt has been stopped.",
+      "alreadyPaidCompletion": "This debt was already paid. No additional charge was created.",
+      "alreadyPaidPreview": "This debt has already been paid. No further collection steps should continue.",
+      "demoDisclaimer": "This demo payment page records the payment immediately and updates the customer debt status in PayDay.",
+      "backToPayDay": "Back to PayDay"
     }
   },
   "integrations": {

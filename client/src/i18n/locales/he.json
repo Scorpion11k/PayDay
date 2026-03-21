@@ -446,6 +446,27 @@
       "title": "תובנות לקוחות",
       "description": "ניתוח ותובנות לקוחות יוצגו כאן.",
       "subtitle": "צלילה עמוקה להתנהגות לקוחות ודפוסי תשלום."
+    },
+    "payment": {
+      "securePaymentLink": "קישור תשלום מאובטח",
+      "payYourDebt": "שלם את החוב שלך",
+      "reviewAmount": "בדוק את הסכום למטה ואשר את התשלום בלחיצה אחת.",
+      "loadingDetails": "טוען פרטי תשלום...",
+      "missingLink": "קישור תשלום חסר.",
+      "failedToLoad": "טעינת קישור התשלום נכשלה.",
+      "failedToComplete": "השלמת התשלום נכשלה.",
+      "customer": "לקוח",
+      "invoice": "חשבונית",
+      "status": "סטטוס",
+      "amountToPay": "סכום לתשלום",
+      "remainingBalance": "יתרה שנותרה",
+      "processingPayment": "מעבד תשלום...",
+      "pay": "שלם {{amount}}",
+      "paymentReceived": "התשלום התקבל בסך {{amount}}. כל תהליך גבייה פעיל עבור חוב זה הופסק.",
+      "alreadyPaidCompletion": "חוב זה כבר שולם. לא נוצר חיוב נוסף.",
+      "alreadyPaidPreview": "חוב זה כבר שולם. אין להמשיך בצעדי גבייה נוספים.",
+      "demoDisclaimer": "עמוד תשלום דמו זה מתעד את התשלום מיידית ומעדכן את סטטוס החוב של הלקוח ב-PayDay.",
+      "backToPayDay": "חזרה ל-PayDay"
     }
   },
   "integrations": {

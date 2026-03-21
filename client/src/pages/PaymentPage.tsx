@@ -15,6 +15,8 @@ import {
   CreditCard as CreditCardIcon,
   OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../context/LanguageContext';
 import {
   getPaymentLinkPreview,
   payDebtFromLink,
@@ -22,8 +24,8 @@ import {
   type PaymentLinkPreview,
 } from '../services/api';
 
-function formatCurrency(amount: number, currency: string) {
-  return new Intl.NumberFormat(undefined, {
+function formatCurrency(amount: number, currency: string, locale?: string) {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -33,6 +35,8 @@ function formatCurrency(amount: number, currency: string) {
 
 export default function PaymentPage() {
   const { token } = useParams<{ token: string }>();
+  const { t } = useTranslation();
+  const { setLanguage, language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +45,7 @@ export default function PaymentPage() {
 
   useEffect(() => {
     if (!token) {
-      setError('Missing payment link.');
+      setError(t('pages.payment.missingLink'));
       setLoading(false);
       return;
     }
@@ -56,10 +60,16 @@ export default function PaymentPage() {
         const data = await getPaymentLinkPreview(token);
         if (!cancelled) {
           setPreview(data);
+
+          // Switch language to customer's preferred language
+          const lang = data.customer.preferredLanguage;
+          if (lang === 'he' || lang === 'en') {
+            setLanguage(lang);
+          }
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load payment link.');
+          setError(loadError instanceof Error ? loadError.message : t('pages.payment.failedToLoad'));
         }
       } finally {
         if (!cancelled) {
@@ -96,7 +106,7 @@ export default function PaymentPage() {
           : currentPreview
       );
     } catch (payError) {
-      setError(payError instanceof Error ? payError.message : 'Failed to complete payment.');
+      setError(payError instanceof Error ? payError.message : t('pages.payment.failedToComplete'));
     } finally {
       setSubmitting(false);
     }
@@ -104,6 +114,7 @@ export default function PaymentPage() {
 
   const currentCurrency = completion?.debt.currency || preview?.currency || 'ILS';
   const currentAmount = completion ? completion.debt.remainingBalance : preview?.amount ?? 0;
+  const locale = language === 'he' ? 'he-IL' : undefined;
 
   return (
     <Box
@@ -134,13 +145,13 @@ export default function PaymentPage() {
             }}
           >
             <Typography variant="overline" sx={{ letterSpacing: 1.5, opacity: 0.88 }}>
-              Secure Payment Link
+              {t('pages.payment.securePaymentLink')}
             </Typography>
             <Typography variant="h4" fontWeight={800} sx={{ mt: 1 }}>
-              Pay Your Debt
+              {t('pages.payment.payYourDebt')}
             </Typography>
             <Typography variant="body1" sx={{ mt: 1.5, opacity: 0.9 }}>
-              Review the amount below and confirm the payment in one click.
+              {t('pages.payment.reviewAmount')}
             </Typography>
           </Box>
 
@@ -148,7 +159,7 @@ export default function PaymentPage() {
             {loading ? (
               <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
                 <CircularProgress />
-                <Typography color="text.secondary">Loading payment details...</Typography>
+                <Typography color="text.secondary">{t('pages.payment.loadingDetails')}</Typography>
               </Stack>
             ) : (
               <Stack spacing={3}>
@@ -166,7 +177,7 @@ export default function PaymentPage() {
                     <Stack spacing={2}>
                       <Box>
                         <Typography variant="body2" color="text.secondary">
-                          Customer
+                          {t('pages.payment.customer')}
                         </Typography>
                         <Typography variant="h6" fontWeight={700}>
                           {preview.customer.fullName}
@@ -176,7 +187,7 @@ export default function PaymentPage() {
                       <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
                         <Box>
                           <Typography variant="body2" color="text.secondary">
-                            Invoice
+                            {t('pages.payment.invoice')}
                           </Typography>
                           <Typography variant="subtitle1" fontWeight={600}>
                             {preview.debt.invoiceNumber}
@@ -184,7 +195,7 @@ export default function PaymentPage() {
                         </Box>
                         <Box>
                           <Typography variant="body2" color="text.secondary">
-                            Status
+                            {t('pages.payment.status')}
                           </Typography>
                           <Typography variant="subtitle1" fontWeight={600} sx={{ textTransform: 'capitalize' }}>
                             {completion ? completion.status.replace('_', ' ') : preview.status.replace('_', ' ')}
@@ -202,10 +213,10 @@ export default function PaymentPage() {
                         }}
                       >
                         <Typography variant="body2" color="text.secondary">
-                          {completion ? 'Remaining balance' : 'Amount to pay'}
+                          {completion ? t('pages.payment.remainingBalance') : t('pages.payment.amountToPay')}
                         </Typography>
                         <Typography variant="h3" fontWeight={800} sx={{ mt: 0.5 }}>
-                          {formatCurrency(currentAmount, currentCurrency)}
+                          {formatCurrency(currentAmount, currentCurrency, locale)}
                         </Typography>
                       </Box>
                     </Stack>
@@ -218,12 +229,12 @@ export default function PaymentPage() {
                     severity={completion.status === 'paid' ? 'success' : 'info'}
                   >
                     {completion.status === 'paid'
-                      ? `Payment received for ${formatCurrency(completion.payment?.amount || 0, completion.debt.currency)}. Any active collection flow for this debt has been stopped.`
-                      : 'This debt was already paid. No additional charge was created.'}
+                      ? t('pages.payment.paymentReceived', { amount: formatCurrency(completion.payment?.amount || 0, completion.debt.currency, locale) })
+                      : t('pages.payment.alreadyPaidCompletion')}
                   </Alert>
                 ) : preview?.status === 'already_paid' ? (
                   <Alert severity="success">
-                    This debt has already been paid. No further collection steps should continue.
+                    {t('pages.payment.alreadyPaidPreview')}
                   </Alert>
                 ) : (
                   <Button
@@ -245,13 +256,13 @@ export default function PaymentPage() {
                     }}
                   >
                     {submitting
-                      ? 'Processing payment...'
-                      : `Pay ${formatCurrency(preview?.amount || 0, preview?.currency || 'ILS')}`}
+                      ? t('pages.payment.processingPayment')
+                      : t('pages.payment.pay', { amount: formatCurrency(preview?.amount || 0, preview?.currency || 'ILS', locale) })}
                   </Button>
                 )}
 
                 <Typography variant="body2" color="text.secondary">
-                  This demo payment page records the payment immediately and updates the customer debt status in PayDay.
+                  {t('pages.payment.demoDisclaimer')}
                 </Typography>
 
                 <Button
@@ -261,7 +272,7 @@ export default function PaymentPage() {
                   endIcon={<OpenInNewIcon fontSize="small" />}
                   sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
                 >
-                  Back to PayDay
+                  {t('pages.payment.backToPayDay')}
                 </Button>
               </Stack>
             )}

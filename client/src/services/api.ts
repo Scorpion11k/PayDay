@@ -379,6 +379,7 @@ export interface PaymentLinkPreview {
   customer: {
     id: string;
     fullName: string;
+    preferredLanguage: string | null;
   };
   debt: {
     id: string;
@@ -400,6 +401,7 @@ export interface PaymentLinkCompletionResult {
   customer: {
     id: string;
     fullName: string;
+    preferredLanguage: string | null;
   };
   debt: {
     id: string;
