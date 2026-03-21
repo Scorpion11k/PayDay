@@ -68,6 +68,14 @@ class ActivityService {
     };
   }
 
+  async deleteAll() {
+    const result = await prisma.activityLog.deleteMany({});
+
+    return {
+      deletedCount: result.count,
+    };
+  }
+
   async logNotification(params: {
     channel: string;
     customerId: string;

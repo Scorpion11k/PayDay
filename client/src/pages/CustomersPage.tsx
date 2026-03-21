@@ -42,6 +42,7 @@ import {
   Checkbox,
 } from '@mui/material';
 import {
+  AccountTree as BrainViewIcon,
   People as CustomersIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
@@ -57,8 +58,10 @@ import {
   Warning as WarningIcon,
   Sms as SmsIcon,
   Call as CallIcon,
+  PlayCircleOutline as StartCollectionFlowIcon,
 } from '@mui/icons-material';
 import { useLanguage } from '../context/LanguageContext';
+import BrainViewDialog from '../components/customers/BrainViewDialog';
 
 interface Customer {
   id: string;
@@ -96,6 +99,24 @@ interface CustomersResponse {
   success: boolean;
   data: Customer[];
   pagination: PaginationInfo;
+}
+
+interface CollectionFlowStartResponse {
+  success?: boolean;
+  data?: {
+    triggered?: number;
+    failed?: number;
+    skipped?: number;
+    details?: Array<{
+      customerId: string;
+      customerName: string | null;
+      outcome: 'triggered' | 'failed' | 'skipped';
+      currentStateName: string | null;
+      error: string | null;
+    }>;
+  };
+  message?: string;
+  error?: string;
 }
 
 interface NewCustomerForm {
@@ -167,6 +188,13 @@ export default function CustomersPage() {
   // Actions Menu State
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    customer: Customer;
+  } | null>(null);
+  const [brainViewOpen, setBrainViewOpen] = useState(false);
+  const [brainViewCustomer, setBrainViewCustomer] = useState<Customer | null>(null);
 
   // Delete Confirmation Dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -197,6 +225,7 @@ export default function CustomersPage() {
   const [excludedCustomerIds, setExcludedCustomerIds] = useState<Set<string>>(new Set());
   const [bulkSendDialogOpen, setBulkSendDialogOpen] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
+  const [startingCollectionFlow, setStartingCollectionFlow] = useState(false);
 
   // Bulk Update Channel
   const [bulkChannelDialogOpen, setBulkChannelDialogOpen] = useState(false);
@@ -342,6 +371,105 @@ export default function CustomersPage() {
     setSelectAllMode(true);
     setExcludedCustomerIds(new Set());
     setSelectedCustomerIds(new Set());
+  };
+
+  const buildCollectionFlowSelectionPayload = () => (
+    selectAllMode
+      ? {
+          selectAll: true,
+          excludedCustomerIds: Array.from(excludedCustomerIds),
+          filters: {
+            search: searchDebounce || undefined,
+            status: statusFilter || undefined,
+          },
+        }
+      : { customerIds: Array.from(selectedCustomerIds) }
+  );
+
+  const handleStartCollectionFlow = async () => {
+    if (selectedCount === 0 || startingCollectionFlow) return;
+
+    setStartingCollectionFlow(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/customers/collection-flow/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildCollectionFlowSelectionPayload()),
+      });
+
+      const data: CollectionFlowStartResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to start collection flow');
+      }
+
+      const triggered = data.data?.triggered || 0;
+      const failed = data.data?.failed || 0;
+      const skipped = data.data?.skipped || 0;
+
+      setSnackbar({
+        open: true,
+        message:
+          failed > 0 || skipped > 0
+            ? `Collection flow triggered for ${triggered} customers. Failed: ${failed}, Skipped: ${skipped}`
+            : `Collection flow triggered for ${triggered} customers.`,
+        severity: failed > 0 ? 'info' : 'success',
+      });
+      clearSelection();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'Failed to start collection flow',
+        severity: 'error',
+      });
+    } finally {
+      setStartingCollectionFlow(false);
+    }
+  };
+
+  const handleStartCollectionFlowForCustomer = async (customer: Customer | null | undefined) => {
+    if (!customer || startingCollectionFlow) return;
+
+    handleActionsClose();
+    handleContextMenuClose();
+    setStartingCollectionFlow(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/customers/${customer.id}/collection-flow/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data: CollectionFlowStartResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || `Failed to start collection flow for ${customer.fullName}`);
+      }
+
+      const detail = data.data?.details?.find((item) => item.customerId === customer.id);
+      const detailError = detail?.error?.trim();
+      const currentStateName = detail?.currentStateName?.trim();
+
+      const message = detail?.outcome === 'failed'
+        ? `Collection flow failed for ${customer.fullName}${detailError ? `: ${detailError}` : ''}`
+        : detail?.outcome === 'skipped'
+          ? `Collection flow skipped for ${customer.fullName}${detailError ? `: ${detailError}` : ''}`
+          : `Collection flow triggered for ${customer.fullName}${currentStateName ? `. Current state: ${currentStateName}` : ''}`;
+
+      setSnackbar({
+        open: true,
+        message,
+        severity: detail?.outcome === 'failed' ? 'info' : 'success',
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : `Failed to start collection flow for ${customer.fullName}`,
+        severity: 'error',
+      });
+    } finally {
+      setStartingCollectionFlow(false);
+    }
   };
 
   // Handle bulk send
@@ -637,12 +765,40 @@ export default function CustomersPage() {
   // Actions Menu Handlers
   const handleActionsClick = (event: React.MouseEvent<HTMLElement>, customer: Customer) => {
     event.stopPropagation();
+    setContextMenu(null);
     setAnchorEl(event.currentTarget);
     setSelectedCustomer(customer);
   };
 
   const handleActionsClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleRowContextMenu = (event: React.MouseEvent<HTMLTableRowElement>, customer: Customer) => {
+    event.preventDefault();
+    setAnchorEl(null);
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      customer,
+    });
+  };
+
+  const handleContextMenuClose = () => {
+    setContextMenu(null);
+  };
+
+  const handleOpenBrainView = (customer: Customer | null | undefined) => {
+    if (!customer) return;
+    setBrainViewCustomer(customer);
+    setBrainViewOpen(true);
+    setContextMenu(null);
+    setAnchorEl(null);
+  };
+
+  const handleCloseBrainView = () => {
+    setBrainViewOpen(false);
+    setBrainViewCustomer(null);
   };
 
   // Delete Customer
@@ -977,6 +1133,18 @@ export default function CustomersPage() {
           {selectedCount > 0 && (
             <Button
               variant="contained"
+              color="secondary"
+              startIcon={startingCollectionFlow ? <CircularProgress size={18} color="inherit" /> : <StartCollectionFlowIcon />}
+              onClick={handleStartCollectionFlow}
+              disabled={startingCollectionFlow}
+              sx={{ textTransform: 'none' }}
+            >
+              Start Collection Flow
+            </Button>
+          )}
+          {selectedCount > 0 && (
+            <Button
+              variant="contained"
               color="primary"
               startIcon={<SendIcon />}
               onClick={() => setBulkSendDialogOpen(true)}
@@ -1197,6 +1365,7 @@ export default function CustomersPage() {
                   <TableRow 
                     key={customer.id} 
                     hover 
+                    onContextMenu={(event) => handleRowContextMenu(event, customer)}
                     sx={{ 
                       '&:last-child td': { border: 0 },
                       bgcolor: isCustomerSelected(customer.id) ? 'action.selected' : 'inherit',
@@ -1313,6 +1482,37 @@ export default function CustomersPage() {
         />
       </Paper>
 
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleContextMenuClose}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+      >
+        <MenuItem
+          onClick={() => void handleStartCollectionFlowForCustomer(contextMenu?.customer)}
+          disabled={startingCollectionFlow}
+        >
+          <ListItemIcon>
+            {startingCollectionFlow ? (
+              <CircularProgress size={18} />
+            ) : (
+              <StartCollectionFlowIcon fontSize="small" sx={{ color: '#6a1b9a' }} />
+            )}
+          </ListItemIcon>
+          <ListItemText primary="Start Collection Flow" />
+        </MenuItem>
+        <MenuItem onClick={() => handleOpenBrainView(contextMenu?.customer)}>
+          <ListItemIcon>
+            <BrainViewIcon fontSize="small" sx={{ color: '#1565c0' }} />
+          </ListItemIcon>
+          <ListItemText primary="Open Brain View" />
+        </MenuItem>
+      </Menu>
+
       {/* Actions Menu */}
       <Menu
         anchorEl={anchorEl}
@@ -1326,6 +1526,25 @@ export default function CustomersPage() {
             <EditIcon fontSize="small" sx={{ color: '#1976d2' }} />
           </ListItemIcon>
           <ListItemText primary={t('actions.editCustomer')} />
+        </MenuItem>
+        <MenuItem
+          onClick={() => void handleStartCollectionFlowForCustomer(selectedCustomer)}
+          disabled={startingCollectionFlow}
+        >
+          <ListItemIcon>
+            {startingCollectionFlow ? (
+              <CircularProgress size={18} />
+            ) : (
+              <StartCollectionFlowIcon fontSize="small" sx={{ color: '#6a1b9a' }} />
+            )}
+          </ListItemIcon>
+          <ListItemText primary="Start Collection Flow" />
+        </MenuItem>
+        <MenuItem onClick={() => handleOpenBrainView(selectedCustomer)}>
+          <ListItemIcon>
+            <BrainViewIcon fontSize="small" sx={{ color: '#1565c0' }} />
+          </ListItemIcon>
+          <ListItemText primary="Brain View" />
         </MenuItem>
         <Divider />
         <MenuItem
@@ -2063,6 +2282,13 @@ export default function CustomersPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <BrainViewDialog
+        open={brainViewOpen}
+        customer={brainViewCustomer}
+        language={language}
+        onClose={handleCloseBrainView}
+      />
 
       {/* Success/Error Snackbar */}
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

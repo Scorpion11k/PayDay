@@ -12,6 +12,7 @@ import ChatHistoryPage from './pages/ChatHistoryPage';
 import CustomerInsightPage from './pages/CustomerInsightPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import SettingsPage from './pages/SettingsPage';
+import PaymentPage from './pages/PaymentPage';
 import { checkServerHealth } from './services/api';
 
 function App() {
@@ -37,8 +38,9 @@ function App() {
   }, []);
 
   return (
-    <AppShell>
-      <Routes>
+    <Routes>
+      <Route path="/pay/:token" element={<PaymentPage />} />
+      <Route element={<AppShell />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/templates" element={<TemplatesPage />} />
@@ -50,8 +52,8 @@ function App() {
         <Route path="/customer-insight" element={<CustomerInsightPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
-      </Routes>
-    </AppShell>
+      </Route>
+    </Routes>
   );
 }
 

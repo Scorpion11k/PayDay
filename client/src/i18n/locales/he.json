@@ -207,6 +207,12 @@
       "warning": "פעולה זו לא ניתנת לביטול! כל הלקוחות והחובות, התשלומים, התשלומים והתראות המשויכים אליהם יימחקו לצמיתות.",
       "confirmButton": "מחק את כל הלקוחות"
     },
+    "deleteAllActivities": {
+      "title": "מחיקת כל הפעילויות",
+      "message": "האם אתה בטוח שברצונך למחוק את כל הפעילויות?",
+      "warning": "לא ניתן לבטל פעולה זו. היא תמחק לצמיתות את כל יומני הפעילות, גם אם כרגע מופעלים מסננים.",
+      "confirmButton": "מחק את כל הפעילויות"
+    },
     "sendReminder": {
       "title": "שליחת תזכורת {{type}}",
       "message": "שלח תזכורת תשלום אל",
@@ -221,12 +227,14 @@
     "customerUpdated": "הלקוח עודכן בהצלחה!",
     "customerDeleted": "הלקוח נמחק בהצלחה!",
     "allCustomersDeleted": "{{count}} לקוחות נמחקו בהצלחה!",
+    "allActivitiesDeleted": "{{count}} פעילויות נמחקו בהצלחה!",
     "reminderSent": "תזכורת {{type}} נשלחה ל-{{name}}!",
     "error": {
       "createCustomer": "יצירת הלקוח נכשלה",
       "updateCustomer": "עדכון הלקוח נכשל",
       "deleteCustomer": "מחיקת הלקוח נכשלה",
       "deleteAllCustomers": "מחיקת כל הלקוחות נכשלה",
+      "deleteAllActivities": "מחיקת כל הפעילויות נכשלה",
       "sendNotification": "שליחת ההתראה נכשלה"
     }
   },
@@ -389,6 +397,7 @@
       "title": "פעילויות",
       "description": "מעקב פעילויות והיסטוריה יוצגו כאן.",
       "subtitle": "מעקב אחר כל פעילויות הגבייה והתקשורת.",
+      "deleteAll": "מחק את כל הפעילויות",
       "timeline": "ציר זמן פעילויות",
       "filterType": "סוג פעילות",
       "totalActivities": "פעילויות",

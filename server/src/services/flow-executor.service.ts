@@ -1,6 +1,7 @@
 import prisma from '../config/database';
-import notificationDispatchService from './notification-dispatch.service';
-import flowRuntimeService from './flow-runtime.service';
+import notificationDispatchService, { type DispatchNotificationResult } from './notification-dispatch.service';
+import activityService from './activity.service';
+import systemSettingsService from './system-settings.service';
 
 interface ExecutorRunStats {
   scanned: number;
@@ -19,32 +20,68 @@ const MAX_ATTEMPTS_PER_STATE = 3;
 class FlowExecutorService {
   private poller: NodeJS.Timeout | null = null;
 
-  private async bootstrapMissingRunningInstances(limit: number) {
-    const assignments = await prisma.collectionFlowAssignment.findMany({
-      where: {
-        customer: {
-          debts: {
-            some: {
-              status: { in: ['open', 'in_collection'] },
-            },
-          },
-          flowInstances: {
-            none: {
-              status: 'running',
-            },
-          },
-        },
+  private async markInstanceCompletedPaid(instanceId: string, now: Date) {
+    await prisma.collectionFlowInstance.update({
+      where: { id: instanceId },
+      data: {
+        status: 'completed_paid',
+        finishedAt: now,
+        nextEvaluationAt: null,
+        lastEvaluatedAt: now,
+        lastError: null,
       },
-      select: {
-        customerId: true,
-        flowId: true,
-      },
-      take: limit,
     });
+  }
 
-    for (const assignment of assignments) {
-      await flowRuntimeService.ensureRunningInstance(assignment.customerId, prisma, assignment.flowId);
+  private async logStateExecutionActivity(params: {
+    instance: {
+      id: string;
+      flowId: string;
+      customerId: string;
+      customer: { fullName: string };
+      flow: { name: string };
+      currentState: {
+        id: string;
+        stateName: string;
+        actionType: string;
+        tone: string | null;
+        explicitChannel: string | null;
+      };
+    };
+    dispatch: DispatchNotificationResult;
+  }) {
+    const systemMode = await systemSettingsService.getMode();
+    if (systemMode !== 'development') {
+      return;
     }
+
+    await activityService.create({
+      type: 'notification_sent',
+      activityName: 'Collection Flow Step',
+      description: params.dispatch.success
+        ? `${params.instance.currentState.stateName} executed for ${params.instance.customer.fullName}`
+        : `${params.instance.currentState.stateName} failed for ${params.instance.customer.fullName}`,
+      customerId: params.instance.customerId,
+      customerName: params.instance.customer.fullName,
+      status: params.dispatch.success ? 'success' : 'failed',
+      metadata: {
+        flowId: params.instance.flowId,
+        flowName: params.instance.flow.name,
+        flowInstanceId: params.instance.id,
+        stateId: params.instance.currentState.id,
+        stateName: params.instance.currentState.stateName,
+        actionType: params.instance.currentState.actionType,
+        channel:
+          params.dispatch.channel ||
+          params.instance.currentState.explicitChannel ||
+          null,
+        notificationId: params.dispatch.notificationId || null,
+        messageText: params.dispatch.renderedText || null,
+        tone: params.dispatch.tone || params.instance.currentState.tone || null,
+        error: params.dispatch.error || null,
+      },
+      createdBy: 'flow_executor',
+    });
   }
 
   private async claimDueInstanceIds(limit: number): Promise<string[]> {
@@ -85,6 +122,11 @@ class FlowExecutorService {
     const instance = await prisma.collectionFlowInstance.findUnique({
       where: { id: instanceId },
       include: {
+        customer: {
+          select: {
+            fullName: true,
+          },
+        },
         flow: {
           include: {
             states: true,
@@ -115,17 +157,7 @@ class FlowExecutorService {
     });
 
     if (openDebtCount === 0) {
-      await prisma.collectionFlowInstance.update({
-        where: { id: instance.id },
-        data: {
-          status: 'completed_paid',
-          finishedAt: now,
-          currentStateId: null,
-          nextEvaluationAt: null,
-          lastEvaluatedAt: now,
-          lastError: null,
-        },
-      });
+      await this.markInstanceCompletedPaid(instance.id, now);
       stats.completedPaid++;
       return;
     }
@@ -217,11 +249,7 @@ class FlowExecutorService {
       return;
     }
 
-    let dispatch: {
-      success: boolean;
-      notificationId?: string;
-      error?: string;
-    } = { success: true };
+    let dispatch: DispatchNotificationResult = { success: true };
 
     if (instance.currentState.actionType !== 'none') {
       dispatch = await notificationDispatchService.send({
@@ -232,6 +260,49 @@ class FlowExecutorService {
         createdBy: 'flow_executor',
         templateKey: 'debt_reminder',
       });
+    }
+
+    this.logStateExecutionActivity({
+      instance: {
+        id: instance.id,
+        flowId: instance.flowId,
+        customerId: instance.customerId,
+        customer: instance.customer,
+        flow: { name: instance.flow.name },
+        currentState: {
+          id: instance.currentState.id,
+          stateName: instance.currentState.stateName,
+          actionType: instance.currentState.actionType,
+          tone: instance.currentState.tone,
+          explicitChannel: instance.currentState.explicitChannel,
+        },
+      },
+      dispatch,
+    }).catch((error) => {
+      console.error('Failed to log collection flow activity:', error);
+    });
+
+    const liveInstance = await prisma.collectionFlowInstance.findUnique({
+      where: { id: instance.id },
+      select: { status: true },
+    });
+
+    if (!liveInstance || liveInstance.status !== 'running') {
+      stats.skipped++;
+      return;
+    }
+
+    const openDebtCountAfterDispatch = await prisma.debt.count({
+      where: {
+        customerId: instance.customerId,
+        status: { in: ['open', 'in_collection'] },
+      },
+    });
+
+    if (openDebtCountAfterDispatch === 0) {
+      await this.markInstanceCompletedPaid(instance.id, now);
+      stats.completedPaid++;
+      return;
     }
 
     if (!dispatch.success) {
@@ -414,12 +485,48 @@ class FlowExecutorService {
       skipped: 0,
     };
 
-    await this.bootstrapMissingRunningInstances(limit);
     const claimedIds = await this.claimDueInstanceIds(limit);
     stats.scanned = claimedIds.length;
     stats.claimed = claimedIds.length;
 
     for (const instanceId of claimedIds) {
+      await this.processInstance(instanceId, stats);
+    }
+
+    return stats;
+  }
+
+  async runInstanceUntilIdle(instanceId: string, maxSteps = 25): Promise<ExecutorRunStats> {
+    const stats: ExecutorRunStats = {
+      scanned: 1,
+      claimed: 1,
+      completedPaid: 0,
+      completedEnd: 0,
+      advanced: 0,
+      failed: 0,
+      retried: 0,
+      skipped: 0,
+    };
+
+    for (let index = 0; index < maxSteps; index++) {
+      const instance = await prisma.collectionFlowInstance.findUnique({
+        where: { id: instanceId },
+        select: {
+          id: true,
+          status: true,
+          nextEvaluationAt: true,
+        },
+      });
+
+      if (!instance || instance.status !== 'running') {
+        break;
+      }
+
+      const now = new Date();
+      if (instance.nextEvaluationAt && instance.nextEvaluationAt > now) {
+        break;
+      }
+
       await this.processInstance(instanceId, stats);
     }
 

@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
+  Button,
   Box,
   Typography,
   Paper,
   Chip,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Select,
   MenuItem,
   FormControl,
@@ -13,6 +19,7 @@ import {
   Stack,
   Pagination,
   IconButton,
+  Snackbar,
   Tooltip,
   Collapse,
 } from '@mui/material';
@@ -29,11 +36,13 @@ import {
   Cancel as FailedIcon,
   Person as PersonIcon,
   Refresh as RefreshIcon,
+  Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-import { listActivities, type ActivityLogItem } from '../services/api';
+import { deleteAllActivities, listActivities, type ActivityLogItem } from '../services/api';
 
 const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
   'SMS Sent': <SmsIcon fontSize="small" />,
@@ -68,6 +77,7 @@ function formatDateTime(dateStr: string) {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
   });
 }
 
@@ -175,6 +185,7 @@ function ActivityRow({ activity, t }: { activity: ActivityLogItem; t: (key: stri
         {hasDetails && (
           <Tooltip title={expanded ? t('pages.activities.collapse') : t('pages.activities.expand')}>
             <IconButton
+              aria-label={expanded ? t('pages.activities.collapse') : t('pages.activities.expand')}
               size="small"
               onClick={() => setExpanded(!expanded)}
               sx={{ mt: 0.5 }}
@@ -248,6 +259,17 @@ export default function ActivitiesPage() {
   const [total, setTotal] = useState(0);
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   const fetchActivities = useCallback(async () => {
     setLoading(true);
@@ -283,10 +305,49 @@ export default function ActivitiesPage() {
     setPage(1);
   };
 
+  const handleDeleteAllConfirm = async () => {
+    setDeletingAll(true);
+
+    try {
+      const result = await deleteAllActivities();
+
+      setActivities([]);
+      setTotal(0);
+      setTotalPages(1);
+      setPage(1);
+      setError(null);
+      setDeleteAllDialogOpen(false);
+      setSnackbar({
+        open: true,
+        message: t('notifications.allActivitiesDeleted', { count: result.deletedCount }),
+        severity: 'success',
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : t('notifications.error.deleteAllActivities'),
+        severity: 'error',
+      });
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
+  const deleteAllDisabled = loading || deletingAll || (total === 0 && !typeFilter && !statusFilter);
+
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: 2,
+          flexWrap: 'wrap',
+          mb: 3,
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <ActivitiesIcon sx={{ fontSize: 28, color: 'primary.main' }} />
           <Box>
@@ -298,11 +359,23 @@ export default function ActivitiesPage() {
             </Typography>
           </Box>
         </Box>
-        <Tooltip title={t('common.refresh')}>
-          <IconButton onClick={fetchActivities} disabled={loading}>
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteIcon />}
+            onClick={() => setDeleteAllDialogOpen(true)}
+            disabled={deleteAllDisabled}
+            sx={{ textTransform: 'none' }}
+          >
+            {t('pages.activities.deleteAll')}
+          </Button>
+          <Tooltip title={t('common.refresh')}>
+            <IconButton aria-label={t('common.refresh')} onClick={fetchActivities} disabled={loading}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Box>
 
       {/* Filters */}
@@ -382,6 +455,55 @@ export default function ActivitiesPage() {
           </Box>
         )}
       </Paper>
+
+      <Dialog
+        open={deleteAllDialogOpen}
+        onClose={() => !deletingAll && setDeleteAllDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 600, color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningIcon />
+          {t('dialogs.deleteAllActivities.title')}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {t('dialogs.deleteAllActivities.message')}
+          </DialogContentText>
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {t('dialogs.deleteAllActivities.warning')}
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setDeleteAllDialogOpen(false)} color="inherit" disabled={deletingAll}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            onClick={handleDeleteAllConfirm}
+            variant="contained"
+            color="error"
+            disabled={deletingAll}
+            startIcon={deletingAll ? <CircularProgress size={18} color="inherit" /> : <DeleteIcon />}
+          >
+            {deletingAll ? t('actions.deleting') : t('dialogs.deleteAllActivities.confirmButton')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

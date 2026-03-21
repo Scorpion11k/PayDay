@@ -14,11 +14,17 @@ router.delete('/all', asyncHandler(customersController.deleteAll.bind(customersC
 // POST /api/customers/bulk-update-channel - Bulk update preferred channel
 router.post('/bulk-update-channel', asyncHandler(customersController.bulkUpdateChannel.bind(customersController)));
 
+// POST /api/customers/collection-flow/start - Start collection flow for selected customers
+router.post('/collection-flow/start', asyncHandler(customersController.startCollectionFlow.bind(customersController)));
+
 // GET /api/customers/:id/collection-flow - Get customer's current collection flow runtime
 router.get('/:id/collection-flow', asyncHandler(flowsController.getCustomerCollectionFlow.bind(flowsController)));
 
 // POST /api/customers/:id/collection-flow/assign - Assign a published flow to customer
 router.post('/:id/collection-flow/assign', asyncHandler(flowsController.assignCustomerFlow.bind(flowsController)));
+
+// POST /api/customers/:id/collection-flow/start - Start collection flow for one customer
+router.post('/:id/collection-flow/start', asyncHandler(customersController.startCollectionFlowForCustomer.bind(customersController)));
 
 // GET /api/customers/:id - Get customer by ID
 router.get('/:id', asyncHandler(customersController.getById.bind(customersController)));

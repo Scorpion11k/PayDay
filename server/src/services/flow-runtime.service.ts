@@ -75,11 +75,10 @@ class FlowRuntimeService {
         },
       });
 
-      const newInstance = await this.ensureRunningInstance(customerId, tx, flowId, true);
       return {
         customerId,
         flowId,
-        instanceId: newInstance?.id || null,
+        instanceId: null,
       };
     });
   }
@@ -105,7 +104,8 @@ class FlowRuntimeService {
         status: 'completed_paid',
         finishedAt: new Date(),
         nextEvaluationAt: null,
-        currentStateId: null,
+        lastEvaluatedAt: new Date(),
+        lastError: null,
       },
     });
 
@@ -228,6 +228,68 @@ class FlowRuntimeService {
     return this.createInstance(customerId, flowId, db);
   }
 
+  async startCollectionFlowForCustomer(
+    customerId: string,
+    db: DbClient = prisma
+  ): Promise<{
+    instance: { id: string } | null;
+    reason: 'started' | 'already_running' | 'no_open_debt' | 'no_published_flow';
+  }> {
+    const customer = await db.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundError('Customer');
+    }
+
+    const openDebtCount = await db.debt.count({
+      where: {
+        customerId,
+        status: { in: ['open', 'in_collection'] },
+      },
+    });
+
+    if (openDebtCount === 0) {
+      await this.completeRunningIfPaid(customerId, db);
+      return {
+        instance: null,
+        reason: 'no_open_debt',
+      };
+    }
+
+    const existing = await db.collectionFlowInstance.findFirst({
+      where: {
+        customerId,
+        status: 'running',
+      },
+      select: { id: true },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (existing) {
+      return {
+        instance: existing,
+        reason: 'already_running',
+      };
+    }
+
+    const instance = await this.ensureRunningInstance(customerId, db, undefined, true);
+
+    if (!instance) {
+      return {
+        instance: null,
+        reason: 'no_published_flow',
+      };
+    }
+
+    return {
+      instance: { id: instance.id },
+      reason: 'started',
+    };
+  }
+
   async getCustomerCollectionFlow(customerId: string) {
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
@@ -244,9 +306,8 @@ class FlowRuntimeService {
       throw new NotFoundError('Customer');
     }
 
+    // Brain View should resolve the assigned/default flow without starting execution.
     await this.assignDefaultToCustomer(customerId);
-    await this.completeRunningIfPaid(customerId);
-    await this.ensureRunningInstance(customerId);
 
     const assignment = await prisma.collectionFlowAssignment.findUnique({
       where: { customerId },
@@ -267,10 +328,12 @@ class FlowRuntimeService {
         },
       },
     });
+    const assignmentFlowId = assignment?.flowId || null;
 
     const instance = await prisma.collectionFlowInstance.findFirst({
       where: {
         customerId,
+        ...(assignmentFlowId ? { flowId: assignmentFlowId } : {}),
         status: 'running',
       },
       include: {
@@ -318,7 +381,10 @@ class FlowRuntimeService {
 
     const lastFinishedInstance = !instance
       ? await prisma.collectionFlowInstance.findFirst({
-          where: { customerId },
+          where: {
+            customerId,
+            ...(assignmentFlowId ? { flowId: assignmentFlowId } : {}),
+          },
           include: {
             flow: {
               select: { id: true, name: true, flowKey: true, version: true, status: true },

@@ -176,6 +176,16 @@ class FlowsController {
     });
   }
 
+  async delete(req: Request, res: Response) {
+    assertFlowFeatureReady();
+    const deleted = await flowDefinitionService.delete(req.params.id);
+    res.json({
+      success: true,
+      data: deleted,
+      message: 'Flow deleted successfully',
+    });
+  }
+
   async publish(req: Request, res: Response) {
     assertFlowFeatureReady();
     const parsed = actorSchema.safeParse(req.body || {});

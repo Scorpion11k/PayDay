@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { Box } from '@mui/material';
 import {
-  AttachMoney as MoneyIcon,
   People as PeopleIcon,
   WarningAmber as WarningIcon,
   TrendingUp as TrendingUpIcon,
@@ -13,8 +12,14 @@ interface AiKpiRailProps {
   kpis: HomeBrainKpi[];
 }
 
+const SHEKEL_SYMBOL = '\u20AA';
+
 const iconMap: Record<string, ReactNode> = {
-  total_overdue_balance: <MoneyIcon />,
+  total_overdue_balance: (
+    <Box component="span" sx={{ fontSize: 20, fontWeight: 700, lineHeight: 1 }}>
+      {SHEKEL_SYMBOL}
+    </Box>
+  ),
   overdue_customers: <PeopleIcon />,
   collected_today: <TrendingUpIcon />,
   critical_accounts: <WarningIcon />,
@@ -22,7 +27,7 @@ const iconMap: Record<string, ReactNode> = {
 
 function formatKpiValue(kpi: HomeBrainKpi): string | number {
   if (kpi.format === 'currency' && typeof kpi.value === 'number') {
-    return `₪${kpi.value.toLocaleString()}`;
+    return `${SHEKEL_SYMBOL}${kpi.value.toLocaleString()}`;
   }
   if (kpi.format === 'percent' && typeof kpi.value === 'number') {
     return `${kpi.value.toFixed(1)}%`;

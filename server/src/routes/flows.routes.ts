@@ -10,6 +10,7 @@ router.post('/generate-from-prompt', asyncHandler(flowsController.generateFromPr
 router.post('/executor/run-once', asyncHandler(flowsController.runExecutorOnce.bind(flowsController)));
 router.get('/:id', asyncHandler(flowsController.getById.bind(flowsController)));
 router.put('/:id', asyncHandler(flowsController.update.bind(flowsController)));
+router.delete('/:id', asyncHandler(flowsController.delete.bind(flowsController)));
 router.post('/:id/publish', asyncHandler(flowsController.publish.bind(flowsController)));
 router.post('/:id/set-default', asyncHandler(flowsController.setDefault.bind(flowsController)));
 router.post('/:id/new-version', asyncHandler(flowsController.createNewVersion.bind(flowsController)));

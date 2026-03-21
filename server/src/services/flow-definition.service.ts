@@ -323,6 +323,48 @@ class FlowDefinitionService {
     });
   }
 
+  async delete(id: string) {
+    const flow = await prisma.collectionFlow.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        isDefault: true,
+        _count: {
+          select: {
+            assignments: true,
+            instances: true,
+          },
+        },
+      },
+    });
+
+    if (!flow) {
+      throw new NotFoundError('Flow');
+    }
+
+    if (flow.isDefault) {
+      throw new ValidationError('Default flows cannot be deleted');
+    }
+
+    if (flow._count.assignments > 0) {
+      throw new ValidationError('Flow cannot be deleted because it is assigned to customers');
+    }
+
+    if (flow._count.instances > 0) {
+      throw new ValidationError('Flow cannot be deleted because it has execution history');
+    }
+
+    await prisma.collectionFlow.delete({
+      where: { id },
+    });
+
+    return {
+      id: flow.id,
+      name: flow.name,
+    };
+  }
+
   async publish(id: string, updatedBy?: string) {
     const flow = await prisma.collectionFlow.findUnique({
       where: { id },

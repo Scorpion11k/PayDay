@@ -37,6 +37,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { FlowActionType, FlowChannel, FlowStateNode, FlowTransitionEdge } from '../../types/flows';
+import { getFlowLayout, type FlowPosition } from './layout';
 
 interface FlowNodeData extends Record<string, unknown> {
   stateName: string;
@@ -46,6 +47,7 @@ interface FlowNodeData extends Record<string, unknown> {
   explicitChannel: FlowChannel | null;
   isStart: boolean;
   isEnd: boolean;
+  layoutDirection: 'horizontal' | 'vertical';
 }
 
 interface FlowEdgeData extends Record<string, unknown> {
@@ -100,6 +102,8 @@ function formatDurationLabel(waitSeconds: number): string {
 }
 
 function FlowStateVisualNode({ data, selected }: NodeProps<FlowVisualNode>) {
+  const targetHandlePosition = data.layoutDirection === 'vertical' ? Position.Top : Position.Left;
+  const sourceHandlePosition = data.layoutDirection === 'vertical' ? Position.Bottom : Position.Right;
   const visual = data.isStart
     ? {
         border: '#2e7d32',
@@ -141,7 +145,7 @@ function FlowStateVisualNode({ data, selected }: NodeProps<FlowVisualNode>) {
         textAlign: 'center',
       }}
     >
-      {!data.isStart && <Handle type="target" position={Position.Left} />}
+      {!data.isStart && <Handle type="target" position={targetHandlePosition} />}
       <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.3 }}>
         {data.stateName || 'Unnamed state'}
       </Typography>
@@ -156,7 +160,7 @@ function FlowStateVisualNode({ data, selected }: NodeProps<FlowVisualNode>) {
           fontWeight: 600,
         }}
       />
-      {!data.isEnd && <Handle type="source" position={Position.Right} />}
+      {!data.isEnd && <Handle type="source" position={sourceHandlePosition} />}
     </Box>
   );
 }
@@ -180,13 +184,19 @@ interface GraphFlowBuilderProps {
   saving?: boolean;
 }
 
-function toNode(state: FlowStateNode, index: number): Node<FlowNodeData> {
+function toNode(
+  state: FlowStateNode,
+  position: FlowPosition,
+  layoutDirection: 'horizontal' | 'vertical'
+): Node<FlowNodeData> {
+  const targetPosition = layoutDirection === 'vertical' ? Position.Top : Position.Left;
+  const sourcePosition = layoutDirection === 'vertical' ? Position.Bottom : Position.Right;
+
   return {
     id: state.stateKey,
-    position: {
-      x: state.positionX ?? 100 + index * 220,
-      y: state.positionY ?? 120,
-    },
+    position,
+    targetPosition,
+    sourcePosition,
     data: {
       stateName: state.stateName,
       actionName: state.actionName,
@@ -195,6 +205,7 @@ function toNode(state: FlowStateNode, index: number): Node<FlowNodeData> {
       explicitChannel: state.explicitChannel || null,
       isStart: Boolean(state.isStart),
       isEnd: Boolean(state.isEnd),
+      layoutDirection,
     },
     type: 'flowState',
   };
@@ -208,6 +219,7 @@ function toEdge(transition: FlowTransitionEdge, index: number): Edge<FlowEdgeDat
     source: transition.fromStateKey,
     target: transition.toStateKey,
     label: transition.label || formatDurationLabel(waitSeconds),
+    type: 'smoothstep',
     markerEnd: { type: MarkerType.ArrowClosed },
     data: {
       waitSeconds,
@@ -228,42 +240,63 @@ export default function GraphFlowBuilder({
   onCancel,
   saving = false,
 }: GraphFlowBuilderProps) {
+  const initialLayout = useMemo(
+    () =>
+      getFlowLayout({
+        states: initialStates,
+        transitions: initialTransitions,
+        direction: 'vertical',
+        getStateId: (state) => state.stateKey,
+        getTransitionSourceId: (transition) => transition.fromStateKey,
+        getTransitionTargetId: (transition) => transition.toStateKey,
+      }),
+    [initialStates, initialTransitions]
+  );
+
+  const initialGraphNodes = useMemo(
+    () =>
+      initialStates.length > 0
+        ? initialStates.map((state) =>
+            toNode(
+              state,
+              initialLayout.positions.get(state.stateKey) ?? { x: 160, y: 100 },
+              initialLayout.direction
+            )
+          )
+        : [
+            toNode(
+              {
+                stateKey: 'state_start',
+                stateName: 'Start Reminder',
+                actionName: 'Start Reminder',
+                actionType: 'none',
+                tone: null,
+                isStart: true,
+                isEnd: false,
+              },
+              { x: 160, y: 100 },
+              'vertical'
+            ),
+            toNode(
+              {
+                stateKey: 'state_end',
+                stateName: 'End',
+                actionName: 'End',
+                actionType: 'none',
+                tone: null,
+                isStart: false,
+                isEnd: true,
+              },
+              { x: 160, y: 320 },
+              'vertical'
+            ),
+          ],
+    [initialLayout.direction, initialLayout.positions, initialStates]
+  );
+
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription || '');
-  const [nodes, setNodes] = useState<Node<FlowNodeData>[]>(
-    initialStates.length > 0
-      ? initialStates.map(toNode)
-      : [
-          toNode(
-            {
-              stateKey: 'state_start',
-              stateName: 'Start Reminder',
-              actionName: 'Start Reminder',
-              actionType: 'none',
-              tone: null,
-              isStart: true,
-              isEnd: false,
-              positionX: 120,
-              positionY: 120,
-            },
-            0
-          ),
-          toNode(
-            {
-              stateKey: 'state_end',
-              stateName: 'End',
-              actionName: 'End',
-              actionType: 'none',
-              tone: null,
-              isStart: false,
-              isEnd: true,
-              positionX: 520,
-              positionY: 120,
-            },
-            1
-          ),
-        ]
-  );
+  const [nodes, setNodes] = useState<Node<FlowNodeData>[]>(initialGraphNodes);
   const [edges, setEdges] = useState<Edge<FlowEdgeData>[]>(
     initialTransitions.map(toEdge)
   );
@@ -327,6 +360,7 @@ export default function GraphFlowBuilder({
         {
           ...connection,
           id: `edge-${connection.source}-${connection.target}-${Date.now()}`,
+          type: 'smoothstep',
           markerEnd: { type: MarkerType.ArrowClosed },
           label: formatDurationLabel(0),
           data: {
@@ -358,9 +392,13 @@ export default function GraphFlowBuilder({
 
   const addState = () => {
     const key = `state_${Date.now()}`;
+    const anchorX = nodes.find((node) => node.data.isStart)?.position.x ?? nodes[0]?.position.x ?? 160;
+    const bottomY = nodes.reduce((maxY, node) => Math.max(maxY, node.position.y), 100);
     const newNode: Node<FlowNodeData> = {
       id: key,
-      position: { x: 180 + nodes.length * 80, y: 220 },
+      position: { x: anchorX, y: bottomY + 220 },
+      targetPosition: Position.Top,
+      sourcePosition: Position.Bottom,
       data: {
         stateName: 'New State',
         actionName: 'New State',
@@ -369,6 +407,7 @@ export default function GraphFlowBuilder({
         explicitChannel: null,
         isStart: false,
         isEnd: false,
+        layoutDirection: 'vertical',
       },
       type: 'flowState',
     };

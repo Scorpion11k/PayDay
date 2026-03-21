@@ -207,6 +207,12 @@
       "warning": "This action cannot be undone! All customers and their associated debts, payments, installments, and notifications will be permanently deleted.",
       "confirmButton": "Delete All Customers"
     },
+    "deleteAllActivities": {
+      "title": "Delete All Activities",
+      "message": "Are you sure you want to delete all activities?",
+      "warning": "This action cannot be undone. It will permanently remove every activity log, even if filters are currently applied.",
+      "confirmButton": "Delete All Activities"
+    },
     "sendReminder": {
       "title": "Send {{type}} Reminder",
       "message": "Send a payment reminder to",
@@ -221,12 +227,14 @@
     "customerUpdated": "Customer updated successfully!",
     "customerDeleted": "Customer deleted successfully!",
     "allCustomersDeleted": "Successfully deleted {{count}} customers!",
+    "allActivitiesDeleted": "Successfully deleted {{count}} activities!",
     "reminderSent": "{{type}} reminder sent to {{name}}!",
     "error": {
       "createCustomer": "Failed to create customer",
       "updateCustomer": "Failed to update customer",
       "deleteCustomer": "Failed to delete customer",
       "deleteAllCustomers": "Failed to delete all customers",
+      "deleteAllActivities": "Failed to delete all activities",
       "sendNotification": "Failed to send notification"
     }
   },
@@ -389,6 +397,7 @@
       "title": "Activities",
       "description": "Activity tracking and history will be displayed here.",
       "subtitle": "Monitor all collection activities and communications.",
+      "deleteAll": "Delete All Activities",
       "timeline": "Activity Timeline",
       "filterType": "Activity Type",
       "totalActivities": "activities",

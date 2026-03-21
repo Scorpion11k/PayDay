@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -19,7 +20,7 @@ import { useChatVisibility } from '../context/ChatVisibilityContext';
 const DRAWER_WIDTH = 220;
 
 interface AppShellProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 export default function AppShell({ children }: AppShellProps) {
@@ -152,7 +153,7 @@ export default function AppShell({ children }: AppShellProps) {
             pb: isChatHidden ? 0 : '200px', // Space for chat panel (input + suggestions)
           }}
         >
-          {children}
+          {children || <Outlet />}
         </Box>
 
         {/* Chat Panel - Fixed at bottom center */}

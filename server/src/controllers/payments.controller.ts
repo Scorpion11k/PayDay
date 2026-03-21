@@ -35,6 +35,30 @@ const querySchema = z.object({
 });
 
 class PaymentsController {
+  async getLinkPreview(req: Request, res: Response) {
+    const { token } = req.params;
+    const preview = await paymentsService.getPaymentLinkPreview(token);
+
+    res.json({
+      success: true,
+      data: preview,
+    });
+  }
+
+  async completeFromLink(req: Request, res: Response) {
+    const { token } = req.params;
+    const paymentResult = await paymentsService.completeFromLink(token);
+
+    res.json({
+      success: true,
+      data: paymentResult,
+      message:
+        paymentResult.status === 'paid'
+          ? 'Payment completed successfully'
+          : 'This debt is already paid',
+    });
+  }
+
   async getAll(req: Request, res: Response) {
     const query = querySchema.parse(req.query);
     

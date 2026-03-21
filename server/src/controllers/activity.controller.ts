@@ -16,6 +16,16 @@ class ActivityController {
       ...result,
     });
   }
+
+  async deleteAll(_req: Request, res: Response) {
+    const result = await activityService.deleteAll();
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Successfully deleted ${result.deletedCount} activities`,
+    });
+  }
 }
 
 export default new ActivityController();

@@ -221,6 +221,12 @@ export async function createNewFlowVersion(id: string, createdBy = 'ui'): Promis
   });
 }
 
+export async function deleteFlow(id: string): Promise<{ id: string; name: string }> {
+  return apiFetch<{ id: string; name: string }>(`/flows/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export interface RunExecutorResult {
   scanned: number;
   claimed: number;
@@ -359,4 +365,65 @@ export async function listActivities(params: {
     data: body.data,
     pagination: body.pagination,
   };
+}
+
+export async function deleteAllActivities(): Promise<{ deletedCount: number }> {
+  return apiFetch<{ deletedCount: number }>('/activities/all', {
+    method: 'DELETE',
+  });
+}
+
+export interface PaymentLinkPreview {
+  token: string;
+  status: 'ready' | 'already_paid';
+  customer: {
+    id: string;
+    fullName: string;
+  };
+  debt: {
+    id: string;
+    invoiceNumber: string;
+    status: string;
+  };
+  amount: number;
+  currency: string;
+  existingPayment: {
+    id: string;
+    amount: number;
+    currency: string;
+    receivedAt: string;
+  } | null;
+}
+
+export interface PaymentLinkCompletionResult {
+  status: 'paid' | 'already_paid';
+  customer: {
+    id: string;
+    fullName: string;
+  };
+  debt: {
+    id: string;
+    invoiceNumber: string;
+    status: string;
+    amountPaid: number;
+    remainingBalance: number;
+    currency: string;
+  };
+  payment: {
+    id: string;
+    amount: number;
+    currency: string;
+    method: 'bank_transfer' | 'card' | 'cash' | 'check' | 'other';
+    receivedAt: string;
+  } | null;
+}
+
+export async function getPaymentLinkPreview(token: string): Promise<PaymentLinkPreview> {
+  return apiFetch<PaymentLinkPreview>(`/payments/link/${encodeURIComponent(token)}`);
+}
+
+export async function payDebtFromLink(token: string): Promise<PaymentLinkCompletionResult> {
+  return apiFetch<PaymentLinkCompletionResult>(`/payments/link/${encodeURIComponent(token)}/pay`, {
+    method: 'POST',
+  });
 }

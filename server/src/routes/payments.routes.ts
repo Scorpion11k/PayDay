@@ -4,6 +4,12 @@ import { asyncHandler } from '../middleware/errorHandler';
 
 const router = Router();
 
+// GET /api/payments/link/:token - Preview public payment-link details
+router.get('/link/:token', asyncHandler(paymentsController.getLinkPreview.bind(paymentsController)));
+
+// POST /api/payments/link/:token/pay - Complete payment from public payment link
+router.post('/link/:token/pay', asyncHandler(paymentsController.completeFromLink.bind(paymentsController)));
+
 // GET /api/payments - List all payments
 router.get('/', asyncHandler(paymentsController.getAll.bind(paymentsController)));
 

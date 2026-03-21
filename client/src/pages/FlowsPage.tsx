@@ -5,7 +5,9 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -28,12 +30,13 @@ import {
 import {
   AccountTree as FlowsIcon,
   Add as AddIcon,
-  Edit as EditIcon,
-  Publish as PublishIcon,
-  Star as StarIcon,
   ContentCopy as VersionIcon,
-  Refresh as RefreshIcon,
+  Delete as DeleteIcon,
+  Edit as EditIcon,
   PlayArrow as RunIcon,
+  Publish as PublishIcon,
+  Refresh as RefreshIcon,
+  Star as StarIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import GraphFlowBuilder from '../components/FlowBuilder/GraphFlowBuilder';
@@ -43,6 +46,7 @@ import {
   assignCustomerFlow,
   createFlow,
   createNewFlowVersion,
+  deleteFlow,
   getCustomerCollectionFlow,
   getFlowById,
   listCustomersForFlowMonitor,
@@ -92,14 +96,14 @@ export default function FlowsPage() {
   const [loading, setLoading] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [promptDialogOpen, setPromptDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowDefinitionDto | null>(null);
   const [saving, setSaving] = useState(false);
-
+  const [deleting, setDeleting] = useState(false);
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customerFlow, setCustomerFlow] = useState<CustomerCollectionFlowDto | null>(null);
-  const [assignFlowId, setAssignFlowId] = useState<string>('');
-
+  const [assignFlowId, setAssignFlowId] = useState('');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
@@ -184,8 +188,8 @@ export default function FlowsPage() {
   };
 
   useEffect(() => {
-    refreshFlows(searchParams.get('flowId'));
-    refreshCustomers();
+    void refreshFlows(searchParams.get('flowId'));
+    void refreshCustomers();
   }, []);
 
   useEffect(() => {
@@ -194,7 +198,7 @@ export default function FlowsPage() {
     }
 
     const intervalId = setInterval(() => {
-      fetchCustomerFlow(selectedCustomerId).catch(() => undefined);
+      void fetchCustomerFlow(selectedCustomerId);
     }, 5000);
 
     return () => clearInterval(intervalId);
@@ -308,6 +312,30 @@ export default function FlowsPage() {
     }
   };
 
+  const deleteSelected = async () => {
+    if (!selectedFlow) return;
+    setDeleting(true);
+    try {
+      const deleted = await deleteFlow(selectedFlow.id);
+      setDeleteDialogOpen(false);
+      setSnackbar({
+        open: true,
+        message: `Flow "${deleted.name}" deleted successfully`,
+        severity: 'success',
+      });
+      await refreshFlows();
+      await refreshCustomers();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Delete failed',
+        severity: 'error',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const runExecutor = async () => {
     try {
       const result = await runFlowExecutorOnce(100);
@@ -379,11 +407,11 @@ export default function FlowsPage() {
                 <ListItemButton
                   key={flow.id}
                   selected={selectedFlowId === flow.id}
-                  onClick={() => loadFlowDetail(flow.id)}
+                  onClick={() => void loadFlowDetail(flow.id)}
                 >
                   <ListItemText
                     primary={flow.name}
-                    secondary={`v${flow.version} • ${flow.flowKey}`}
+                    secondary={`v${flow.version} - ${flow.flowKey}`}
                   />
                   <Stack direction="row" spacing={0.5}>
                     {flow.isDefault && <Chip size="small" label="Default" color="warning" />}
@@ -401,7 +429,7 @@ export default function FlowsPage() {
                   <Box>
                     <Typography variant="h6" fontWeight={600}>{selectedFlow.name}</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Key: {selectedFlow.flowKey} • Version: {selectedFlow.version}
+                      Key: {selectedFlow.flowKey} - Version: {selectedFlow.version}
                     </Typography>
                     {selectedFlow.description && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -417,23 +445,30 @@ export default function FlowsPage() {
                         </IconButton>
                       </span>
                     </Tooltip>
+                    <Tooltip title="Delete">
+                      <span>
+                        <IconButton onClick={() => setDeleteDialogOpen(true)} color="error">
+                          <DeleteIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                     <Tooltip title="Publish">
                       <span>
-                        <IconButton onClick={publishSelected} disabled={selectedFlow.status !== 'draft'} color="success">
+                        <IconButton onClick={() => void publishSelected()} disabled={selectedFlow.status !== 'draft'} color="success">
                           <PublishIcon />
                         </IconButton>
                       </span>
                     </Tooltip>
                     <Tooltip title="Set Default">
                       <span>
-                        <IconButton onClick={setDefaultSelected} disabled={selectedFlow.status !== 'published'} color="warning">
+                        <IconButton onClick={() => void setDefaultSelected()} disabled={selectedFlow.status !== 'published'} color="warning">
                           <StarIcon />
                         </IconButton>
                       </span>
                     </Tooltip>
                     <Tooltip title="Create New Version">
                       <span>
-                        <IconButton onClick={createVersionFromSelected} disabled={selectedFlow.status !== 'published'}>
+                        <IconButton onClick={() => void createVersionFromSelected()} disabled={selectedFlow.status !== 'published'}>
                           <VersionIcon />
                         </IconButton>
                       </span>
@@ -452,12 +487,13 @@ export default function FlowsPage() {
                   <FlowDiagramView
                     states={selectedFlow.states}
                     transitions={selectedFlow.transitions}
+                    layout="vertical"
                   />
                 </Box>
               </>
             ) : (
               <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
-                <Typography>Select a flow to view details</Typography>
+                <Typography>{loading ? 'Loading flows...' : 'Select a flow to view details'}</Typography>
               </Box>
             )}
           </Paper>
@@ -475,7 +511,7 @@ export default function FlowsPage() {
                 onChange={(event) => {
                   const value = event.target.value;
                   if (value) {
-                    loadCustomerFlow(value);
+                    void loadCustomerFlow(value);
                   }
                 }}
               >
@@ -504,10 +540,10 @@ export default function FlowsPage() {
             </FormControl>
 
             <Stack direction="row" spacing={1}>
-              <Button variant="outlined" onClick={assignFlowToCustomer} disabled={!selectedCustomerId || !assignFlowId}>
+              <Button variant="outlined" onClick={() => void assignFlowToCustomer()} disabled={!selectedCustomerId || !assignFlowId}>
                 Assign
               </Button>
-              <Button variant="contained" startIcon={<RunIcon />} onClick={runExecutor}>
+              <Button variant="contained" startIcon={<RunIcon />} onClick={() => void runExecutor()}>
                 Run Executor Once
               </Button>
             </Stack>
@@ -575,6 +611,41 @@ export default function FlowsPage() {
           </Paper>
         </Box>
       )}
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => {
+          if (!deleting) {
+            setDeleteDialogOpen(false);
+          }
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Flow</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1.5 }}>
+            Are you sure you want to delete "{selectedFlow?.name}"?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            This action cannot be undone. Default flows, flows assigned to customers, and flows with execution history cannot be deleted.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} color="inherit" disabled={deleting}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            onClick={() => void deleteSelected()}
+            color="error"
+            variant="contained"
+            disabled={deleting || !selectedFlow}
+            startIcon={deleting ? <CircularProgress size={18} color="inherit" /> : <DeleteIcon />}
+          >
+            {t('common.delete')}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={builderOpen}
@@ -662,6 +733,3 @@ export default function FlowsPage() {
     </Box>
   );
 }
-
-
-

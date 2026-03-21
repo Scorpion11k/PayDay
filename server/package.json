@@ -15,8 +15,8 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "seed:templates": "node dist/prisma/seed-templates.js || ts-node prisma/seed-templates.ts",
-    "seed:flows": "ts-node prisma/seed-flows.ts"
+    "seed:templates": "node -r dotenv/config dist/prisma/seed-templates.js || ts-node -r dotenv/config prisma/seed-templates.ts",
+    "seed:flows": "node -r dotenv/config dist/prisma/seed-flows.js || ts-node -r dotenv/config prisma/seed-flows.ts"
   },
   "keywords": [
     "payday",

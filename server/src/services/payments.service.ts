@@ -3,6 +3,7 @@ import { PaymentStatus, PaymentMethod, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError, ConflictError } from '../types';
 import debtsService from './debts.service';
 import installmentsService from './installments.service';
+import paymentLinkService from './payment-link.service';
 import flowRuntimeService from './flow-runtime.service';
 
 export interface CreatePaymentDto {
@@ -31,7 +32,234 @@ export interface PaymentFilters {
   endDate?: Date;
 }
 
+export interface PaymentLinkPreviewDto {
+  token: string;
+  status: 'ready' | 'already_paid';
+  customer: {
+    id: string;
+    fullName: string;
+  };
+  debt: {
+    id: string;
+    invoiceNumber: string;
+    status: string;
+  };
+  amount: number;
+  currency: string;
+  existingPayment: {
+    id: string;
+    amount: number;
+    currency: string;
+    receivedAt: Date;
+  } | null;
+}
+
+export interface PaymentLinkCompletionDto {
+  status: 'paid' | 'already_paid';
+  customer: {
+    id: string;
+    fullName: string;
+  };
+  debt: {
+    id: string;
+    invoiceNumber: string;
+    status: string;
+    amountPaid: number;
+    remainingBalance: number;
+    currency: string;
+  };
+  payment: {
+    id: string;
+    amount: number;
+    currency: string;
+    method: PaymentMethod;
+    receivedAt: Date;
+  } | null;
+}
+
+type DbClient = Prisma.TransactionClient | typeof prisma;
+
+interface PaymentLinkContext {
+  token: string;
+  providerTxnId: string;
+  notificationId?: string;
+  customer: {
+    id: string;
+    fullName: string;
+  };
+  debt: {
+    id: string;
+    customerId: string;
+    currentBalance: Prisma.Decimal;
+    currency: string;
+    status: string;
+    installments: Array<{
+      id: string;
+      dueDate: Date;
+      sequenceNo: number;
+      amountDue: Prisma.Decimal;
+      amountPaid: Prisma.Decimal;
+      status: string;
+    }>;
+  };
+  existingPayment: {
+    id: string;
+    amount: Prisma.Decimal;
+    currency: string;
+    receivedAt: Date;
+    method: PaymentMethod;
+  } | null;
+}
+
 class PaymentsService {
+  private formatInvoiceNumber(debtId: string) {
+    return debtId.slice(0, 8).toUpperCase();
+  }
+
+  private mapLinkPreview(context: PaymentLinkContext): PaymentLinkPreviewDto {
+    const amount = Number(context.debt.currentBalance);
+
+    return {
+      token: context.token,
+      status: amount <= 0 || ['settled', 'written_off'].includes(context.debt.status)
+        ? 'already_paid'
+        : 'ready',
+      customer: context.customer,
+      debt: {
+        id: context.debt.id,
+        invoiceNumber: this.formatInvoiceNumber(context.debt.id),
+        status: context.debt.status,
+      },
+      amount,
+      currency: context.debt.currency,
+      existingPayment: context.existingPayment
+        ? {
+            id: context.existingPayment.id,
+            amount: Number(context.existingPayment.amount),
+            currency: context.existingPayment.currency,
+            receivedAt: context.existingPayment.receivedAt,
+          }
+        : null,
+    };
+  }
+
+  private mapLinkCompletion(
+    context: Pick<PaymentLinkContext, 'customer' | 'debt'>,
+    payment: {
+      id: string;
+      amount: Prisma.Decimal;
+      currency: string;
+      method: PaymentMethod;
+      receivedAt: Date;
+    } | null,
+    status: 'paid' | 'already_paid',
+    amountPaid: number,
+    remainingBalance: number
+  ): PaymentLinkCompletionDto {
+    return {
+      status,
+      customer: context.customer,
+      debt: {
+        id: context.debt.id,
+        invoiceNumber: this.formatInvoiceNumber(context.debt.id),
+        status: remainingBalance === 0 ? 'settled' : context.debt.status,
+        amountPaid,
+        remainingBalance,
+        currency: context.debt.currency,
+      },
+      payment: payment
+        ? {
+            id: payment.id,
+            amount: Number(payment.amount),
+            currency: payment.currency,
+            method: payment.method,
+            receivedAt: payment.receivedAt,
+          }
+        : null,
+    };
+  }
+
+  private async resolvePaymentLink(token: string, db: DbClient = prisma): Promise<PaymentLinkContext> {
+    const payload = paymentLinkService.parseToken(token);
+    const providerTxnId = paymentLinkService.buildProviderTxnId(token, payload.notificationId);
+
+    const customer = await db.customer.findUnique({
+      where: { id: payload.customerId },
+      select: {
+        id: true,
+        fullName: true,
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundError('Customer');
+    }
+
+    const debt = payload.debtId
+      ? await db.debt.findUnique({
+          where: { id: payload.debtId },
+          include: {
+            installments: {
+              orderBy: [{ dueDate: 'asc' }, { sequenceNo: 'asc' }],
+            },
+          },
+        })
+      : await db.debt.findFirst({
+          where: {
+            customerId: payload.customerId,
+            status: { in: ['open', 'in_collection', 'settled'] },
+          },
+          include: {
+            installments: {
+              orderBy: [{ dueDate: 'asc' }, { sequenceNo: 'asc' }],
+            },
+          },
+          orderBy: [{ updatedAt: 'desc' }],
+        });
+
+    if (!debt) {
+      throw new NotFoundError('Debt');
+    }
+
+    if (debt.customerId !== customer.id) {
+      throw new ValidationError('Payment link does not match the requested debt');
+    }
+
+    const existingPayment = await db.payment.findUnique({
+      where: { providerTxnId },
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        receivedAt: true,
+        method: true,
+      },
+    });
+
+    return {
+      token,
+      providerTxnId,
+      notificationId: payload.notificationId,
+      customer,
+      debt: {
+        id: debt.id,
+        customerId: debt.customerId,
+        currentBalance: debt.currentBalance,
+        currency: debt.currency,
+        status: debt.status,
+        installments: debt.installments.map((installment) => ({
+          id: installment.id,
+          dueDate: installment.dueDate,
+          sequenceNo: installment.sequenceNo,
+          amountDue: installment.amountDue,
+          amountPaid: installment.amountPaid,
+          status: installment.status,
+        })),
+      },
+      existingPayment,
+    };
+  }
+
   async findAll(filters: PaymentFilters = {}, page = 1, limit = 20) {
     const where: Prisma.PaymentWhereInput = {};
 
@@ -182,6 +410,155 @@ class PaymentsService {
         },
       },
     });
+  }
+
+  async getPaymentLinkPreview(token: string) {
+    const context = await this.resolvePaymentLink(token);
+    return this.mapLinkPreview(context);
+  }
+
+  async completeFromLink(token: string) {
+    const existingContext = await this.resolvePaymentLink(token);
+    const existingBalance = Number(existingContext.debt.currentBalance);
+
+    if (existingContext.existingPayment) {
+      await flowRuntimeService.completeRunningIfPaid(existingContext.customer.id);
+      return this.mapLinkCompletion(
+        existingContext,
+        existingContext.existingPayment,
+        'already_paid',
+        Number(existingContext.existingPayment.amount),
+        Math.max(0, existingBalance - Number(existingContext.existingPayment.amount))
+      );
+    }
+
+    if (existingBalance <= 0 || ['settled', 'written_off'].includes(existingContext.debt.status)) {
+      await flowRuntimeService.completeRunningIfPaid(existingContext.customer.id);
+      return this.mapLinkCompletion(existingContext, null, 'already_paid', 0, 0);
+    }
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const context = await this.resolvePaymentLink(token, tx);
+        const amountToPay = Number(context.debt.currentBalance);
+
+        if (context.existingPayment) {
+          return this.mapLinkCompletion(
+            context,
+            context.existingPayment,
+            'already_paid',
+            Number(context.existingPayment.amount),
+            Math.max(0, amountToPay - Number(context.existingPayment.amount))
+          );
+        }
+
+        if (amountToPay <= 0 || ['settled', 'written_off'].includes(context.debt.status)) {
+          await flowRuntimeService.completeRunningIfPaid(context.customer.id, tx);
+          return this.mapLinkCompletion(context, null, 'already_paid', 0, 0);
+        }
+
+        const payment = await tx.payment.create({
+          data: {
+            customerId: context.customer.id,
+            debtId: context.debt.id,
+            receivedAt: new Date(),
+            amount: amountToPay,
+            currency: context.debt.currency,
+            method: 'card',
+            providerTxnId: context.providerTxnId,
+            rawProviderPayload: {
+              source: 'payment_link',
+              notificationId: context.notificationId || null,
+            },
+            status: 'received',
+          },
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            method: true,
+            receivedAt: true,
+          },
+        });
+
+        let remainingAmount = amountToPay;
+        const outstandingInstallments = context.debt.installments.filter((installment) => {
+          const outstanding = Number(installment.amountDue) - Number(installment.amountPaid);
+          return outstanding > 0 && ['due', 'overdue', 'partially_paid'].includes(installment.status);
+        });
+
+        for (const installment of outstandingInstallments) {
+          if (remainingAmount <= 0) {
+            break;
+          }
+
+          const outstanding = Number(installment.amountDue) - Number(installment.amountPaid);
+          const amountApplied = Math.min(remainingAmount, outstanding);
+
+          await tx.paymentAllocation.create({
+            data: {
+              paymentId: payment.id,
+              installmentId: installment.id,
+              amountApplied,
+            },
+          });
+
+          await installmentsService.applyPayment(installment.id, amountApplied, tx);
+          await debtsService.updateBalance(context.debt.id, amountApplied, tx);
+
+          remainingAmount -= amountApplied;
+        }
+
+        if (remainingAmount > 0) {
+          await debtsService.updateBalance(context.debt.id, remainingAmount, tx);
+        }
+
+        await flowRuntimeService.completeRunningIfPaid(context.customer.id, tx);
+
+        const updatedDebt = await tx.debt.findUniqueOrThrow({
+          where: { id: context.debt.id },
+          select: {
+            id: true,
+            status: true,
+            currentBalance: true,
+            currency: true,
+          },
+        });
+
+        return this.mapLinkCompletion(
+          {
+            ...context,
+            debt: {
+              ...context.debt,
+              status: updatedDebt.status,
+              currentBalance: updatedDebt.currentBalance,
+              currency: updatedDebt.currency,
+            },
+          },
+          payment,
+          'paid',
+          amountToPay,
+          Number(updatedDebt.currentBalance)
+        );
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const retryContext = await this.resolvePaymentLink(token);
+        await flowRuntimeService.completeRunningIfPaid(retryContext.customer.id);
+        return this.mapLinkCompletion(
+          retryContext,
+          retryContext.existingPayment,
+          'already_paid',
+          retryContext.existingPayment ? Number(retryContext.existingPayment.amount) : 0,
+          Number(retryContext.debt.currentBalance)
+        );
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -358,8 +735,6 @@ class PaymentsService {
       await tx.paymentAllocation.deleteMany({
         where: { paymentId },
       });
-
-      await flowRuntimeService.ensureRunningInstance(payment.customerId, tx);
 
       // Update payment status
       return tx.payment.update({

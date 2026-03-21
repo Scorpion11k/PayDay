@@ -11,6 +11,7 @@
  * Usage: Run `npx prisma db seed` after adding this to prisma/seed.ts
  */
 
+import 'dotenv/config';
 import { PrismaClient, NotificationChannel } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -1155,6 +1156,7 @@ export async function seedTemplates() {
 
   let created = 0;
   let updated = 0;
+  let failed = 0;
 
   for (const template of allTemplates) {
     try {
@@ -1205,6 +1207,7 @@ export async function seedTemplates() {
       });
       created++;
     } catch (error) {
+      failed++;
       console.error(`Failed to create/update template: ${template.name}`, error);
     }
   }
@@ -1214,6 +1217,10 @@ export async function seedTemplates() {
   console.log(`   - Email: ${emailTemplates.length}`);
   console.log(`   - SMS/WhatsApp: ${smsWhatsAppTemplates.length}`);
   console.log(`   - Voice: ${voiceTemplates.length}`);
+
+  if (failed > 0) {
+    throw new Error(`Template seed failed for ${failed} template(s)`);
+  }
 }
 
 // Run if executed directly

@@ -2,6 +2,7 @@ import Handlebars from 'handlebars';
 import prisma from '../config/database';
 import { Customer, Installment, MessageTemplate, NotificationChannel, TemplateLanguage, TemplateTone } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import paymentLinkService from './payment-link.service';
 
 // Partial debt type for payload building (only fields we need)
 interface DebtInfo {
@@ -148,7 +149,7 @@ class TemplateService {
       InvoiceNumber: debt?.id?.slice(0, 8).toUpperCase() || 'N/A',
       DueDate: this.formatDate(dueDate, language),
       DaysOverdue: String(daysOverdue),
-      PaymentLink: this.generatePaymentLink(customer.id, debt?.id),
+      PaymentLink: this.generatePaymentLink(customer.id, debt?.id, notificationId),
       SupportPhone: process.env.SUPPORT_PHONE || '',
       SupportEmail: process.env.SUPPORT_EMAIL || '',
       BusinessHours: process.env.BUSINESS_HOURS || '9 AM - 5 PM',
@@ -282,10 +283,12 @@ class TemplateService {
   /**
    * Generate payment link
    */
-  private generatePaymentLink(customerId: string, debtId?: string): string {
-    const baseUrl = process.env.PAYMENT_BASE_URL || 'https://pay.payday.ai';
-    const token = Buffer.from(`${customerId}:${debtId || ''}`).toString('base64url');
-    return `${baseUrl}/${token}`;
+  private generatePaymentLink(customerId: string, debtId?: string, notificationId?: string): string {
+    return paymentLinkService.createLink({
+      customerId,
+      debtId,
+      notificationId,
+    });
   }
 }
 
