@@ -52,6 +52,7 @@ const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
   'Voice Call Made': <PhoneIcon fontSize="small" />,
   'Chat Prompt': <ChatIcon fontSize="small" />,
   'Collection Flow Created': <FlowIcon fontSize="small" />,
+  'Collection Flow Step': <FlowIcon fontSize="small" />,
   'Payment Received': <PaymentIcon fontSize="small" />,
 };
 
@@ -62,6 +63,7 @@ const ACTIVITY_COLORS: Record<string, string> = {
   'Voice Call Made': '#9c27b0',
   'Chat Prompt': '#00bcd4',
   'Collection Flow Created': '#3f51b5',
+  'Collection Flow Step': '#3f51b5',
   'Payment Received': '#4caf50',
 };
 
@@ -90,7 +92,38 @@ const TONE_LABELS: Record<string, string> = {
   heavy: 'Heavy',
 };
 
-function ActivityRow({ activity, t }: { activity: ActivityLogItem; t: (key: string) => string }) {
+function getTranslatedDescription(
+  activity: ActivityLogItem,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string | null {
+  const metadata = activity.metadata as Record<string, unknown> | null;
+  if (!metadata) return activity.description;
+
+  if (activity.activityName === 'Collection Flow Step') {
+    const stateName = metadata.stateName as string;
+    const customerName = activity.customerName;
+    if (stateName && customerName) {
+      const key = activity.status === 'success'
+        ? 'pages.activities.descriptions.flowStepExecuted'
+        : 'pages.activities.descriptions.flowStepFailed';
+      return t(key, { stateName, customerName });
+    }
+  }
+
+  if (activity.activityName === 'Payment Received') {
+    const amount = metadata.amount as number;
+    const currency = metadata.currency as string;
+    const invoiceNumber = metadata.invoiceNumber as string;
+    const customerName = activity.customerName;
+    if (amount && currency && invoiceNumber && customerName) {
+      return t('pages.activities.descriptions.paymentReceived', { amount, currency, invoiceNumber, customerName });
+    }
+  }
+
+  return activity.description;
+}
+
+function ActivityRow({ activity, t }: { activity: ActivityLogItem; t: (key: string, params?: Record<string, unknown>) => string }) {
   const color = getColor(activity.activityName);
   const icon = getIcon(activity.activityName);
   const [expanded, setExpanded] = useState(false);
@@ -100,6 +133,8 @@ function ActivityRow({ activity, t }: { activity: ActivityLogItem; t: (key: stri
   const messageText = metadata?.messageText as string | undefined;
   const tone = metadata?.tone as string | undefined;
   const hasDetails = isNotification && (messageText || tone);
+
+  const translatedDescription = getTranslatedDescription(activity, t);
 
   const statusLabel = activity.status === 'success'
     ? t('pages.activities.statuses.success')
@@ -150,7 +185,7 @@ function ActivityRow({ activity, t }: { activity: ActivityLogItem; t: (key: stri
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="subtitle2" fontWeight={600} noWrap>
-              {activity.activityName}
+              {t(`pages.activities.activityNames.${activity.activityName}`, activity.activityName)}
             </Typography>
             <Chip
               size="small"
@@ -162,9 +197,9 @@ function ActivityRow({ activity, t }: { activity: ActivityLogItem; t: (key: stri
             />
           </Box>
 
-          {activity.description && (
+          {translatedDescription && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
-              {activity.description}
+              {translatedDescription}
             </Typography>
           )}
 
@@ -288,7 +323,7 @@ export default function ActivitiesPage() {
       setTotalPages(result.pagination.totalPages);
       setTotal(result.pagination.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load activities');
+      setError(err instanceof Error ? err.message : t('common.loading'));
     } finally {
       setLoading(false);
     }

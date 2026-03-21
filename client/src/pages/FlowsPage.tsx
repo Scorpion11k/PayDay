@@ -132,7 +132,7 @@ export default function FlowsPage() {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to load flows',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.loadFlows'),
         severity: 'error',
       });
     } finally {
@@ -148,7 +148,7 @@ export default function FlowsPage() {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to load flow',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.loadFlow'),
         severity: 'error',
       });
     }
@@ -161,7 +161,7 @@ export default function FlowsPage() {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to load customers',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.loadCustomers'),
         severity: 'error',
       });
     }
@@ -181,7 +181,7 @@ export default function FlowsPage() {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to load customer flow',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.loadCustomerFlow'),
         severity: 'error',
       });
     }
@@ -218,7 +218,7 @@ export default function FlowsPage() {
     if (selectedFlow.status !== 'draft') {
       setSnackbar({
         open: true,
-        message: 'Only draft flows can be edited directly. Create a new version first.',
+        message: t('pages.flows.onlyDraftCanEdit'),
         severity: 'info',
       });
       return;
@@ -235,14 +235,14 @@ export default function FlowsPage() {
           ...payload,
           updatedBy: 'ui',
         });
-        setSnackbar({ open: true, message: 'Flow updated successfully', severity: 'success' });
+        setSnackbar({ open: true, message: t('pages.flows.messages.flowUpdated'), severity: 'success' });
       } else {
         const created = await createFlow({
           ...payload,
           createdBy: 'ui',
         });
         setSelectedFlowId(created.id);
-        setSnackbar({ open: true, message: 'Flow created successfully', severity: 'success' });
+        setSnackbar({ open: true, message: t('pages.flows.messages.flowCreated'), severity: 'success' });
       }
       setBuilderOpen(false);
       setEditingFlow(null);
@@ -250,7 +250,7 @@ export default function FlowsPage() {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to save flow',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.saveFlow'),
         severity: 'error',
       });
     } finally {
@@ -262,12 +262,12 @@ export default function FlowsPage() {
     if (!selectedFlow) return;
     try {
       await publishFlow(selectedFlow.id, 'ui');
-      setSnackbar({ open: true, message: 'Flow published', severity: 'success' });
+      setSnackbar({ open: true, message: t('pages.flows.messages.flowPublished'), severity: 'success' });
       await refreshFlows();
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Publish failed',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.publishFailed'),
         severity: 'error',
       });
     }
@@ -279,7 +279,7 @@ export default function FlowsPage() {
       const result = await setDefaultFlow(selectedFlow.id, 'ui');
       setSnackbar({
         open: true,
-        message: `Default flow updated. Reassigned ${result.reassignedDefaultCustomers} customers.`,
+        message: t('pages.flows.messages.defaultFlowUpdated', { count: result.reassignedDefaultCustomers }),
         severity: 'success',
       });
       await refreshFlows();
@@ -287,7 +287,7 @@ export default function FlowsPage() {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Set default failed',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.setDefaultFailed'),
         severity: 'error',
       });
     }
@@ -302,11 +302,11 @@ export default function FlowsPage() {
       setBuilderOpen(true);
       await refreshFlows();
       await loadFlowDetail(cloned.id);
-      setSnackbar({ open: true, message: 'Draft version created', severity: 'success' });
+      setSnackbar({ open: true, message: t('pages.flows.messages.draftVersionCreated'), severity: 'success' });
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Version creation failed',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.versionCreationFailed'),
         severity: 'error',
       });
     }
@@ -320,7 +320,7 @@ export default function FlowsPage() {
       setDeleteDialogOpen(false);
       setSnackbar({
         open: true,
-        message: `Flow "${deleted.name}" deleted successfully`,
+        message: t('pages.flows.messages.flowDeleted', { name: deleted.name }),
         severity: 'success',
       });
       await refreshFlows();
@@ -328,7 +328,7 @@ export default function FlowsPage() {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Delete failed',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.deleteFailed'),
         severity: 'error',
       });
     } finally {
@@ -341,7 +341,7 @@ export default function FlowsPage() {
       const result = await runFlowExecutorOnce(100);
       setSnackbar({
         open: true,
-        message: `Executor: advanced ${result.advanced}, completed ${result.completedPaid + result.completedEnd}, failed ${result.failed}`,
+        message: t('pages.flows.messages.executorResult', { advanced: result.advanced, completed: result.completedPaid + result.completedEnd, failed: result.failed }),
         severity: 'info',
       });
       if (selectedCustomerId) {
@@ -350,7 +350,7 @@ export default function FlowsPage() {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Executor run failed',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.executorFailed'),
         severity: 'error',
       });
     }
@@ -361,11 +361,11 @@ export default function FlowsPage() {
     try {
       await assignCustomerFlow(selectedCustomerId, assignFlowId);
       await loadCustomerFlow(selectedCustomerId);
-      setSnackbar({ open: true, message: 'Customer flow reassigned', severity: 'success' });
+      setSnackbar({ open: true, message: t('pages.flows.messages.customerFlowReassigned'), severity: 'success' });
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Assignment failed',
+        message: error instanceof Error ? error.message : t('pages.flows.errors.assignmentFailed'),
         severity: 'error',
       });
     }
@@ -379,24 +379,24 @@ export default function FlowsPage() {
           <Typography variant="h2" sx={{ fontSize: '1.5rem', fontWeight: 600 }}>
             {t('pages.flows.title')}
           </Typography>
-          <Chip size="small" label={`${flows.length} flows`} />
+          <Chip size="small" label={t('pages.flows.flowCount', { count: flows.length })} />
         </Stack>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void refreshFlows()} disabled={loading}>
-            Refresh
+            {t('pages.flows.refresh')}
           </Button>
           <Button variant="outlined" startIcon={<FlowsIcon />} onClick={openPromptCreate}>
-            Create with Prompt
+            {t('pages.flows.createWithPrompt')}
           </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-            Create Flow
+            {t('pages.flows.createFlow')}
           </Button>
         </Stack>
       </Box>
 
       <Tabs value={tab} onChange={(_, value) => setTab(value)}>
-        <Tab label="Definitions" />
-        <Tab label="Customer Monitor" />
+        <Tab label={t('pages.flows.tabs.definitions')} />
+        <Tab label={t('pages.flows.tabs.customerMonitor')} />
       </Tabs>
 
       {tab === 0 && (
@@ -414,7 +414,7 @@ export default function FlowsPage() {
                     secondary={`v${flow.version} - ${flow.flowKey}`}
                   />
                   <Stack direction="row" spacing={0.5}>
-                    {flow.isDefault && <Chip size="small" label="Default" color="warning" />}
+                    {flow.isDefault && <Chip size="small" label={t('pages.flows.default')} color="warning" />}
                     <Chip size="small" label={flow.status} color={flowStatusColor[flow.status]} />
                   </Stack>
                 </ListItemButton>
@@ -429,7 +429,7 @@ export default function FlowsPage() {
                   <Box>
                     <Typography variant="h6" fontWeight={600}>{selectedFlow.name}</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Key: {selectedFlow.flowKey} - Version: {selectedFlow.version}
+                      {t('pages.flows.key')}: {selectedFlow.flowKey} - {t('pages.flows.version')}: {selectedFlow.version}
                     </Typography>
                     {selectedFlow.description && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -438,35 +438,35 @@ export default function FlowsPage() {
                     )}
                   </Box>
                   <Stack direction="row" spacing={1}>
-                    <Tooltip title="Edit Draft">
+                    <Tooltip title={t('pages.flows.tooltips.editDraft')}>
                       <span>
                         <IconButton onClick={openEdit} disabled={selectedFlow.status !== 'draft'}>
                           <EditIcon />
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Delete">
+                    <Tooltip title={t('pages.flows.tooltips.delete')}>
                       <span>
                         <IconButton onClick={() => setDeleteDialogOpen(true)} color="error">
                           <DeleteIcon />
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Publish">
+                    <Tooltip title={t('pages.flows.tooltips.publish')}>
                       <span>
                         <IconButton onClick={() => void publishSelected()} disabled={selectedFlow.status !== 'draft'} color="success">
                           <PublishIcon />
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Set Default">
+                    <Tooltip title={t('pages.flows.tooltips.setDefault')}>
                       <span>
                         <IconButton onClick={() => void setDefaultSelected()} disabled={selectedFlow.status !== 'published'} color="warning">
                           <StarIcon />
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Create New Version">
+                    <Tooltip title={t('pages.flows.tooltips.createNewVersion')}>
                       <span>
                         <IconButton onClick={() => void createVersionFromSelected()} disabled={selectedFlow.status !== 'published'}>
                           <VersionIcon />
@@ -479,8 +479,8 @@ export default function FlowsPage() {
                 <Divider sx={{ mb: 2 }} />
 
                 <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                  <Chip size="small" label={`${selectedFlow.states.length} states`} />
-                  <Chip size="small" label={`${selectedFlow.transitions.length} transitions`} />
+                  <Chip size="small" label={t('pages.flows.statesCount', { count: selectedFlow.states.length })} />
+                  <Chip size="small" label={t('pages.flows.transitionsCount', { count: selectedFlow.transitions.length })} />
                 </Stack>
 
                 <Box sx={{ flex: 1, minHeight: 0 }}>
@@ -493,7 +493,7 @@ export default function FlowsPage() {
               </>
             ) : (
               <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
-                <Typography>{loading ? 'Loading flows...' : 'Select a flow to view details'}</Typography>
+                <Typography>{loading ? t('pages.flows.loadingFlows') : t('pages.flows.selectFlowToView')}</Typography>
               </Box>
             )}
           </Paper>
@@ -504,10 +504,10 @@ export default function FlowsPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 2, flex: 1, minHeight: 0 }}>
           <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <FormControl size="small" fullWidth>
-              <InputLabel>Customer</InputLabel>
+              <InputLabel>{t('pages.flows.customer')}</InputLabel>
               <Select
                 value={selectedCustomerId}
-                label="Customer"
+                label={t('pages.flows.customer')}
                 onChange={(event) => {
                   const value = event.target.value;
                   if (value) {
@@ -522,10 +522,10 @@ export default function FlowsPage() {
             </FormControl>
 
             <FormControl size="small" fullWidth>
-              <InputLabel>Assign Flow</InputLabel>
+              <InputLabel>{t('pages.flows.assignFlow')}</InputLabel>
               <Select
                 value={assignFlowId}
-                label="Assign Flow"
+                label={t('pages.flows.assignFlow')}
                 onChange={(event) => setAssignFlowId(event.target.value)}
                 disabled={!selectedCustomerId}
               >
@@ -541,10 +541,10 @@ export default function FlowsPage() {
 
             <Stack direction="row" spacing={1}>
               <Button variant="outlined" onClick={() => void assignFlowToCustomer()} disabled={!selectedCustomerId || !assignFlowId}>
-                Assign
+                {t('pages.flows.assign')}
               </Button>
               <Button variant="contained" startIcon={<RunIcon />} onClick={() => void runExecutor()}>
-                Run Executor Once
+                {t('pages.flows.runExecutorOnce')}
               </Button>
             </Stack>
           </Paper>
@@ -555,15 +555,15 @@ export default function FlowsPage() {
                 <Box>
                   <Typography variant="h6" fontWeight={600}>{customerFlow.customer.fullName}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Assigned flow: {customerFlow.assignment?.flow.name || 'None'}
+                    {t('pages.flows.assignedFlow')}: {customerFlow.assignment?.flow.name || t('pages.flows.none')}
                   </Typography>
                 </Box>
 
                 <Stack direction="row" spacing={1}>
-                  <Chip label={`Source: ${customerFlow.assignment?.source || 'n/a'}`} size="small" />
+                  <Chip label={`${t('pages.flows.source')}: ${customerFlow.assignment?.source || 'n/a'}`} size="small" />
                   {customerFlow.instance && (
                     <Chip
-                      label={`Instance: ${customerFlow.instance.status}`}
+                      label={`${t('pages.flows.instance')}: ${customerFlow.instance.status}`}
                       size="small"
                       color={instanceStatusColor[customerFlow.instance.status]}
                     />
@@ -572,7 +572,7 @@ export default function FlowsPage() {
 
                 {customerFlow.instance ? (
                   <Box>
-                    <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>State Timeline</Typography>
+                    <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>{t('pages.flows.stateTimeline')}</Typography>
                     <List dense>
                       {customerFlow.instance.stateStatuses.map((stateStatus) => (
                         <ListItemText
@@ -586,7 +586,7 @@ export default function FlowsPage() {
                                 color={stepStatusColor[stateStatus.status]}
                               />
                               <Typography variant="caption" color="text.secondary">
-                                due: {stateStatus.dueAt ? new Date(stateStatus.dueAt).toLocaleString() : 'n/a'}
+                                {t('pages.flows.due')}: {stateStatus.dueAt ? new Date(stateStatus.dueAt).toLocaleString() : 'n/a'}
                               </Typography>
                               {stateStatus.errorMessage && (
                                 <Typography variant="caption" color="error.main">
@@ -600,12 +600,12 @@ export default function FlowsPage() {
                     </List>
                   </Box>
                 ) : (
-                  <Alert severity="info">No running instance for this customer.</Alert>
+                  <Alert severity="info">{t('pages.flows.noRunningInstance')}</Alert>
                 )}
               </Stack>
             ) : (
               <Box sx={{ height: '100%', display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
-                <Typography>Select a customer to monitor flow state</Typography>
+                <Typography>{t('pages.flows.selectCustomerToMonitor')}</Typography>
               </Box>
             )}
           </Paper>
@@ -622,13 +622,13 @@ export default function FlowsPage() {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Delete Flow</DialogTitle>
+        <DialogTitle>{t('pages.flows.deleteFlow')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 1.5 }}>
-            Are you sure you want to delete "{selectedFlow?.name}"?
+            {t('pages.flows.deleteConfirmMessage', { name: selectedFlow?.name })}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            This action cannot be undone. Default flows, flows assigned to customers, and flows with execution history cannot be deleted.
+            {t('pages.flows.deleteWarning')}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
@@ -660,7 +660,7 @@ export default function FlowsPage() {
         PaperProps={{ sx: { height: '90vh' } }}
       >
         <DialogTitle>
-          {editingFlow ? `Edit Flow: ${editingFlow.name}` : 'Create New Flow'}
+          {editingFlow ? t('pages.flows.editFlow', { name: editingFlow.name }) : t('pages.flows.createNewFlow')}
         </DialogTitle>
         <DialogContent sx={{ p: 2 }}>
           <GraphFlowBuilder
