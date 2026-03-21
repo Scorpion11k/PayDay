@@ -420,6 +420,21 @@
         "calm": "Calm",
         "medium": "Medium",
         "heavy": "Heavy"
+      },
+      "activityNames": {
+        "SMS Sent": "SMS Sent",
+        "Email Sent": "Email Sent",
+        "WhatsApp Sent": "WhatsApp Sent",
+        "Voice Call Made": "Voice Call Made",
+        "Chat Prompt": "Chat Prompt",
+        "Collection Flow Created": "Collection Flow Created",
+        "Collection Flow Step": "Collection Flow Step",
+        "Payment Received": "Payment Received"
+      },
+      "descriptions": {
+        "flowStepExecuted": "{{stateName}} executed for {{customerName}}",
+        "flowStepFailed": "{{stateName}} failed for {{customerName}}",
+        "paymentReceived": "Payment of {{currency}} {{amount}} received from {{customerName}} for invoice {{invoiceNumber}}"
       }
     },
     "dashboards": {
@@ -430,7 +445,70 @@
     "flows": {
       "title": "Flows",
       "description": "Workflow automation builder will be displayed here.",
-      "subtitle": "Create and manage automated collection flows and sequences."
+      "subtitle": "Create and manage automated collection flows and sequences.",
+      "flowCount": "{{count}} flows",
+      "refresh": "Refresh",
+      "createWithPrompt": "Create with Prompt",
+      "createFlow": "Create Flow",
+      "tabs": {
+        "definitions": "Definitions",
+        "customerMonitor": "Customer Monitor"
+      },
+      "default": "Default",
+      "key": "Key",
+      "version": "Version",
+      "tooltips": {
+        "editDraft": "Edit Draft",
+        "delete": "Delete",
+        "publish": "Publish",
+        "setDefault": "Set Default",
+        "createNewVersion": "Create New Version"
+      },
+      "statesCount": "{{count}} states",
+      "transitionsCount": "{{count}} transitions",
+      "loadingFlows": "Loading flows...",
+      "selectFlowToView": "Select a flow to view details",
+      "customer": "Customer",
+      "assignFlow": "Assign Flow",
+      "assign": "Assign",
+      "runExecutorOnce": "Run Executor Once",
+      "assignedFlow": "Assigned flow",
+      "none": "None",
+      "source": "Source",
+      "instance": "Instance",
+      "stateTimeline": "State Timeline",
+      "due": "due",
+      "noRunningInstance": "No running instance for this customer.",
+      "selectCustomerToMonitor": "Select a customer to monitor flow state",
+      "deleteFlow": "Delete Flow",
+      "deleteConfirmMessage": "Are you sure you want to delete \"{{name}}\"?",
+      "deleteWarning": "This action cannot be undone. Default flows, flows assigned to customers, and flows with execution history cannot be deleted.",
+      "editFlow": "Edit Flow: {{name}}",
+      "createNewFlow": "Create New Flow",
+      "onlyDraftCanEdit": "Only draft flows can be edited directly. Create a new version first.",
+      "messages": {
+        "flowUpdated": "Flow updated successfully",
+        "flowCreated": "Flow created successfully",
+        "flowPublished": "Flow published",
+        "defaultFlowUpdated": "Default flow updated. Reassigned {{count}} customers.",
+        "draftVersionCreated": "Draft version created",
+        "flowDeleted": "Flow \"{{name}}\" deleted successfully",
+        "executorResult": "Executor: advanced {{advanced}}, completed {{completed}}, failed {{failed}}",
+        "customerFlowReassigned": "Customer flow reassigned"
+      },
+      "errors": {
+        "loadFlows": "Failed to load flows",
+        "loadFlow": "Failed to load flow",
+        "loadCustomers": "Failed to load customers",
+        "loadCustomerFlow": "Failed to load customer flow",
+        "saveFlow": "Failed to save flow",
+        "publishFailed": "Publish failed",
+        "setDefaultFailed": "Set default failed",
+        "versionCreationFailed": "Version creation failed",
+        "deleteFailed": "Delete failed",
+        "executorFailed": "Executor run failed",
+        "assignmentFailed": "Assignment failed"
+      }
     },
     "contracts": {
       "title": "Contracts",
@@ -555,6 +633,83 @@
         "missingRequired": "Missing required field mappings",
         "validationFailed": "Validation Errors"
       }
+    }
+  },
+  "brainView": {
+    "title": "Brain View",
+    "customer": "Customer",
+    "refresh": "Refresh",
+    "closeBrainView": "Close Brain View",
+    "loadingBrainView": "Loading Brain View...",
+    "customerFlowOverview": "Customer Flow Overview",
+    "flowStatus": "Flow Status",
+    "flowStatusLabel": "Flow Status: {{status}}",
+    "runtimeLabel": "Runtime: {{status}}",
+    "flowKeyLabel": "Flow Key: {{key}}",
+    "customerName": "Customer Name",
+    "totalOutstandingAmount": "Total Outstanding Amount",
+    "channel": "Channel",
+    "currentStage": "Current Stage",
+    "noAssignedFlow": "No assigned flow",
+    "notStarted": "Not started",
+    "noActiveFlow": "No active collection flow is assigned to this customer.",
+    "flowNotStarted": "This customer has an assigned flow, but it has not started yet.",
+    "flowStoppedPaid": "This flow stopped automatically because the customer paid the debt.",
+    "assignedFlow": "Assigned Flow",
+    "stageHighlightingNote": "Current stage highlighting is based on the customer's live collection runtime.",
+    "runtimeSnapshot": "Runtime Snapshot",
+    "runtimeSnapshotDesc": "Quick view of what already ran and what comes next.",
+    "executedSteps": "Executed Steps",
+    "pendingSteps": "Pending Steps",
+    "currentChannel": "Current Channel",
+    "currentTone": "Current Tone",
+    "nextScheduledStep": "Next Scheduled Step",
+    "noScheduledStep": "No scheduled step",
+    "lastExecutedStep": "Last Executed Step",
+    "noExecutedStepYet": "No executed step yet",
+    "timelineTitle": "Timeline of Flow Steps",
+    "timelineDesc": "Completed, waiting, failed, and upcoming steps in execution order.",
+    "noRuntimeHistory": "This customer has a flow definition, but no runtime step history is available yet.",
+    "currentStageBadge": "Current Stage",
+    "noStepsExecuted": "No steps were executed yet.",
+    "upcomingSteps": "Upcoming Steps",
+    "noPendingSteps": "No pending or scheduled steps remain.",
+    "stepCount": "{{count}} step",
+    "stepCount_other": "{{count}} steps",
+    "toneLabel": "Tone: {{tone}}",
+    "channelLabel": "Channel: {{channel}}",
+    "channels": {
+      "email": "Email",
+      "sms": "SMS",
+      "whatsapp": "WhatsApp",
+      "voiceCall": "Voice Call",
+      "auto": "Auto"
+    },
+    "tones": {
+      "calm": "Calm",
+      "medium": "Medium",
+      "heavy": "Heavy",
+      "auto": "Auto"
+    },
+    "statuses": {
+      "noFlow": "No Flow",
+      "notStarted": "Not Started",
+      "completed": "Completed",
+      "paid": "Paid",
+      "escalated": "Escalated",
+      "active": "Active"
+    },
+    "stepStatuses": {
+      "completed": "Completed",
+      "waiting": "Waiting",
+      "failed": "Failed",
+      "upcoming": "Upcoming"
+    },
+    "dates": {
+      "executionDate": "Execution Date",
+      "scheduledDate": "Scheduled Date",
+      "notRecorded": "Not recorded",
+      "notScheduled": "Not scheduled"
     }
   },
   "settings": {

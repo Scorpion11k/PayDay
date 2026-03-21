@@ -30,6 +30,7 @@ interface FlowDiagramNodeData extends Record<string, unknown> {
   isEnd: boolean;
   runtimeStatus?: FlowStateInstanceStatus | null;
   isCurrent: boolean;
+  flowStarted: boolean;
   layoutDirection: Exclude<FlowLayoutDirection, 'auto'>;
 }
 
@@ -39,6 +40,7 @@ interface FlowDiagramViewProps {
   currentStateId?: string | null;
   stateStatuses?: CollectionFlowStateStatusDto[];
   layout?: FlowLayoutDirection;
+  runtimeMode?: boolean;
 }
 
 type FlowDiagramNode = Node<FlowDiagramNodeData>;
@@ -126,10 +128,18 @@ function getVisualState(data: FlowDiagramNodeData) {
   }
 
   if (data.isStart) {
+    if (data.flowStarted) {
+      return {
+        border: '#2e7d32',
+        background: '#e8f5e9',
+        badge: '#2e7d32',
+        role: 'Start',
+      };
+    }
     return {
-      border: '#2e7d32',
-      background: '#e8f5e9',
-      badge: '#2e7d32',
+      border: '#90a4ae',
+      background: '#ffffff',
+      badge: '#546e7a',
       role: 'Start',
     };
   }
@@ -241,7 +251,8 @@ function toNode(
   position: FlowPosition,
   layoutDirection: Exclude<FlowLayoutDirection, 'auto'>,
   runtimeStatus?: CollectionFlowStateStatusDto | null,
-  isCurrent = false
+  isCurrent = false,
+  flowStarted = false
 ): Node<FlowDiagramNodeData> {
   const targetPosition = layoutDirection === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = layoutDirection === 'vertical' ? Position.Bottom : Position.Right;
@@ -259,6 +270,7 @@ function toNode(
       isEnd: state.isEnd,
       runtimeStatus: runtimeStatus?.status ?? null,
       isCurrent,
+      flowStarted,
       layoutDirection,
     },
     type: 'flowDiagramState',
@@ -293,6 +305,7 @@ export default function FlowDiagramView({
   currentStateId = null,
   stateStatuses = [],
   layout = 'auto',
+  runtimeMode = false,
 }: FlowDiagramViewProps) {
   const runtimeStatusByStateId = useMemo(() => {
     const statusMap = new Map<string, CollectionFlowStateStatusDto>();
@@ -315,15 +328,17 @@ export default function FlowDiagramView({
     [layout, states, transitions]
   );
 
+  const flowStarted = !runtimeMode || stateStatuses.length > 0 || currentStateId != null;
+
   const nodes = useMemo(
     () =>
       states.map((state) => {
         const runtimeStatus = runtimeStatusByStateId.get(state.id) ?? null;
         const isCurrent = currentStateId ? currentStateId === state.id : runtimeStatus?.status === 'waiting';
         const position = flowLayout.positions.get(state.id) ?? { x: 100, y: 120 };
-        return toNode(state, position, flowLayout.direction, runtimeStatus, isCurrent);
+        return toNode(state, position, flowLayout.direction, runtimeStatus, isCurrent, flowStarted);
       }),
-    [currentStateId, flowLayout.direction, flowLayout.positions, runtimeStatusByStateId, states]
+    [currentStateId, flowLayout.direction, flowLayout.positions, flowStarted, runtimeStatusByStateId, states]
   );
   const edges = useMemo(() => transitions.map(toEdge), [transitions]);
 

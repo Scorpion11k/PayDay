@@ -19,6 +19,7 @@ import {
   Close as CloseIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import FlowDiagramView from '../FlowBuilder/FlowDiagramView';
 import { getCustomerCollectionFlow } from '../../services/api';
 import type {
@@ -76,31 +77,31 @@ function formatCurrency(amount: number, language: SupportedLanguage): string {
   }).format(amount);
 }
 
-function formatChannelLabel(channel: FlowChannel | null): string {
+function getChannelKey(channel: FlowChannel | null): string {
   switch (channel) {
     case 'email':
-      return 'Email';
+      return 'email';
     case 'sms':
-      return 'SMS';
+      return 'sms';
     case 'whatsapp':
-      return 'WhatsApp';
+      return 'whatsapp';
     case 'call_task':
-      return 'Voice Call';
+      return 'voiceCall';
     default:
-      return 'Auto';
+      return 'auto';
   }
 }
 
-function formatToneLabel(tone: FlowTone | null | undefined): string {
+function getToneKey(tone: FlowTone | null | undefined): string {
   switch (tone) {
     case 'calm':
-      return 'Calm';
+      return 'calm';
     case 'medium':
-      return 'Medium';
+      return 'medium';
     case 'heavy':
-      return 'Heavy';
+      return 'heavy';
     default:
-      return 'Auto';
+      return 'auto';
   }
 }
 
@@ -130,28 +131,28 @@ function resolveStateChannel(
   }
 }
 
-function getFlowStatusMeta(
+function getFlowStatusKey(
   instanceStatus: FlowInstanceStatus | null | undefined,
   hasFlow: boolean
-): { label: string; color: StatusChipColor } {
+): { key: string; color: StatusChipColor } {
   if (!hasFlow) {
-    return { label: 'No Flow', color: 'default' };
+    return { key: 'noFlow', color: 'default' };
   }
 
   if (!instanceStatus) {
-    return { label: 'Not Started', color: 'default' };
+    return { key: 'notStarted', color: 'default' };
   }
 
   switch (instanceStatus) {
     case 'completed_end':
-      return { label: 'Completed', color: 'success' };
+      return { key: 'completed', color: 'success' };
     case 'completed_paid':
-      return { label: 'Paid', color: 'success' };
+      return { key: 'paid', color: 'success' };
     case 'failed':
-      return { label: 'Escalated', color: 'error' };
+      return { key: 'escalated', color: 'error' };
     case 'running':
     default:
-      return { label: 'Active', color: 'warning' };
+      return { key: 'active', color: 'warning' };
   }
 }
 
@@ -159,21 +160,21 @@ function getStepStatusMeta(status: CollectionFlowStateStatusDto['status']) {
   switch (status) {
     case 'completed':
       return {
-        label: 'Completed',
+        key: 'completed',
         color: 'success' as StatusChipColor,
         accent: '#2e7d32',
         background: '#f1f8f4',
       };
     case 'waiting':
       return {
-        label: 'Waiting',
+        key: 'waiting',
         color: 'warning' as StatusChipColor,
         accent: '#ed6c02',
         background: '#fff8f1',
       };
     case 'failed':
       return {
-        label: 'Failed',
+        key: 'failed',
         color: 'error' as StatusChipColor,
         accent: '#c62828',
         background: '#fff5f5',
@@ -181,7 +182,7 @@ function getStepStatusMeta(status: CollectionFlowStateStatusDto['status']) {
     case 'upcoming':
     default:
       return {
-        label: 'Upcoming',
+        key: 'upcoming',
         color: 'default' as StatusChipColor,
         accent: '#607d8b',
         background: '#f8fafc',
@@ -189,15 +190,15 @@ function getStepStatusMeta(status: CollectionFlowStateStatusDto['status']) {
   }
 }
 
-function getStepDateLabel(step: CollectionFlowStateStatusDto): string {
+function getStepDateKey(step: CollectionFlowStateStatusDto): string {
   switch (step.status) {
     case 'completed':
     case 'failed':
-      return 'Execution Date';
+      return 'executionDate';
     case 'waiting':
     case 'upcoming':
     default:
-      return 'Scheduled Date';
+      return 'scheduledDate';
   }
 }
 
@@ -261,12 +262,20 @@ function StepQueueList({
   steps,
   language,
   emptyMessage,
+  stepStatusLabels,
+  dateLabelFn,
+  dateFormatFn,
 }: {
   title: string;
   steps: CollectionFlowStateStatusDto[];
   language: SupportedLanguage;
   emptyMessage: string;
+  stepStatusLabels: Record<string, string>;
+  dateLabelFn: (step: CollectionFlowStateStatusDto) => string;
+  dateFormatFn: (value: string | null | undefined, fallback: string) => string;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Paper
       variant="outlined"
@@ -283,7 +292,7 @@ function StepQueueList({
             {title}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {steps.length} step{steps.length === 1 ? '' : 's'}
+            {t('brainView.stepCount', { count: steps.length })}
           </Typography>
         </Box>
 
@@ -309,15 +318,16 @@ function StepQueueList({
                       {step.state.stateName}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {getStepDateLabel(step)}:{' '}
-                      {formatDateTime(
+                      {dateLabelFn(step)}:{' '}
+                      {dateFormatFn(
                         getStepDateValue(step),
-                        language,
-                        step.status === 'completed' || step.status === 'failed' ? 'Not recorded' : 'Not scheduled'
+                        step.status === 'completed' || step.status === 'failed'
+                          ? t('brainView.dates.notRecorded')
+                          : t('brainView.dates.notScheduled')
                       )}
                     </Typography>
                   </Box>
-                  <Chip size="small" label={statusMeta.label} color={statusMeta.color} />
+                  <Chip size="small" label={stepStatusLabels[statusMeta.key]} color={statusMeta.color} />
                 </Stack>
               </Box>
             );
@@ -334,10 +344,13 @@ export default function BrainViewDialog({
   language,
   onClose,
 }: BrainViewDialogProps) {
+  const { t } = useTranslation();
   const customerId = customer?.id ?? null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerFlow, setCustomerFlow] = useState<CustomerCollectionFlowDto | null>(null);
+
+  const isRtl = language === 'he' || language === 'ar';
 
   const loadBrainView = useCallback(
     async (background = false) => {
@@ -425,16 +438,38 @@ export default function BrainViewDialog({
   const fallbackChannel = customerFlow?.customer.preferredChannel ?? customer?.preferredChannel ?? null;
   const fallbackTone = customerFlow?.customer.preferredTone ?? customer?.preferredTone ?? null;
   const currentChannel = resolveStateChannel(currentStep?.state, fallbackChannel);
-  const flowStatus = getFlowStatusMeta(instance?.status, Boolean(assignedFlow || instance));
-  const flowName = assignedFlow?.name ?? instance?.flow.name ?? 'No assigned flow';
+  const flowStatus = getFlowStatusKey(instance?.status, Boolean(assignedFlow || instance));
+  const flowStatusLabel = t(`brainView.statuses.${flowStatus.key}`);
+  const flowName = assignedFlow?.name ?? instance?.flow.name ?? null;
   const flowVersion = assignedFlow?.version ?? instance?.flow.version ?? null;
   const currentStage =
     instance?.currentState?.stateName ||
     currentStep?.state.stateName ||
-    (assignedFlow || instance ? 'Not started' : 'No assigned flow');
+    (assignedFlow || instance ? t('brainView.notStarted') : t('brainView.noAssignedFlow'));
+
+  const channelLabel = t(`brainView.channels.${getChannelKey(currentChannel)}`);
+  const toneLabel = t(`brainView.tones.${getToneKey(currentStep?.state.tone ?? fallbackTone)}`);
+
+  const stepStatusLabels = useMemo(() => ({
+    completed: t('brainView.stepStatuses.completed'),
+    waiting: t('brainView.stepStatuses.waiting'),
+    failed: t('brainView.stepStatuses.failed'),
+    upcoming: t('brainView.stepStatuses.upcoming'),
+  }), [t]);
+
+  const dateLabelFn = useCallback(
+    (step: CollectionFlowStateStatusDto) => t(`brainView.dates.${getStepDateKey(step)}`),
+    [t]
+  );
+
+  const dateFormatFn = useCallback(
+    (value: string | null | undefined, fallback: string) => formatDateTime(value, language, fallback),
+    [language]
+  );
 
   return (
     <Dialog open={open} onClose={onClose} fullScreen>
+      <Box dir={isRtl ? 'rtl' : 'ltr'} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <DialogTitle
         sx={{
           px: { xs: 2, md: 3 },
@@ -452,10 +487,10 @@ export default function BrainViewDialog({
             <BrainViewIcon sx={{ fontSize: 30, color: 'primary.main' }} />
             <Box>
               <Typography variant="h5" fontWeight={700}>
-                Brain View
+                {t('brainView.title')}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {customer?.fullName || 'Customer'} {flowName !== 'No assigned flow' ? `• ${flowName}` : ''}
+                {customer?.fullName || t('brainView.customer')} {flowName ? `• ${flowName}` : ''}
               </Typography>
             </Box>
           </Stack>
@@ -467,9 +502,9 @@ export default function BrainViewDialog({
               onClick={() => void loadBrainView()}
               disabled={!customerId || loading}
             >
-              Refresh
+              {t('brainView.refresh')}
             </Button>
-            <IconButton onClick={onClose} aria-label="Close Brain View">
+            <IconButton onClick={onClose} aria-label={t('brainView.closeBrainView')}>
               <CloseIcon />
             </IconButton>
           </Stack>
@@ -481,7 +516,7 @@ export default function BrainViewDialog({
           <Box sx={{ minHeight: '50vh', display: 'grid', placeItems: 'center' }}>
             <Stack spacing={2} alignItems="center">
               <CircularProgress />
-              <Typography color="text.secondary">Loading Brain View...</Typography>
+              <Typography color="text.secondary">{t('brainView.loadingBrainView')}</Typography>
             </Stack>
           </Box>
         ) : error ? (
@@ -489,7 +524,7 @@ export default function BrainViewDialog({
             severity="error"
             action={
               <Button color="inherit" size="small" onClick={() => void loadBrainView()}>
-                Retry
+                {t('brainView.refresh')}
               </Button>
             }
           >
@@ -515,21 +550,21 @@ export default function BrainViewDialog({
                 >
                   <Box>
                     <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
-                      Customer Flow Overview
+                      {t('brainView.customerFlowOverview')}
                     </Typography>
                     <Typography variant="h4" fontWeight={700}>
                       {customer.fullName}
                     </Typography>
                     <Typography variant="body1" color="text.secondary">
-                      {flowName}
+                      {flowName ?? t('brainView.noAssignedFlow')}
                       {flowVersion ? ` • v${flowVersion}` : ''}
                     </Typography>
                   </Box>
 
                   <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                    <Chip label={`Flow Status: ${flowStatus.label}`} color={flowStatus.color} />
-                    {instance && <Chip label={`Runtime: ${instance.status}`} variant="outlined" />}
-                    {assignedFlow && <Chip label={`Flow Key: ${assignedFlow.flowKey}`} variant="outlined" />}
+                    <Chip label={t('brainView.flowStatusLabel', { status: flowStatusLabel })} color={flowStatus.color} />
+                    {instance && <Chip label={t('brainView.runtimeLabel', { status: instance.status })} variant="outlined" />}
+                    {assignedFlow && <Chip label={t('brainView.flowKeyLabel', { key: assignedFlow.flowKey })} variant="outlined" />}
                   </Stack>
                 </Stack>
 
@@ -544,30 +579,30 @@ export default function BrainViewDialog({
                     gap: 2,
                   }}
                 >
-                  <SummaryMetric label="Customer Name" value={customer.fullName} />
+                  <SummaryMetric label={t('brainView.customerName')} value={customer.fullName} />
                   <SummaryMetric
-                    label="Total Outstanding Amount"
+                    label={t('brainView.totalOutstandingAmount')}
                     value={formatCurrency(customer.totalDebtAmount, language)}
                     emphasize={customer.totalDebtAmount > 0}
                   />
-                  <SummaryMetric label="Channel" value={formatChannelLabel(currentChannel)} />
-                  <SummaryMetric label="Current Stage" value={currentStage} />
-                  <SummaryMetric label="Flow Status" value={flowStatus.label} />
+                  <SummaryMetric label={t('brainView.channel')} value={channelLabel} />
+                  <SummaryMetric label={t('brainView.currentStage')} value={currentStage} />
+                  <SummaryMetric label={t('brainView.flowStatus')} value={flowStatusLabel} />
                 </Box>
               </Stack>
             </Paper>
 
             {!assignedFlow && !instance && (
-              <Alert severity="info">No active collection flow is assigned to this customer.</Alert>
+              <Alert severity="info">{t('brainView.noActiveFlow')}</Alert>
             )}
 
             {assignedFlow && !instance && (
-              <Alert severity="info">This customer has an assigned flow, but it has not started yet.</Alert>
+              <Alert severity="info">{t('brainView.flowNotStarted')}</Alert>
             )}
 
             {instance?.status === 'completed_paid' && (
               <Alert severity="success">
-                This flow stopped automatically because the customer paid the debt.
+                {t('brainView.flowStoppedPaid')}
               </Alert>
             )}
 
@@ -594,16 +629,18 @@ export default function BrainViewDialog({
                   }}
                 >
                   <Typography variant="h6" fontWeight={700}>
-                    Assigned Flow
+                    {t('brainView.assignedFlow')}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Current stage highlighting is based on the customer&apos;s live collection runtime.
+                    {t('brainView.stageHighlightingNote')}
                   </Typography>
                   <FlowDiagramView
                     states={assignedFlow.states}
                     transitions={assignedFlow.transitions}
                     currentStateId={instance?.currentState?.id ?? null}
                     stateStatuses={stateStatuses}
+                    layout="vertical"
+                    runtimeMode
                   />
                 </Paper>
 
@@ -619,10 +656,10 @@ export default function BrainViewDialog({
                   <Stack spacing={2}>
                     <Box>
                       <Typography variant="h6" fontWeight={700}>
-                        Runtime Snapshot
+                        {t('brainView.runtimeSnapshot')}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Quick view of what already ran and what comes next.
+                        {t('brainView.runtimeSnapshotDesc')}
                       </Typography>
                     </Box>
 
@@ -633,8 +670,8 @@ export default function BrainViewDialog({
                         gap: 1.5,
                       }}
                     >
-                      <SummaryMetric label="Executed Steps" value={String(executedSteps.length)} />
-                      <SummaryMetric label="Pending Steps" value={String(pendingSteps.length)} />
+                      <SummaryMetric label={t('brainView.executedSteps')} value={String(executedSteps.length)} />
+                      <SummaryMetric label={t('brainView.pendingSteps')} value={String(pendingSteps.length)} />
                     </Box>
 
                     <Divider />
@@ -642,50 +679,50 @@ export default function BrainViewDialog({
                     <Stack spacing={1.5}>
                       <Box>
                         <Typography variant="caption" color="text.secondary">
-                          Current Channel
+                          {t('brainView.currentChannel')}
                         </Typography>
                         <Typography variant="subtitle1" fontWeight={600}>
-                          {formatChannelLabel(currentChannel)}
+                          {channelLabel}
                         </Typography>
                       </Box>
 
                       <Box>
                         <Typography variant="caption" color="text.secondary">
-                          Current Tone
+                          {t('brainView.currentTone')}
                         </Typography>
                         <Typography variant="subtitle1" fontWeight={600}>
-                          {formatToneLabel(currentStep?.state.tone ?? fallbackTone)}
+                          {toneLabel}
                         </Typography>
                       </Box>
 
                       <Box>
                         <Typography variant="caption" color="text.secondary">
-                          Next Scheduled Step
+                          {t('brainView.nextScheduledStep')}
                         </Typography>
                         <Typography variant="subtitle1" fontWeight={600}>
-                          {nextScheduledStep?.state.stateName || 'No scheduled step'}
+                          {nextScheduledStep?.state.stateName || t('brainView.noScheduledStep')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           {formatDateTime(
                             nextScheduledStep ? getStepDateValue(nextScheduledStep) : null,
                             language,
-                            'Not scheduled'
+                            t('brainView.dates.notScheduled')
                           )}
                         </Typography>
                       </Box>
 
                       <Box>
                         <Typography variant="caption" color="text.secondary">
-                          Last Executed Step
+                          {t('brainView.lastExecutedStep')}
                         </Typography>
                         <Typography variant="subtitle1" fontWeight={600}>
-                          {lastExecutedStep?.state.stateName || 'No executed step yet'}
+                          {lastExecutedStep?.state.stateName || t('brainView.noExecutedStepYet')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           {formatDateTime(
                             lastExecutedStep ? getStepDateValue(lastExecutedStep) : null,
                             language,
-                            'Not recorded'
+                            t('brainView.dates.notRecorded')
                           )}
                         </Typography>
                       </Box>
@@ -715,15 +752,15 @@ export default function BrainViewDialog({
                 }}
               >
                 <Typography variant="h6" fontWeight={700}>
-                  Timeline of Flow Steps
+                  {t('brainView.timelineTitle')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-                  Completed, waiting, failed, and upcoming steps in execution order.
+                  {t('brainView.timelineDesc')}
                 </Typography>
 
                 {stateStatuses.length === 0 ? (
                   <Alert severity="info">
-                    This customer has a flow definition, but no runtime step history is available yet.
+                    {t('brainView.noRuntimeHistory')}
                   </Alert>
                 ) : (
                   <Stack spacing={1.75}>
@@ -786,32 +823,36 @@ export default function BrainViewDialog({
                                     <Typography variant="subtitle1" fontWeight={700}>
                                       {step.state.stateName}
                                     </Typography>
-                                    {isCurrent && <Chip size="small" label="Current Stage" color="warning" />}
+                                    {isCurrent && <Chip size="small" label={t('brainView.currentStageBadge')} color="warning" />}
                                   </Stack>
                                   <Typography variant="body2" color="text.secondary">
                                     {step.state.actionName}
                                   </Typography>
                                 </Box>
 
-                                <Chip size="small" label={statusMeta.label} color={statusMeta.color} />
+                                <Chip size="small" label={stepStatusLabels[statusMeta.key]} color={statusMeta.color} />
                               </Stack>
 
                               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                                <Chip size="small" variant="outlined" label={`Tone: ${formatToneLabel(stepTone)}`} />
                                 <Chip
                                   size="small"
                                   variant="outlined"
-                                  label={`Channel: ${formatChannelLabel(stepChannel)}`}
+                                  label={t('brainView.toneLabel', { tone: t(`brainView.tones.${getToneKey(stepTone)}`) })}
                                 />
                                 <Chip
                                   size="small"
                                   variant="outlined"
-                                  label={`${getStepDateLabel(step)}: ${formatDateTime(
+                                  label={t('brainView.channelLabel', { channel: t(`brainView.channels.${getChannelKey(stepChannel)}`) })}
+                                />
+                                <Chip
+                                  size="small"
+                                  variant="outlined"
+                                  label={`${t(`brainView.dates.${getStepDateKey(step)}`)}: ${formatDateTime(
                                     getStepDateValue(step),
                                     language,
                                     step.status === 'completed' || step.status === 'failed'
-                                      ? 'Not recorded'
-                                      : 'Not scheduled'
+                                      ? t('brainView.dates.notRecorded')
+                                      : t('brainView.dates.notScheduled')
                                   )}`}
                                 />
                               </Stack>
@@ -828,22 +869,29 @@ export default function BrainViewDialog({
 
               <Stack spacing={3}>
                 <StepQueueList
-                  title="Executed Steps"
+                  title={t('brainView.executedSteps')}
                   steps={executedSteps}
                   language={language}
-                  emptyMessage="No steps were executed yet."
+                  emptyMessage={t('brainView.noStepsExecuted')}
+                  stepStatusLabels={stepStatusLabels}
+                  dateLabelFn={dateLabelFn}
+                  dateFormatFn={dateFormatFn}
                 />
                 <StepQueueList
-                  title="Upcoming Steps"
+                  title={t('brainView.upcomingSteps')}
                   steps={pendingSteps}
                   language={language}
-                  emptyMessage="No pending or scheduled steps remain."
+                  emptyMessage={t('brainView.noPendingSteps')}
+                  stepStatusLabels={stepStatusLabels}
+                  dateLabelFn={dateLabelFn}
+                  dateFormatFn={dateFormatFn}
                 />
               </Stack>
             </Box>
           </Stack>
         )}
       </DialogContent>
+      </Box>
     </Dialog>
   );
 }

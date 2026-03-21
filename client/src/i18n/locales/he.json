@@ -420,6 +420,21 @@
         "calm": "רגוע",
         "medium": "בינוני",
         "heavy": "תקיף"
+      },
+      "activityNames": {
+        "SMS Sent": "SMS נשלח",
+        "Email Sent": "דוא\"ל נשלח",
+        "WhatsApp Sent": "WhatsApp נשלח",
+        "Voice Call Made": "שיחה קולית בוצעה",
+        "Chat Prompt": "שאילתת צ'אט",
+        "Collection Flow Created": "תהליך גבייה נוצר",
+        "Collection Flow Step": "שלב בתהליך גבייה",
+        "Payment Received": "תשלום התקבל"
+      },
+      "descriptions": {
+        "flowStepExecuted": "{{stateName}} בוצע עבור {{customerName}}",
+        "flowStepFailed": "{{stateName}} נכשל עבור {{customerName}}",
+        "paymentReceived": "תשלום בסך {{currency}} {{amount}} התקבל מ{{customerName}} עבור חשבונית {{invoiceNumber}}"
       }
     },
     "dashboards": {
@@ -430,7 +445,70 @@
     "flows": {
       "title": "תהליכים",
       "description": "בונה אוטומציית תהליכים יוצג כאן.",
-      "subtitle": "יצירה וניהול תהליכי גבייה אוטומטיים."
+      "subtitle": "יצירה וניהול תהליכי גבייה אוטומטיים.",
+      "flowCount": "{{count}} תהליכים",
+      "refresh": "רענון",
+      "createWithPrompt": "יצירה עם פרומפט",
+      "createFlow": "יצירת תהליך",
+      "tabs": {
+        "definitions": "הגדרות תהליכים",
+        "customerMonitor": "מעקב לקוחות"
+      },
+      "default": "ברירת מחדל",
+      "key": "מפתח",
+      "version": "גרסה",
+      "tooltips": {
+        "editDraft": "עריכת טיוטה",
+        "delete": "מחיקה",
+        "publish": "פרסום",
+        "setDefault": "הגדר כברירת מחדל",
+        "createNewVersion": "יצירת גרסה חדשה"
+      },
+      "statesCount": "{{count}} שלבים",
+      "transitionsCount": "{{count}} מעברים",
+      "loadingFlows": "טוען תהליכים...",
+      "selectFlowToView": "בחר תהליך לצפייה בפרטים",
+      "customer": "לקוח",
+      "assignFlow": "שיוך תהליך",
+      "assign": "שיוך",
+      "runExecutorOnce": "הרצת מנוע פעם אחת",
+      "assignedFlow": "תהליך משויך",
+      "none": "ללא",
+      "source": "מקור",
+      "instance": "מופע",
+      "stateTimeline": "ציר זמן שלבים",
+      "due": "מועד",
+      "noRunningInstance": "אין מופע פעיל עבור לקוח זה.",
+      "selectCustomerToMonitor": "בחר לקוח למעקב אחר מצב התהליך",
+      "deleteFlow": "מחיקת תהליך",
+      "deleteConfirmMessage": "האם אתה בטוח שברצונך למחוק את \"{{name}}\"?",
+      "deleteWarning": "לא ניתן לבטל פעולה זו. לא ניתן למחוק תהליכי ברירת מחדל, תהליכים המשויכים ללקוחות ותהליכים עם היסטוריית הרצה.",
+      "editFlow": "עריכת תהליך: {{name}}",
+      "createNewFlow": "יצירת תהליך חדש",
+      "onlyDraftCanEdit": "רק טיוטות ניתנות לעריכה ישירה. צור גרסה חדשה תחילה.",
+      "messages": {
+        "flowUpdated": "התהליך עודכן בהצלחה",
+        "flowCreated": "התהליך נוצר בהצלחה",
+        "flowPublished": "התהליך פורסם",
+        "defaultFlowUpdated": "תהליך ברירת המחדל עודכן. שויכו מחדש {{count}} לקוחות.",
+        "draftVersionCreated": "גרסת טיוטה נוצרה",
+        "flowDeleted": "התהליך \"{{name}}\" נמחק בהצלחה",
+        "executorResult": "מנוע: הועברו {{advanced}}, הושלמו {{completed}}, נכשלו {{failed}}",
+        "customerFlowReassigned": "תהליך הלקוח שויך מחדש"
+      },
+      "errors": {
+        "loadFlows": "טעינת התהליכים נכשלה",
+        "loadFlow": "טעינת התהליך נכשלה",
+        "loadCustomers": "טעינת הלקוחות נכשלה",
+        "loadCustomerFlow": "טעינת תהליך הלקוח נכשלה",
+        "saveFlow": "שמירת התהליך נכשלה",
+        "publishFailed": "הפרסום נכשל",
+        "setDefaultFailed": "הגדרת ברירת המחדל נכשלה",
+        "versionCreationFailed": "יצירת הגרסה נכשלה",
+        "deleteFailed": "המחיקה נכשלה",
+        "executorFailed": "הרצת המנוע נכשלה",
+        "assignmentFailed": "השיוך נכשל"
+      }
     },
     "contracts": {
       "title": "חוזים",
@@ -555,6 +633,83 @@
         "missingRequired": "חסרים מיפויי שדות חובה",
         "validationFailed": "שגיאות אימות"
       }
+    }
+  },
+  "brainView": {
+    "title": "תצוגת מוח",
+    "customer": "לקוח",
+    "refresh": "רענון",
+    "closeBrainView": "סגור תצוגת מוח",
+    "loadingBrainView": "טוען תצוגת מוח...",
+    "customerFlowOverview": "סקירת תהליך לקוח",
+    "flowStatus": "סטטוס תהליך",
+    "flowStatusLabel": "סטטוס תהליך: {{status}}",
+    "runtimeLabel": "ריצה: {{status}}",
+    "flowKeyLabel": "מפתח תהליך: {{key}}",
+    "customerName": "שם לקוח",
+    "totalOutstandingAmount": "סכום חוב כולל",
+    "channel": "ערוץ",
+    "currentStage": "שלב נוכחי",
+    "noAssignedFlow": "אין תהליך משויך",
+    "notStarted": "לא התחיל",
+    "noActiveFlow": "לא שויך תהליך גבייה פעיל ללקוח זה.",
+    "flowNotStarted": "ללקוח זה יש תהליך משויך, אך הוא טרם התחיל.",
+    "flowStoppedPaid": "תהליך זה הופסק אוטומטית כי הלקוח שילם את החוב.",
+    "assignedFlow": "תהליך משויך",
+    "stageHighlightingNote": "הדגשת השלב הנוכחי מבוססת על ריצת הגבייה החיה של הלקוח.",
+    "runtimeSnapshot": "תמונת מצב ריצה",
+    "runtimeSnapshotDesc": "מבט מהיר על מה שכבר רץ ומה צפוי.",
+    "executedSteps": "שלבים שבוצעו",
+    "pendingSteps": "שלבים ממתינים",
+    "currentChannel": "ערוץ נוכחי",
+    "currentTone": "טון נוכחי",
+    "nextScheduledStep": "שלב מתוזמן הבא",
+    "noScheduledStep": "אין שלב מתוזמן",
+    "lastExecutedStep": "שלב אחרון שבוצע",
+    "noExecutedStepYet": "עדיין לא בוצע שלב",
+    "timelineTitle": "ציר זמן שלבי התהליך",
+    "timelineDesc": "שלבים שהושלמו, ממתינים, נכשלו וצפויים לפי סדר ביצוע.",
+    "noRuntimeHistory": "ללקוח זה יש הגדרת תהליך, אך עדיין אין היסטוריית שלבי ריצה.",
+    "currentStageBadge": "שלב נוכחי",
+    "noStepsExecuted": "עדיין לא בוצעו שלבים.",
+    "upcomingSteps": "שלבים קרובים",
+    "noPendingSteps": "לא נותרו שלבים ממתינים או מתוזמנים.",
+    "stepCount": "שלב {{count}}",
+    "stepCount_other": "{{count}} שלבים",
+    "toneLabel": "טון: {{tone}}",
+    "channelLabel": "ערוץ: {{channel}}",
+    "channels": {
+      "email": "דוא\"ל",
+      "sms": "SMS",
+      "whatsapp": "WhatsApp",
+      "voiceCall": "שיחה קולית",
+      "auto": "אוטומטי"
+    },
+    "tones": {
+      "calm": "רגוע",
+      "medium": "בינוני",
+      "heavy": "תקיף",
+      "auto": "אוטומטי"
+    },
+    "statuses": {
+      "noFlow": "אין תהליך",
+      "notStarted": "לא התחיל",
+      "completed": "הושלם",
+      "paid": "שולם",
+      "escalated": "הוסלם",
+      "active": "פעיל"
+    },
+    "stepStatuses": {
+      "completed": "הושלם",
+      "waiting": "ממתין",
+      "failed": "נכשל",
+      "upcoming": "צפוי"
+    },
+    "dates": {
+      "executionDate": "תאריך ביצוע",
+      "scheduledDate": "תאריך מתוזמן",
+      "notRecorded": "לא תועד",
+      "notScheduled": "לא מתוזמן"
     }
   },
   "settings": {
