@@ -405,7 +405,8 @@
       "types": {
         "notification_sent": "Notification Sent",
         "chat_prompt": "Chat Prompt",
-        "collection_flow_created": "Collection Flow Created"
+        "collection_flow_created": "Collection Flow Created",
+        "payment_received": "Payment Received"
       },
       "statuses": {
         "success": "Success",

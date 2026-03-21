@@ -32,6 +32,7 @@ import {
   Phone as PhoneIcon,
   Chat as ChatIcon,
   AccountTree as FlowIcon,
+  Payment as PaymentIcon,
   CheckCircle as SuccessIcon,
   Cancel as FailedIcon,
   Person as PersonIcon,
@@ -51,6 +52,7 @@ const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
   'Voice Call Made': <PhoneIcon fontSize="small" />,
   'Chat Prompt': <ChatIcon fontSize="small" />,
   'Collection Flow Created': <FlowIcon fontSize="small" />,
+  'Payment Received': <PaymentIcon fontSize="small" />,
 };
 
 const ACTIVITY_COLORS: Record<string, string> = {
@@ -60,6 +62,7 @@ const ACTIVITY_COLORS: Record<string, string> = {
   'Voice Call Made': '#9c27b0',
   'Chat Prompt': '#00bcd4',
   'Collection Flow Created': '#3f51b5',
+  'Payment Received': '#4caf50',
 };
 
 function getIcon(activityName: string) {
@@ -392,6 +395,7 @@ export default function ActivitiesPage() {
               <MenuItem value="notification_sent">{t('pages.activities.types.notification_sent')}</MenuItem>
               <MenuItem value="chat_prompt">{t('pages.activities.types.chat_prompt')}</MenuItem>
               <MenuItem value="collection_flow_created">{t('pages.activities.types.collection_flow_created')}</MenuItem>
+              <MenuItem value="payment_received">{t('pages.activities.types.payment_received')}</MenuItem>
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 140 }}>

@@ -162,6 +162,37 @@ class ActivityService {
       createdBy: params.createdBy,
     });
   }
+
+  async logPaymentReceived(params: {
+    customerId: string;
+    customerName: string;
+    amount: number;
+    currency: string;
+    invoiceNumber: string;
+    paymentId: string;
+    status: ActivityStatus;
+    error?: string;
+    createdBy: string;
+  }) {
+    const description = `Payment of ${params.currency} ${params.amount} received from ${params.customerName} for invoice ${params.invoiceNumber}`;
+
+    return this.create({
+      type: 'payment_received',
+      activityName: 'Payment Received',
+      description,
+      customerId: params.customerId,
+      customerName: params.customerName,
+      status: params.status,
+      metadata: {
+        amount: params.amount,
+        currency: params.currency,
+        invoiceNumber: params.invoiceNumber,
+        paymentId: params.paymentId,
+        error: params.error,
+      },
+      createdBy: params.createdBy,
+    });
+  }
 }
 
 export default new ActivityService();

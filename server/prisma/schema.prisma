@@ -137,6 +137,7 @@ enum ActivityType {
   notification_sent
   chat_prompt
   collection_flow_created
+  payment_received
 }
 
 enum ActivityStatus {

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import paymentsService from '../services/payments.service';
+import activityService from '../services/activity.service';
 import { ValidationError, PaymentStatus } from '../types';
 
 // Validation schemas
@@ -48,6 +49,19 @@ class PaymentsController {
   async completeFromLink(req: Request, res: Response) {
     const { token } = req.params;
     const paymentResult = await paymentsService.completeFromLink(token);
+
+    if (paymentResult.status === 'paid' && paymentResult.payment) {
+      activityService.logPaymentReceived({
+        customerId: paymentResult.customer.id,
+        customerName: paymentResult.customer.fullName,
+        amount: paymentResult.payment.amount,
+        currency: paymentResult.payment.currency,
+        invoiceNumber: paymentResult.debt.invoiceNumber,
+        paymentId: paymentResult.payment.id,
+        status: 'success',
+        createdBy: 'payment_link',
+      }).catch((err) => console.error('Failed to log activity:', err));
+    }
 
     res.json({
       success: true,

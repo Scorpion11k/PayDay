@@ -405,7 +405,8 @@
       "types": {
         "notification_sent": "הודעה נשלחה",
         "chat_prompt": "שאילתת צ'אט",
-        "collection_flow_created": "תהליך גבייה נוצר"
+        "collection_flow_created": "תהליך גבייה נוצר",
+        "payment_received": "תשלום התקבל"
       },
       "statuses": {
         "success": "הצלחה",
