@@ -2,6 +2,7 @@ import prisma from '../config/database';
 import ExcelJS from 'exceljs';
 import { ValidationError } from '../types';
 import { Prisma, TemplateLanguage } from '@prisma/client';
+import { recommendChannelByAge } from './preference.service';
 
 export interface RowValidationError {
   row: number;
@@ -20,6 +21,7 @@ export interface ImportResult {
   errors: string[];
   validationErrors: RowValidationError[];
   skipped: number;
+  importedCustomerIds: string[];
 }
 
 export interface ExcelRow {
@@ -481,6 +483,7 @@ class ImportService {
       errors: [],
       validationErrors: [],
       skipped: 0,
+      importedCustomerIds: [],
     };
 
     // Validate all rows first
@@ -572,9 +575,17 @@ class ImportService {
           }
 
           if (!customer) {
+            customerData.preferredChannel = recommendChannelByAge(customerData.dateOfBirth || null);
             customer = await tx.customer.create({ data: customerData });
             result.imported.customers++;
+          } else if (!customer.preferredChannel) {
+            const recommended = recommendChannelByAge(customer.dateOfBirth);
+            await tx.customer.update({
+              where: { id: customer.id },
+              data: { preferredChannel: recommended },
+            });
           }
+          result.importedCustomerIds.push(customer.id);
 
           // Calculate total debt from rows
           let totalDebt = 0;

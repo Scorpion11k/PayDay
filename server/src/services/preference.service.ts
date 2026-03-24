@@ -134,6 +134,30 @@ export function isEligibleForChannel(
 }
 
 /**
+ * Resolve the best eligible channel for a customer.
+ * Tries the age-recommended channel first, then falls back to any eligible channel.
+ */
+export function resolveEligibleChannel(
+  dateOfBirth: Date | string | null | undefined,
+  contactInfo: { email?: string | null; phone?: string | null }
+): NotificationChannel | null {
+  const recommended = recommendChannelByAge(dateOfBirth || null);
+  if (isEligibleForChannel(contactInfo, recommended)) {
+    return recommended;
+  }
+
+  // Fallback: try other channels in priority order
+  const fallbackOrder: NotificationChannel[] = ['email', 'sms', 'whatsapp'];
+  for (const ch of fallbackOrder) {
+    if (ch !== recommended && isEligibleForChannel(contactInfo, ch)) {
+      return ch;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Get channel label for display
  */
 export function getChannelLabel(channel: NotificationChannel): string {
@@ -176,6 +200,7 @@ export default {
   getDefaultTone,
   resolvePreferences,
   isEligibleForChannel,
+  resolveEligibleChannel,
   getChannelLabel,
   getLanguageLabel,
   getToneLabel,
