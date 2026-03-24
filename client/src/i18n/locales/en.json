@@ -153,6 +153,7 @@
       "externalRef": "External Ref",
       "gender": "Gender",
       "dateOfBirth": "Date of Birth",
+      "age": "Age",
       "religion": "Religion",
       "status": "Status",
       "overdue": "Overdue",
@@ -180,6 +181,14 @@
       "allSelected": "All {{count}} customers selected.",
       "selectAll": "Select all {{count}} customers",
       "clear": "Clear selection"
+    },
+    "tableSettings": {
+      "title": "Table Settings",
+      "columnOrder": "Drag to reorder, check to show/hide",
+      "rowsPerPage": "Default Rows per Page",
+      "resetDefaults": "Reset to Defaults",
+      "save": "Save",
+      "cancel": "Cancel"
     }
   },
   "forms": {

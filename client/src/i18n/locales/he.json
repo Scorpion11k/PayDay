@@ -153,6 +153,7 @@
       "externalRef": "מזהה חיצוני",
       "gender": "מין",
       "dateOfBirth": "תאריך לידה",
+      "age": "גיל",
       "religion": "דת",
       "status": "סטטוס",
       "overdue": "באיחור",
@@ -180,6 +181,14 @@
       "allSelected": "נבחרו כל {{count}} הלקוחות.",
       "selectAll": "בחר את כל {{count}} הלקוחות",
       "clear": "נקה בחירה"
+    },
+    "tableSettings": {
+      "title": "הגדרות טבלה",
+      "columnOrder": "גרור לשינוי סדר, סמן להצגה/הסתרה",
+      "rowsPerPage": "שורות לעמוד כברירת מחדל",
+      "resetDefaults": "אפס לברירת מחדל",
+      "save": "שמור",
+      "cancel": "ביטול"
     }
   },
   "forms": {

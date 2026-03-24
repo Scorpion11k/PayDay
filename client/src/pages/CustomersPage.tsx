@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
@@ -62,6 +62,10 @@ import {
 } from '@mui/icons-material';
 import { useLanguage } from '../context/LanguageContext';
 import BrainViewDialog from '../components/customers/BrainViewDialog';
+import { useCustomersTableConfig } from '../hooks/useCustomersTableConfig';
+import { COLUMN_DEFS } from '../components/customers/columnDefs';
+import ColumnSettingsDialog from '../components/customers/ColumnSettingsDialog';
+import { ViewColumn as ViewColumnIcon } from '@mui/icons-material';
 
 interface Customer {
   id: string;
@@ -158,13 +162,16 @@ export default function CustomersPage() {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
-  
+  const { config: tableConfig, updateConfig: updateTableConfig, getVisibleOrderedColumns, resetToDefaults: resetTableConfig } = useCustomersTableConfig();
+  const visibleColumns = getVisibleOrderedColumns();
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
-    limit: 20,
+    limit: tableConfig.rowsPerPage,
     total: 0,
     totalPages: 0,
   });
@@ -651,11 +658,13 @@ export default function CustomersPage() {
   };
 
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newLimit = parseInt(event.target.value, 10);
     setPagination((prev) => ({
       ...prev,
-      limit: parseInt(event.target.value, 10),
+      limit: newLimit,
       page: 1,
     }));
+    updateTableConfig({ rowsPerPage: newLimit });
   };
 
   const handleSort = (field: SortField) => {
@@ -1200,6 +1209,11 @@ export default function CustomersPage() {
               <MenuItem value="blocked">{t('customers.status.blocked')}</MenuItem>
             </Select>
           </FormControl>
+          <Tooltip title={t('customers.tableSettings.title')}>
+            <IconButton onClick={() => setColumnSettingsOpen(true)}>
+              <ViewColumnIcon />
+            </IconButton>
+          </Tooltip>
         </Stack>
       </Paper>
 
@@ -1270,79 +1284,18 @@ export default function CustomersPage() {
                     onChange={handleSelectAll}
                   />
                 </TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>
-                  <TableSortLabel
-                    active={sortBy === 'fullName'}
-                    direction={sortBy === 'fullName' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('fullName')}
-                  >
-                    {t('customers.columns.name')}
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>
-                  <TableSortLabel
-                    active={sortBy === 'email'}
-                    direction={sortBy === 'email' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('email')}
-                  >
-                    {t('customers.columns.contact')}
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>{t('customers.preferredChannel')}</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>{t('customers.preferredLanguage')}</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>{t('customers.columns.externalRef')}</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>
-                  <TableSortLabel
-                    active={sortBy === 'status'}
-                    direction={sortBy === 'status' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('status')}
-                  >
-                    {t('customers.columns.status')}
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="center">
-                  <TableSortLabel
-                    active={sortBy === 'isOverdue'}
-                    direction={sortBy === 'isOverdue' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('isOverdue')}
-                  >
-                    {t('customers.columns.overdue')}
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="right">
-                  <TableSortLabel
-                    active={sortBy === 'totalDebtAmount'}
-                    direction={sortBy === 'totalDebtAmount' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('totalDebtAmount')}
-                  >
-                    {t('customers.columns.totalDebt')}
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="center">
-                  <TableSortLabel
-                    active={sortBy === 'payments'}
-                    direction={sortBy === 'payments' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('payments')}
-                  >
-                    {t('customers.columns.payments')}
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>
-                  <TableSortLabel
-                    active={sortBy === 'createdAt'}
-                    direction={sortBy === 'createdAt' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('createdAt')}
-                  >
-                    {t('customers.columns.created')}
-                  </TableSortLabel>
-                </TableCell>
+                {visibleColumns.map((col) => (
+                  <React.Fragment key={col.id}>
+                    {col.renderHeader({ t, sortBy, sortOrder, onSort: handleSort })}
+                  </React.Fragment>
+                ))}
                 <TableCell sx={{ fontWeight: 600 }} align="center">{t('common.actions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={12} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={visibleColumns.length + 2} align="center" sx={{ py: 8 }}>
                     <CircularProgress size={40} />
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                       {t('customers.loadingCustomers')}
@@ -1351,7 +1304,7 @@ export default function CustomersPage() {
                 </TableRow>
               ) : customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={visibleColumns.length + 2} align="center" sx={{ py: 8 }}>
                     <Typography variant="body1" color="text.secondary">{t('customers.noCustomers')}</Typography>
                     {(search || statusFilter) && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -1378,85 +1331,11 @@ export default function CustomersPage() {
                         onClick={(e) => e.stopPropagation()}
                       />
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="body1" fontWeight={500}>{customer.fullName}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Stack spacing={0.5}>
-                        {customer.email && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <EmailIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">{customer.email}</Typography>
-                          </Box>
-                        )}
-                        {customer.phone && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">{customer.phone}</Typography>
-                          </Box>
-                        )}
-                        {!customer.email && !customer.phone && (
-                          <Typography variant="body2" color="text.disabled">{t('customers.noContactInfo')}</Typography>
-                        )}
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      {getChannelChip(customer.preferredChannel) || <Typography variant="body2" color="text.disabled">—</Typography>}
-                    </TableCell>
-                    <TableCell>
-                      {getLanguageChip(customer.preferredLanguage) || <Typography variant="body2" color="text.disabled">—</Typography>}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{customer.externalRef || '—'}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={getStatusLabel(customer.status)} color={statusColors[customer.status]} size="small" variant="outlined" />
-                    </TableCell>
-                    <TableCell align="center">
-                      {customer.overdueDays > 0 ? (
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: 'error.main',
-                            fontWeight: 600,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 0.5,
-                          }}
-                        >
-                          <WarningIcon sx={{ fontSize: 16 }} />
-                          {t('customers.columns.overdueDays', { days: customer.overdueDays })}
-                        </Typography>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">—</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography
-                        variant="body2"
-                        fontWeight={customer.totalDebtAmount > 0 ? 600 : 400}
-                        color={customer.totalDebtAmount > 0 ? 'error.main' : 'text.secondary'}
-                      >
-                        {customer.totalDebtAmount > 0
-                          ? `₪${customer.totalDebtAmount.toLocaleString(language === 'he' ? 'he-IL' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                          : '₪0.00'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={customer._count.payments}
-                        size="small"
-                        sx={{
-                          bgcolor: customer._count.payments > 0 ? 'success.light' : 'grey.200',
-                          color: customer._count.payments > 0 ? 'success.dark' : 'text.secondary',
-                          fontWeight: 500,
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{formatDate(customer.createdAt)}</Typography>
-                    </TableCell>
+                    {visibleColumns.map((col) => (
+                      <React.Fragment key={col.id}>
+                        {col.renderCell({ customer, t, language })}
+                      </React.Fragment>
+                    ))}
                     <TableCell align="center">
                       <Tooltip title={t('common.actions')}>
                         <IconButton size="small" onClick={(e) => handleActionsClick(e, customer)}>
@@ -2288,6 +2167,17 @@ export default function CustomersPage() {
         customer={brainViewCustomer}
         language={language}
         onClose={handleCloseBrainView}
+      />
+
+      <ColumnSettingsDialog
+        open={columnSettingsOpen}
+        onClose={() => setColumnSettingsOpen(false)}
+        config={tableConfig}
+        onSave={(newConfig) => {
+          updateTableConfig(newConfig);
+          setPagination((prev) => ({ ...prev, limit: newConfig.rowsPerPage ?? prev.limit, page: 1 }));
+        }}
+        onReset={resetTableConfig}
       />
 
       {/* Success/Error Snackbar */}
