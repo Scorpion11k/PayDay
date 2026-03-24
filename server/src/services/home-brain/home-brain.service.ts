@@ -540,6 +540,9 @@ class HomeBrainService {
         locale,
         filtersJson: { equals: filtersJson },
         status: { in: ['generated', 'approved', 'modified', 'resolved'] },
+        createdAt: {
+          gte: new Date(Date.now() - CARD_EXPIRATION_MS),
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1141,6 +1144,26 @@ class HomeBrainService {
       planId: snapshot.id,
       status: 'resolved',
     };
+  }
+
+  /**
+   * Invalidate all cached Home Brain plans by marking them as expired.
+   * Should be called after significant data mutations (customer/debt/payment/installment changes)
+   * so the next Home page load generates a fresh plan from live data.
+   */
+  async invalidateCache() {
+    await db.aiPlanSnapshot.updateMany({
+      where: {
+        surface: PLAN_SURFACE,
+        status: { in: ['generated', 'approved', 'modified', 'resolved'] },
+        createdAt: {
+          gte: new Date(Date.now() - CARD_EXPIRATION_MS),
+        },
+      },
+      data: {
+        status: 'expired',
+      },
+    });
   }
 }
 

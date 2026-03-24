@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import debtsService from '../services/debts.service';
+import homeBrainService from '../services/home-brain/home-brain.service';
 import { ValidationError, DebtStatus } from '../types';
 
 // Validation schemas
@@ -57,6 +58,7 @@ class DebtsController {
     }
 
     const debt = await debtsService.create(validation.data);
+    await homeBrainService.invalidateCache();
 
     res.status(201).json({
       success: true,
@@ -68,12 +70,13 @@ class DebtsController {
   async update(req: Request, res: Response) {
     const { id } = req.params;
     const validation = updateDebtSchema.safeParse(req.body);
-    
+
     if (!validation.success) {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
     const debt = await debtsService.update(id, validation.data);
+    await homeBrainService.invalidateCache();
 
     res.json({
       success: true,
@@ -85,6 +88,7 @@ class DebtsController {
   async delete(req: Request, res: Response) {
     const { id } = req.params;
     await debtsService.delete(id);
+    await homeBrainService.invalidateCache();
 
     res.json({
       success: true,

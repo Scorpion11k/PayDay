@@ -4,6 +4,7 @@ import { z } from 'zod';
 import customersService from '../services/customers.service';
 import flowExecutorService from '../services/flow-executor.service';
 import flowRuntimeService from '../services/flow-runtime.service';
+import homeBrainService from '../services/home-brain/home-brain.service';
 import { recommendChannelByAge } from '../services/preference.service';
 import prisma from '../config/database';
 import { ValidationError, CustomerStatus } from '../types';
@@ -291,6 +292,7 @@ class CustomersController {
     }
 
     const customer = await customersService.create(validation.data);
+    await homeBrainService.invalidateCache();
 
     res.status(201).json({
       success: true,
@@ -302,7 +304,7 @@ class CustomersController {
   async update(req: Request, res: Response) {
     const { id } = req.params;
     const validation = updateCustomerSchema.safeParse(req.body);
-    
+
     if (!validation.success) {
       throw new ValidationError(validation.error.issues[0].message);
     }
@@ -310,6 +312,7 @@ class CustomersController {
     // Pass through all validated data including null values
     // The service will handle null vs undefined appropriately
     const customer = await customersService.update(id, validation.data);
+    await homeBrainService.invalidateCache();
 
     res.json({
       success: true,
@@ -321,6 +324,7 @@ class CustomersController {
   async delete(req: Request, res: Response) {
     const { id } = req.params;
     await customersService.delete(id);
+    await homeBrainService.invalidateCache();
 
     res.json({
       success: true,
@@ -330,6 +334,7 @@ class CustomersController {
 
   async deleteAll(req: Request, res: Response) {
     const result = await customersService.deleteAll();
+    await homeBrainService.invalidateCache();
 
     res.json({
       success: true,

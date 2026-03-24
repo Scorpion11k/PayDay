@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import paymentsService from '../services/payments.service';
 import activityService from '../services/activity.service';
+import homeBrainService from '../services/home-brain/home-brain.service';
 import { ValidationError, PaymentStatus } from '../types';
 
 // Validation schemas
@@ -61,6 +62,7 @@ class PaymentsController {
         status: 'success',
         createdBy: 'payment_link',
       }).catch((err) => console.error('Failed to log activity:', err));
+      homeBrainService.invalidateCache().catch((err) => console.error('Failed to invalidate home brain cache:', err));
     }
 
     res.json({
@@ -112,6 +114,7 @@ class PaymentsController {
     }
 
     const payment = await paymentsService.create(validation.data);
+    await homeBrainService.invalidateCache();
 
     res.status(201).json({
       success: true,
@@ -123,12 +126,13 @@ class PaymentsController {
   async allocate(req: Request, res: Response) {
     const { id } = req.params;
     const validation = allocatePaymentSchema.safeParse(req.body);
-    
+
     if (!validation.success) {
       throw new ValidationError(validation.error.issues[0].message);
     }
 
     const payment = await paymentsService.allocate(id, validation.data);
+    await homeBrainService.invalidateCache();
 
     res.json({
       success: true,
@@ -140,6 +144,7 @@ class PaymentsController {
   async reverse(req: Request, res: Response) {
     const { id } = req.params;
     const payment = await paymentsService.reverse(id);
+    await homeBrainService.invalidateCache();
 
     res.json({
       success: true,

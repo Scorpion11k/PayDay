@@ -102,22 +102,6 @@ export default function DashboardsPage() {
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
-      // Set mock data as fallback
-      setStats({
-        totalCustomers: 1250,
-        activeCustomers: 980,
-        totalDebt: 2450000,
-        collectedAmount: 875000,
-        overdueCustomers: 234,
-        avgDaysOverdue: 45,
-        segmentBreakdown: { light: 650, medium: 420, heavy: 180 },
-        monthlyPayments: [
-          { month: 'Oct', amount: 185000 },
-          { month: 'Nov', amount: 220000 },
-          { month: 'Dec', amount: 195000 },
-          { month: 'Jan', amount: 275000 },
-        ],
-      });
     } finally {
       setLoading(false);
     }
@@ -158,8 +142,8 @@ export default function DashboardsPage() {
       </Tabs>
 
       {error && (
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          {error} - Showing sample data
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
         </Alert>
       )}
 
