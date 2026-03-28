@@ -645,3 +645,17 @@ model InternalAlert {
   @@index([audience, status])
   @@map("internal_alerts")
 }
+
+model CustomDashboard {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  description String?
+  chartType   String   @map("chart_type")
+  chartConfig Json     @map("chart_config")
+  filters     Json     @default("{}")
+  isPublished Boolean  @default(true) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("custom_dashboards")
+}

@@ -13,6 +13,7 @@ import flowsRoutes from './flows.routes';
 import settingsRoutes from './settings.routes';
 import activityRoutes from './activity.routes';
 import homeBrainRoutes from './home-brain.routes';
+import dashboardsRoutes from './dashboards.routes';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.use('/flows', flowsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/activities', activityRoutes);
 router.use('/home-brain', homeBrainRoutes);
+router.use('/dashboards', dashboardsRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -52,6 +54,7 @@ router.get('/', (req, res) => {
       settings: '/api/settings',
       activities: '/api/activities',
       homeBrain: '/api/home-brain',
+      dashboards: '/api/dashboards',
     },
   });
 });
