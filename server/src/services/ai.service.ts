@@ -80,8 +80,18 @@ TABLES (Prisma models):
    - debts (relation to debt[])
    - payments (relation to payment[])
    - notifications (relation to notification[])
+   - products (relation to customerProduct[])
 
-2. debt - Obligations (invoice/loan/contract) for a customer
+2. customerProduct - Products/services associated with a customer
+   - id (uuid, PK)
+   - customerId (uuid, FK to customer)
+   - name (string)
+   - price (decimal)
+   - createdAt (timestamp)
+   - updatedAt (timestamp)
+   - customer (relation to customer)
+
+3. debt - Obligations (invoice/loan/contract) for a customer
    - id (uuid, PK)
    - customerId (uuid, FK to customer)
    - originalAmount (decimal)
@@ -96,7 +106,7 @@ TABLES (Prisma models):
    - installments (relation to installment[])
    - payments (relation to payment[])
 
-3. installment - Scheduled due items under a debt
+4. installment - Scheduled due items under a debt
    - id (uuid, PK)
    - debtId (uuid, FK to debt)
    - sequenceNo (int)
@@ -108,7 +118,7 @@ TABLES (Prisma models):
    - updatedAt (timestamp)
    - debt (relation to debt)
 
-4. payment - Actual payment transactions received
+5. payment - Actual payment transactions received
    - id (uuid, PK)
    - customerId (uuid, FK to customer)
    - debtId (uuid, FK to debt, optional)
@@ -123,7 +133,7 @@ TABLES (Prisma models):
    - customer (relation to customer)
    - debt (relation to debt, optional)
 
-5. notification - Messages sent to customers
+6. notification - Messages sent to customers
    - id (uuid, PK)
    - customerId (uuid, FK to customer)
    - debtId (uuid, FK to debt, optional)
@@ -136,7 +146,7 @@ TABLES (Prisma models):
    - debt (relation to debt, optional)
    - installment (relation to installment, optional)
 
-6. notificationDelivery - Delivery attempts for notifications
+7. notificationDelivery - Delivery attempts for notifications
    - id (uuid, PK)
    - notificationId (uuid, FK to notification)
    - attemptNo (int)
@@ -331,6 +341,8 @@ export interface ColumnMapping {
   dueDate?: string;
   installmentAmount?: string;
   sequenceNo?: string;
+  // Product columns: each header in this array is a product name, cell value is the price
+  productColumns?: string[];
 }
 
 export interface ColumnMappingResponse {
@@ -360,6 +372,9 @@ Payment Info:
 - installmentAmount: Installment/payment amount
 - sequenceNo: Sequence/payment number
 
+Product Columns (pivoted format):
+- productColumns: Array of header names whose cell values represent product prices. The header IS the product name.
+
 RULES:
 1. Return ONLY valid JSON
 2. Map by SEMANTIC MEANING (any language)
@@ -367,7 +382,7 @@ RULES:
 4. Skip fields with no match
 5. Include confidence (0-1)
 
-FORMAT: {"mapping":{"field":"Header"},"confidence":{"field":0.9},"explanation":"brief"}`;
+FORMAT: {"mapping":{"field":"Header","productColumns":["Header1","Header2"]},"confidence":{"field":0.9},"explanation":"brief"}`;
 
 class AIService {
   /**
@@ -998,9 +1013,11 @@ Fields:
 - dueDate: Payment due date
 - installmentAmount: Installment amount
 - sequenceNo: Sequence number
+Special: productColumns is an ARRAY of header names where each column represents a product/service and the cell value is the price.
+These are typically insurance types, product names, or service categories where each customer row has a price in that column.
 
-Return JSON: {"mapping":{"field":"Header"},"confidence":{"field":0.9},"explanation":"brief"}
-Map semantically. Any language. Only matched fields.`;
+Return JSON: {"mapping":{"field":"Header","productColumns":["Header1","Header2"]},"confidence":{"field":0.9},"explanation":"brief"}
+Map semantically. Any language. Only matched fields. productColumns must be an array.`;
 
     try {
       const model = genAI.getGenerativeModel({ 
@@ -1047,8 +1064,10 @@ Map semantically. Any language. Only matched fields.`;
       if (mappingResult.mapping) {
         const validMapping: ColumnMapping = {};
         for (const [key, value] of Object.entries(mappingResult.mapping)) {
-          if (value && headers.includes(value)) {
-            validMapping[key as keyof ColumnMapping] = value;
+          if (key === 'productColumns' && Array.isArray(value)) {
+            validMapping.productColumns = (value as string[]).filter(h => headers.includes(h));
+          } else if (typeof value === 'string' && value && headers.includes(value)) {
+            (validMapping as Record<string, unknown>)[key] = value;
           }
         }
         mappingResult.mapping = validMapping;

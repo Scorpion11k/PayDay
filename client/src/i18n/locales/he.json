@@ -161,7 +161,14 @@
       "totalDebt": "סה\"כ חוב",
       "payments": "תשלומים",
       "created": "נוצר",
-      "preferences": "העדפות"
+      "preferences": "העדפות",
+      "products": "מוצרים"
+    },
+    "products": {
+      "title": "מוצרים קשורים",
+      "name": "שם מוצר",
+      "price": "מחיר",
+      "noProducts": "אין מוצרים"
     },
     "status": {
       "active": "פעיל",
@@ -619,6 +626,11 @@
         "installmentAmount": "סכום תשלום",
         "sequenceNo": "מספר רצף"
       },
+      "productColumns": {
+        "title": "עמודות מוצרים",
+        "description": "בחרו עמודות שמייצגות מוצרים או שירותים. כותרת כל עמודה הופכת לשם המוצר, והערך בתא הוא המחיר ללקוח.",
+        "selectLabel": "בחרו עמודות מוצרים"
+      },
       "preview": {
         "title": "תצוגה מקדימה של הנתונים",
         "rows": "שורות"
@@ -631,7 +643,8 @@
         "title": "הייבוא הצליח!",
         "customers": "לקוחות",
         "debts": "חובות",
-        "installments": "תשלומים"
+        "installments": "תשלומים",
+        "products": "מוצרים"
       },
       "errors": {
         "emptyFile": "קובץ ה-Excel ריק",

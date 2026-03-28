@@ -10,6 +10,11 @@ import prisma from '../config/database';
 import { ValidationError, CustomerStatus } from '../types';
 
 // Validation schemas
+const productSchema = z.object({
+  name: z.string().min(1),
+  price: z.number().min(0),
+});
+
 const createCustomerSchema = z.object({
   fullName: z.string().min(1, 'Full name is required').max(255),
   externalRef: z.string().max(255).optional(),
@@ -23,6 +28,7 @@ const createCustomerSchema = z.object({
   preferredChannel: z.enum(['email', 'sms', 'whatsapp', 'call_task']).optional(),
   preferredLanguage: z.enum(['en', 'he', 'ar']).optional(),
   preferredTone: z.enum(['calm', 'medium', 'heavy']).optional(),
+  products: z.array(productSchema).optional(),
 });
 
 const updateCustomerSchema = z.object({
@@ -38,6 +44,7 @@ const updateCustomerSchema = z.object({
   preferredChannel: z.enum(['email', 'sms', 'whatsapp', 'call_task']).nullish(),
   preferredLanguage: z.enum(['en', 'he', 'ar']).nullish(),
   preferredTone: z.enum(['calm', 'medium', 'heavy']).nullish(),
+  products: z.array(productSchema).optional(),
 });
 
 const bulkUpdateChannelSchema = z.object({

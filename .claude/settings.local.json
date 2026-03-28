@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"completeFromLink\\\\|getPaymentLinkPreview\\\\|/api/payments/link\" /d/Projects/FromGit/PayDay --include=*.ts --include=*.tsx)",
+      "Bash(npx prisma:*)",
+      "Bash(tasklist)"
+    ]
+  }
+}

@@ -52,6 +52,7 @@ interface TemplateData {
 // {BusinessHours} - Support availability hours
 // {CaseId} - Internal case reference
 // {UnsubscribeText} - Opt-out instructions (SMS/WhatsApp)
+// {ProductList} - Comma-separated list of related products with prices (or "N/A")
 
 // ============================================
 // EMAIL TEMPLATES (HTML)
@@ -86,6 +87,10 @@ const emailTemplates: TemplateData[] = [
         If you have already paid, please ignore this message.
       </p>
 
+      <p style="margin:0 0 12px 0;">
+        Related products: <b>{ProductList}</b>
+      </p>
+
       <div style="margin:18px 0;">
         <a href="{PaymentLink}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:bold;">
           Pay securely
@@ -113,6 +118,8 @@ const emailTemplates: TemplateData[] = [
 A quick reminder that invoice {InvoiceNumber} for {Currency} {Amount} was due on {DueDate}.
 If you have already paid, please ignore this message.
 
+Related products: {ProductList}
+
 Pay securely: {PaymentLink}
 
 Need help or want to confirm details? Reach us at {SupportPhone} or {SupportEmail} ({BusinessHours}).
@@ -121,7 +128,7 @@ Thanks,
 {CompanyName}
 
 Reference: {CaseId}`,
-    placeholders: ['CustomerName', 'InvoiceNumber', 'Currency', 'Amount', 'DueDate', 'PaymentLink', 'SupportPhone', 'SupportEmail', 'BusinessHours', 'CompanyName', 'CaseId'],
+    placeholders: ['CustomerName', 'InvoiceNumber', 'Currency', 'Amount', 'DueDate', 'ProductList', 'PaymentLink', 'SupportPhone', 'SupportEmail', 'BusinessHours', 'CompanyName', 'CaseId'],
     status: 'active',
     createdBy: 'system'
   },

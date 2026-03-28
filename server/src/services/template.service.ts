@@ -11,6 +11,11 @@ interface DebtInfo {
   currency: string;
 }
 
+interface ProductInfo {
+  name: string;
+  price: Decimal | number;
+}
+
 // Unsubscribe text by language
 const UNSUBSCRIBE_TEXT: Record<string, string> = {
   en: 'Reply STOP to opt out',
@@ -67,6 +72,7 @@ export interface TemplatePayload {
   BusinessHours: string;
   CaseId: string;
   UnsubscribeText: string;
+  ProductList: string;
 }
 
 export interface RenderedTemplate {
@@ -134,7 +140,8 @@ class TemplateService {
     debt?: DebtInfo | null,
     installment?: Installment | null,
     notificationId?: string,
-    language: TemplateLanguage = 'en'
+    language: TemplateLanguage = 'en',
+    products?: ProductInfo[] | null
   ): TemplatePayload {
     const dueDate = installment?.dueDate || new Date();
     const daysOverdue = Math.max(0, Math.floor(
@@ -154,8 +161,16 @@ class TemplateService {
       SupportEmail: process.env.SUPPORT_EMAIL || '',
       BusinessHours: process.env.BUSINESS_HOURS || '9 AM - 5 PM',
       CaseId: notificationId?.slice(0, 8).toUpperCase() || '',
-      UnsubscribeText: UNSUBSCRIBE_TEXT[language] || UNSUBSCRIBE_TEXT.en
+      UnsubscribeText: UNSUBSCRIBE_TEXT[language] || UNSUBSCRIBE_TEXT.en,
+      ProductList: this.formatProductList(products),
     };
+  }
+
+  private formatProductList(products?: ProductInfo[] | null): string {
+    if (!products || products.length === 0) return 'N/A';
+    return products
+      .map(p => `${p.name} (${this.formatAmount(p.price)})`)
+      .join(', ');
   }
 
   /**

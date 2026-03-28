@@ -4,6 +4,11 @@ import { NotFoundError } from '../types';
 import { recommendChannelByAge, recommendLanguageByRegion, getDefaultTone } from './preference.service';
 import flowRuntimeService from './flow-runtime.service';
 
+export interface ProductDto {
+  name: string;
+  price: number;
+}
+
 export interface CreateCustomerDto {
   fullName: string;
   externalRef?: string;
@@ -17,6 +22,7 @@ export interface CreateCustomerDto {
   preferredChannel?: NotificationChannel;
   preferredLanguage?: TemplateLanguage;
   preferredTone?: TemplateTone;
+  products?: ProductDto[];
 }
 
 export interface UpdateCustomerDto {
@@ -32,6 +38,7 @@ export interface UpdateCustomerDto {
   preferredChannel?: NotificationChannel | null | undefined;
   preferredLanguage?: TemplateLanguage | null | undefined;
   preferredTone?: TemplateTone | null | undefined;
+  products?: ProductDto[];
 }
 
 export interface CustomerFilters {
@@ -106,6 +113,9 @@ class CustomersService {
                 },
               },
             },
+          },
+          products: {
+            select: { id: true, name: true, price: true },
           },
         },
       }),
@@ -201,6 +211,7 @@ class CustomersService {
           orderBy: { receivedAt: 'desc' },
           take: 10,
         },
+        products: true,
         _count: {
           select: { debts: true, payments: true, notifications: true },
         },
@@ -237,7 +248,15 @@ class CustomersService {
         preferredChannel,
         preferredLanguage,
         preferredTone,
+        ...(data.products?.length ? {
+          products: {
+            createMany: {
+              data: data.products.map(p => ({ name: p.name, price: p.price })),
+            },
+          },
+        } : {}),
       },
+      include: { products: true },
     });
 
     await flowRuntimeService.assignDefaultToCustomer(customer.id);
@@ -305,9 +324,30 @@ class CustomersService {
       updateData.preferredLanguage = recommendLanguageByRegion(newRegion);
     }
 
+    if (data.products !== undefined) {
+      return prisma.$transaction(async (tx) => {
+        await tx.customerProduct.deleteMany({ where: { customerId: id } });
+        return tx.customer.update({
+          where: { id },
+          data: {
+            ...updateData,
+            ...(data.products?.length ? {
+              products: {
+                createMany: {
+                  data: data.products.map(p => ({ name: p.name, price: p.price })),
+                },
+              },
+            } : {}),
+          },
+          include: { products: true },
+        });
+      });
+    }
+
     return prisma.customer.update({
       where: { id },
       data: updateData,
+      include: { products: true },
     });
   }
 

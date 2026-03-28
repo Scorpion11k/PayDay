@@ -105,6 +105,9 @@ class NotificationDispatchService {
             currency: true,
           },
         },
+        products: {
+          select: { name: true, price: true },
+        },
       },
     });
 
@@ -152,7 +155,8 @@ class NotificationDispatchService {
       debt,
       installment,
       notificationId,
-      language
+      language,
+      customer.products
     );
     const rendered = templateService.render(template, payload);
 

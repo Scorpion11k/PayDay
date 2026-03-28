@@ -34,6 +34,8 @@ import {
   DialogActions,
   Tooltip,
   AlertTitle,
+  Checkbox,
+  ListItemText,
 } from '@mui/material';
 import {
   Extension as IntegrationsIcon,
@@ -230,12 +232,13 @@ interface ImportStateCache {
   headers: string[];
   allRows: Record<string, unknown>[];
   mapping: Record<string, string>;
+  productColumns: string[];
   aiSuggestedMapping: Record<string, string>;
   step: 'upload' | 'mapping' | 'complete';
   importResult: {
     success: boolean;
     message: string;
-    details?: { customers: number; debts: number; installments: number };
+    details?: { customers: number; debts: number; installments: number; products: number };
   } | null;
   validationErrors: ValidationError[];
 }
@@ -251,6 +254,7 @@ function DataImportTab() {
   const [headers, setHeaders] = useState<string[]>(importStateCache?.headers ?? []);
   const [allRows, setAllRows] = useState<Record<string, unknown>[]>(importStateCache?.allRows ?? []);
   const [mapping, setMapping] = useState<Record<string, string>>(importStateCache?.mapping ?? {});
+  const [productColumns, setProductColumns] = useState<string[]>(importStateCache?.productColumns ?? []);
   const [aiSuggestedMapping, setAiSuggestedMapping] = useState<Record<string, string>>(importStateCache?.aiSuggestedMapping ?? {});
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -259,7 +263,7 @@ function DataImportTab() {
   const [importResult, setImportResult] = useState<{
     success: boolean;
     message: string;
-    details?: { customers: number; debts: number; installments: number };
+    details?: { customers: number; debts: number; installments: number; products: number };
   } | null>(importStateCache?.importResult ?? null);
   const [step, setStep] = useState<'upload' | 'mapping' | 'complete'>(importStateCache?.step ?? 'upload');
 
@@ -277,8 +281,8 @@ function DataImportTab() {
   }, [mapping]);
 
   // Persist state to module-level cache on changes
-  const stateRef = useRef({ file, headers, allRows, mapping, aiSuggestedMapping, step, importResult, validationErrors });
-  stateRef.current = { file, headers, allRows, mapping, aiSuggestedMapping, step, importResult, validationErrors };
+  const stateRef = useRef({ file, headers, allRows, mapping, productColumns, aiSuggestedMapping, step, importResult, validationErrors });
+  stateRef.current = { file, headers, allRows, mapping, productColumns, aiSuggestedMapping, step, importResult, validationErrors };
   useEffect(() => {
     return () => {
       importStateCache = { ...stateRef.current };
@@ -394,9 +398,11 @@ function DataImportTab() {
         
         const result = await response.json();
         if (result.success && result.data?.mapping) {
-          const suggestedMapping = result.data.mapping;
-          setAiSuggestedMapping(suggestedMapping);
-          // Show dialog to let user choose
+          const { productColumns: aiProductCols, ...scalarMapping } = result.data.mapping;
+          setAiSuggestedMapping(scalarMapping);
+          if (Array.isArray(aiProductCols)) {
+            setProductColumns(aiProductCols);
+          }
           setShowMappingDialog(true);
         } else {
           // Fallback to pattern-based detection if AI fails
@@ -427,6 +433,7 @@ function DataImportTab() {
 
   const handleRejectAIMapping = () => {
     setMapping({});
+    setProductColumns([]);
     setShowMappingDialog(false);
     setStep('mapping');
   };
@@ -512,7 +519,8 @@ function DataImportTab() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('options', JSON.stringify({ mapping, defaultCurrency: 'ILS' }));
+      const fullMapping = { ...mapping, ...(productColumns.length > 0 ? { productColumns } : {}) };
+      formData.append('options', JSON.stringify({ mapping: fullMapping, defaultCurrency: 'ILS' }));
 
       const response = await fetch('/api/import/execute', {
         method: 'POST',
@@ -550,6 +558,7 @@ function DataImportTab() {
     setHeaders([]);
     setAllRows([]);
     setMapping({});
+    setProductColumns([]);
     setAiSuggestedMapping({});
     setImportResult(null);
     setValidationErrors([]);
@@ -597,6 +606,16 @@ function DataImportTab() {
                 </Box>
               );
             })}
+            {productColumns.length > 0 && (
+              <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="body2" fontWeight={500}>
+                  {t('integrations.dataImport.productColumns.title')}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  → {productColumns.join(', ')}
+                </Typography>
+              </Box>
+            )}
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2, gap: 1 }}>
@@ -720,6 +739,46 @@ function DataImportTab() {
             </Box>
           </Paper>
 
+          {/* Product Columns Selection */}
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                {t('integrations.dataImport.productColumns.title')}
+              </Typography>
+              {productColumns.length > 0 && (
+                <Chip size="small" label={productColumns.length} color="info" />
+              )}
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {t('integrations.dataImport.productColumns.description')}
+            </Typography>
+            <FormControl fullWidth size="small">
+              <InputLabel>{t('integrations.dataImport.productColumns.selectLabel')}</InputLabel>
+              <Select
+                multiple
+                value={productColumns}
+                onChange={(e) => setProductColumns(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value as string[])}
+                label={t('integrations.dataImport.productColumns.selectLabel')}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {(selected as string[]).map((value) => (
+                      <Chip key={value} label={value} size="small" />
+                    ))}
+                  </Box>
+                )}
+              >
+                {headers
+                  .filter(h => !Object.values(mapping).includes(h))
+                  .map(header => (
+                    <MenuItem key={header} value={header}>
+                      <Checkbox checked={productColumns.includes(header)} size="small" />
+                      <ListItemText primary={header} />
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+          </Paper>
+
           {/* Validation Errors */}
           {validationErrors.length > 0 && (
             <Alert severity="error" sx={{ mb: 3 }}>
@@ -756,16 +815,18 @@ function DataImportTab() {
                     {headers.map(header => {
                       const mappedField = mappedHeaderToField.get(header);
                       const fieldDef = mappedField ? MAPPING_FIELDS.find(f => f.key === mappedField) : null;
+                      const isProductCol = productColumns.includes(header);
+                      const isMapped = !!mappedField || isProductCol;
                       return (
                         <TableCell 
                           key={header} 
                           sx={{ 
                             fontWeight: 600, 
-                            bgcolor: mappedField ? '#e8f5e9' : '#f5f5f5',
-                            borderBottom: mappedField ? '2px solid #4caf50' : undefined,
+                            bgcolor: isProductCol ? '#e3f2fd' : isMapped ? '#e8f5e9' : '#f5f5f5',
+                            borderBottom: isProductCol ? '2px solid #1976d2' : isMapped ? '2px solid #4caf50' : undefined,
                           }}
                         >
-                          <Tooltip title={fieldDef ? `→ ${t(fieldDef.labelKey)}` : 'Not mapped'}>
+                          <Tooltip title={isProductCol ? `→ Product` : fieldDef ? `→ ${t(fieldDef.labelKey)}` : 'Not mapped'}>
                             <span>{header}</span>
                           </Tooltip>
                         </TableCell>
@@ -885,6 +946,12 @@ function DataImportTab() {
                 <Typography variant="h4" color="primary">{importResult.details.installments}</Typography>
                 <Typography variant="body2" color="text.secondary">{t('integrations.dataImport.success.installments')}</Typography>
               </Box>
+              {importResult.details.products > 0 && (
+                <Box>
+                  <Typography variant="h4" color="primary">{importResult.details.products}</Typography>
+                  <Typography variant="body2" color="text.secondary">{t('integrations.dataImport.success.products')}</Typography>
+                </Box>
+              )}
             </Box>
           )}
 

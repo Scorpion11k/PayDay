@@ -18,6 +18,7 @@ const columnMappingSchema = z.object({
   dueDate: z.string().optional(),
   installmentAmount: z.string().optional(),
   sequenceNo: z.string().optional(),
+  productColumns: z.array(z.string()).optional(),
 });
 
 const importOptionsSchema = z.object({
@@ -120,7 +121,7 @@ class ImportController {
       success: result.success,
       data: result,
       message: result.success 
-        ? `Successfully imported ${result.imported.customers} customers, ${result.imported.debts} debts, ${result.imported.installments} installments`
+        ? `Successfully imported ${result.imported.customers} customers, ${result.imported.debts} debts, ${result.imported.installments} installments, ${result.imported.products} products`
         : `Import completed with ${result.errors.length} errors`,
     });
   }

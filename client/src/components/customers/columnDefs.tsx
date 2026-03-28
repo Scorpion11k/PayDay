@@ -14,11 +14,18 @@ import {
   WhatsApp as WhatsAppIcon,
   Sms as SmsIcon,
   Call as CallIcon,
+  Inventory2 as ProductIcon,
 } from '@mui/icons-material';
 import type { TFunction } from 'i18next';
 
 type SortField = 'fullName' | 'email' | 'status' | 'createdAt' | 'totalDebtAmount' | 'isOverdue' | 'payments';
 type SortOrder = 'asc' | 'desc';
+
+export interface CustomerProduct {
+  id: string;
+  name: string;
+  price: number;
+}
 
 interface Customer {
   id: string;
@@ -36,6 +43,7 @@ interface Customer {
   isOverdue: boolean;
   overdueDays: number;
   _count: { debts: number; payments: number };
+  products?: CustomerProduct[];
 }
 
 const statusColors: Record<Customer['status'], 'success' | 'warning' | 'error'> = {
@@ -344,6 +352,33 @@ export const COLUMN_DEFS: ColumnDef[] = [
         />
       </TableCell>
     ),
+  },
+  {
+    id: 'products',
+    labelKey: 'customers.columns.products',
+    hideable: true,
+    align: 'center',
+    renderHeader: ({ t }) => (
+      <TableCell sx={{ fontWeight: 600 }} align="center">{t('customers.columns.products')}</TableCell>
+    ),
+    renderCell: ({ customer }) => {
+      const count = customer.products?.length ?? 0;
+      return (
+        <TableCell align="center">
+          {count > 0 ? (
+            <Chip
+              size="small"
+              icon={<ProductIcon sx={{ fontSize: 16 }} />}
+              label={count}
+              variant="outlined"
+              color="info"
+            />
+          ) : (
+            <Typography variant="body2" color="text.disabled">—</Typography>
+          )}
+        </TableCell>
+      );
+    },
   },
   {
     id: 'created',

@@ -40,6 +40,7 @@ import {
   ListItemText,
   Divider,
   Checkbox,
+  Collapse,
 } from '@mui/material';
 import {
   AccountTree as BrainViewIcon,
@@ -59,6 +60,8 @@ import {
   Sms as SmsIcon,
   Call as CallIcon,
   PlayCircleOutline as StartCollectionFlowIcon,
+  KeyboardArrowDown as ExpandMoreIcon,
+  KeyboardArrowUp as ExpandLessIcon,
 } from '@mui/icons-material';
 import { useLanguage } from '../context/LanguageContext';
 import BrainViewDialog from '../components/customers/BrainViewDialog';
@@ -66,6 +69,12 @@ import { useCustomersTableConfig } from '../hooks/useCustomersTableConfig';
 import { COLUMN_DEFS } from '../components/customers/columnDefs';
 import ColumnSettingsDialog from '../components/customers/ColumnSettingsDialog';
 import { ViewColumn as ViewColumnIcon } from '@mui/icons-material';
+
+interface CustomerProduct {
+  id: string;
+  name: string;
+  price: number;
+}
 
 interface Customer {
   id: string;
@@ -90,6 +99,7 @@ interface Customer {
   totalDebtAmount: number;
   isOverdue: boolean;
   overdueDays: number;
+  products?: CustomerProduct[];
 }
 
 interface PaginationInfo {
@@ -167,6 +177,7 @@ export default function CustomersPage() {
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo>({
@@ -783,6 +794,18 @@ export default function CustomersPage() {
     setAnchorEl(null);
   };
 
+  const toggleExpandRow = (customerId: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(customerId)) {
+        next.delete(customerId);
+      } else {
+        next.add(customerId);
+      }
+      return next;
+    });
+  };
+
   const handleRowContextMenu = (event: React.MouseEvent<HTMLTableRowElement>, customer: Customer) => {
     event.preventDefault();
     setAnchorEl(null);
@@ -1314,37 +1337,82 @@ export default function CustomersPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                customers.map((customer) => (
-                  <TableRow 
-                    key={customer.id} 
-                    hover 
-                    onContextMenu={(event) => handleRowContextMenu(event, customer)}
-                    sx={{ 
-                      '&:last-child td': { border: 0 },
-                      bgcolor: isCustomerSelected(customer.id) ? 'action.selected' : 'inherit',
-                    }}
-                  >
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        checked={isCustomerSelected(customer.id)}
-                        onChange={() => handleSelectCustomer(customer.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </TableCell>
-                    {visibleColumns.map((col) => (
-                      <React.Fragment key={col.id}>
-                        {col.renderCell({ customer, t, language })}
-                      </React.Fragment>
-                    ))}
-                    <TableCell align="center">
-                      <Tooltip title={t('common.actions')}>
-                        <IconButton size="small" onClick={(e) => handleActionsClick(e, customer)}>
-                          <MoreVertIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))
+                customers.map((customer) => {
+                  const hasProducts = (customer.products?.length ?? 0) > 0;
+                  const isExpanded = expandedRows.has(customer.id);
+                  return (
+                    <React.Fragment key={customer.id}>
+                      <TableRow 
+                        hover 
+                        onContextMenu={(event) => handleRowContextMenu(event, customer)}
+                        sx={{ 
+                          '&:last-child td': { border: 0 },
+                          bgcolor: isCustomerSelected(customer.id) ? 'action.selected' : 'inherit',
+                        }}
+                      >
+                        <TableCell padding="checkbox">
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            {hasProducts ? (
+                              <IconButton size="small" onClick={() => toggleExpandRow(customer.id)} sx={{ mr: 0.5 }}>
+                                {isExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                              </IconButton>
+                            ) : (
+                              <Box sx={{ width: 34, mr: 0.5 }} />
+                            )}
+                            <Checkbox
+                              checked={isCustomerSelected(customer.id)}
+                              onChange={() => handleSelectCustomer(customer.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </Box>
+                        </TableCell>
+                        {visibleColumns.map((col) => (
+                          <React.Fragment key={col.id}>
+                            {col.renderCell({ customer, t, language })}
+                          </React.Fragment>
+                        ))}
+                        <TableCell align="center">
+                          <Tooltip title={t('common.actions')}>
+                            <IconButton size="small" onClick={(e) => handleActionsClick(e, customer)}>
+                              <MoreVertIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                      {hasProducts && (
+                        <TableRow>
+                          <TableCell sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }} colSpan={visibleColumns.length + 2}>
+                            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                              <Box sx={{ py: 1.5, px: 2 }}>
+                                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                                  {t('customers.products.title')}
+                                </Typography>
+                                <Table size="small" sx={{ maxWidth: 400 }}>
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell sx={{ fontWeight: 600 }}>{t('customers.products.name')}</TableCell>
+                                      <TableCell sx={{ fontWeight: 600 }} align="right">{t('customers.products.price')}</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {customer.products!.map((product) => (
+                                      <TableRow key={product.id}>
+                                        <TableCell>{product.name}</TableCell>
+                                        <TableCell align="right">
+                                          {`₪${Number(product.price).toLocaleString(language === 'he' ? 'he-IL' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </Box>
+                            </Collapse>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>

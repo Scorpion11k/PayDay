@@ -161,7 +161,14 @@
       "totalDebt": "Total Debt",
       "payments": "Payments",
       "created": "Created",
-      "preferences": "Preferences"
+      "preferences": "Preferences",
+      "products": "Products"
+    },
+    "products": {
+      "title": "Related Products",
+      "name": "Product Name",
+      "price": "Price",
+      "noProducts": "No products"
     },
     "status": {
       "active": "Active",
@@ -619,6 +626,11 @@
         "installmentAmount": "Installment Amount",
         "sequenceNo": "Sequence Number"
       },
+      "productColumns": {
+        "title": "Product Columns",
+        "description": "Select columns that represent products or services. Each column header becomes the product name, and the cell value is the price for that customer.",
+        "selectLabel": "Select product columns"
+      },
       "preview": {
         "title": "Data Preview",
         "rows": "rows"
@@ -631,7 +643,8 @@
         "title": "Import Successful!",
         "customers": "Customers",
         "debts": "Debts",
-        "installments": "Installments"
+        "installments": "Installments",
+        "products": "Products"
       },
       "errors": {
         "emptyFile": "Excel file is empty",

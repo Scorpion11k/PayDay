@@ -17,6 +17,7 @@ export interface ImportResult {
     customers: number;
     debts: number;
     installments: number;
+    products: number;
   };
   errors: string[];
   validationErrors: RowValidationError[];
@@ -46,13 +47,18 @@ export interface ColumnMapping {
   dueDate?: string;
   installmentAmount?: string;
   sequenceNo?: string;
+  // Product columns: each header in this array is a product name, cell value is the price
+  productColumns?: string[];
 }
 
+// Scalar mapping fields (excludes productColumns which is string[])
+type ScalarMappingField = Exclude<keyof ColumnMapping, 'productColumns'>;
+
 // Required fields for import
-export const REQUIRED_FIELDS: (keyof ColumnMapping)[] = ['customerName', 'debtAmount'];
+export const REQUIRED_FIELDS: ScalarMappingField[] = ['customerName', 'debtAmount'];
 
 // Field definitions with validation info
-export const FIELD_DEFINITIONS: Record<keyof ColumnMapping, { 
+export const FIELD_DEFINITIONS: Record<ScalarMappingField, { 
   label: string; 
   required: boolean; 
   validation?: 'email' | 'phone' | 'date' | 'number';
@@ -74,7 +80,7 @@ export const FIELD_DEFINITIONS: Record<keyof ColumnMapping, {
 };
 
 // Default column mappings (Hebrew translated headers)
-const DEFAULT_MAPPINGS: Record<string, keyof ColumnMapping> = {
+const DEFAULT_MAPPINGS: Record<string, ScalarMappingField> = {
   // English - Customer fields
   'customer name': 'customerName',
   'name': 'customerName',
@@ -357,7 +363,7 @@ class ImportService {
    * Auto-detect column mappings from headers
    */
   detectMappings(headers: string[]): ColumnMapping {
-    const mapping: ColumnMapping = {};
+    const mapping: Record<string, string> = {};
     
     for (const header of headers) {
       const normalized = header.toLowerCase().trim();
@@ -368,7 +374,7 @@ class ImportService {
       }
     }
 
-    return mapping;
+    return mapping as ColumnMapping;
   }
 
   /**
@@ -446,6 +452,25 @@ class ImportService {
           });
         }
       }
+
+      // Validate product column values (must be valid numbers when present)
+      if (mapping.productColumns) {
+        for (const col of mapping.productColumns) {
+          const value = row[col];
+          if (value != null && value !== '' && value !== '-') {
+            const cleaned = String(value).replace(/[^\d.-]/g, '');
+            const amount = parseFloat(cleaned);
+            if (isNaN(amount) || amount < 0) {
+              errors.push({
+                row: rowNum,
+                field: col,
+                value: String(value),
+                message: `Invalid product price in "${col}": "${value}"`,
+              });
+            }
+          }
+        }
+      }
     });
 
     return errors;
@@ -479,7 +504,7 @@ class ImportService {
   ): Promise<ImportResult> {
     const result: ImportResult = {
       success: true,
-      imported: { customers: 0, debts: 0, installments: 0 },
+      imported: { customers: 0, debts: 0, installments: 0, products: 0 },
       errors: [],
       validationErrors: [],
       skipped: 0,
@@ -634,6 +659,26 @@ class ImportService {
                 result.imported.installments++;
                 sequenceNo++;
               }
+            }
+          }
+
+          // Create products from product columns (pivoted format: column header = product name, cell = price)
+          if (mapping.productColumns && mapping.productColumns.length > 0) {
+            for (const col of mapping.productColumns) {
+              const value = firstRow[col];
+              if (value == null || value === '' || value === '-') continue;
+              const cleaned = String(value).replace(/[^\d.-]/g, '');
+              const price = parseFloat(cleaned);
+              if (isNaN(price) || price <= 0) continue;
+
+              await tx.customerProduct.create({
+                data: {
+                  customerId: customer.id,
+                  name: col,
+                  price,
+                },
+              });
+              result.imported.products++;
             }
           }
         });
