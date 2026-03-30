@@ -736,8 +736,8 @@ export default function ChatPanel() {
                   py: 1.5,
                   maxWidth: message.role === 'user' ? '80%' : '100%',
                   width: message.role === 'assistant' && message.data ? '100%' : 'auto',
-                  bgcolor: message.role === 'user' ? '#1e3a5f' : '#f0f4f8',
-                  color: message.role === 'user' ? '#fff' : 'text.primary',
+                  bgcolor: message.role === 'user' ? 'hsl(228, 25%, 12%)' : '#f0f4f8',
+                  color: message.role === 'user' ? 'hsl(220, 15%, 80%)' : 'text.primary',
                   borderStartStartRadius: 16,
                   borderStartEndRadius: 16,
                   borderEndStartRadius: message.role === 'user' ? 16 : 4,
@@ -755,7 +755,7 @@ export default function ChatPanel() {
                     </Typography>
                   </Box>
                 )}
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'inherit' }}>
                   {message.content}
                 </Typography>
                 {message.error && (
