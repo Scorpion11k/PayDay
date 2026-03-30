@@ -3,11 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
-  Button,
   CircularProgress,
   Paper,
   Snackbar,
-  Stack,
   Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +16,6 @@ import InternalAlertsList from '../components/home/InternalAlertsList';
 import PriorityQueues from '../components/home/PriorityQueues';
 import RecommendationCard from '../components/home/RecommendationCard';
 import { useChatVisibility } from '../context/ChatVisibilityContext';
-import { useSystemMode } from '../context/SystemModeContext';
 import { homeBrain } from '../services/api';
 import type {
   GenerateHomeBrainPlanRequest,
@@ -33,8 +30,7 @@ export default function HomePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { setChatHidden } = useChatVisibility();
-  const { mode } = useSystemMode();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [planState, setPlanState] = useState<Awaited<ReturnType<typeof homeBrain.generatePlan>> | null>(null);
@@ -98,16 +94,6 @@ export default function HomePage() {
       ) || [],
     [cardStatuses, plan?.cards]
   );
-
-  const updateFilter = (key: string, value?: string) => {
-    const next = new URLSearchParams(searchParams);
-    if (!value || value === 'all' || value === '0') {
-      next.delete(key);
-    } else {
-      next.set(key, value);
-    }
-    setSearchParams(next);
-  };
 
   const openQueue = (queue: { queueId: string; title: string; description?: string; priority: string; count: number; customerIds: string[] }) => {
     const params = new URLSearchParams();

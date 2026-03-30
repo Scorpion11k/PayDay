@@ -185,7 +185,7 @@ function ActivityRow({ activity, t }: { activity: ActivityLogItem; t: (key: stri
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="subtitle2" fontWeight={600} noWrap>
-              {t(`pages.activities.activityNames.${activity.activityName}`, activity.activityName)}
+              {t(`pages.activities.activityNames.${activity.activityName}`, { defaultValue: activity.activityName })}
             </Typography>
             <Chip
               size="small"

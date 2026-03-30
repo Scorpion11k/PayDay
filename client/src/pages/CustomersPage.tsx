@@ -15,7 +15,6 @@ import {
   TableHead,
   TableRow,
   TablePagination,
-  TableSortLabel,
   TextField,
   InputAdornment,
   Chip,
@@ -66,7 +65,7 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import BrainViewDialog from '../components/customers/BrainViewDialog';
 import { useCustomersTableConfig } from '../hooks/useCustomersTableConfig';
-import { COLUMN_DEFS } from '../components/customers/columnDefs';
+
 import ColumnSettingsDialog from '../components/customers/ColumnSettingsDialog';
 import { ViewColumn as ViewColumnIcon } from '@mui/icons-material';
 
@@ -157,12 +156,6 @@ const initialFormState: NewCustomerForm = {
   preferredChannel: '',
   preferredLanguage: '',
   preferredTone: '',
-};
-
-const statusColors: Record<Customer['status'], 'success' | 'warning' | 'error'> = {
-  active: 'success',
-  do_not_contact: 'warning',
-  blocked: 'error',
 };
 
 type SortField = 'fullName' | 'email' | 'status' | 'createdAt' | 'totalDebtAmount' | 'isOverdue' | 'payments';
@@ -291,40 +284,6 @@ export default function CustomersPage() {
     [queueCustomerIds, searchParams]
   );
 
-  // Status labels with translations
-  const getStatusLabel = (status: Customer['status']): string => {
-    const labels: Record<Customer['status'], string> = {
-      active: t('customers.status.active'),
-      do_not_contact: t('customers.status.doNotContact'),
-      blocked: t('customers.status.blocked'),
-    };
-    return labels[status];
-  };
-
-
-  // Get channel icon and label
-  const getChannelChip = (channel: Customer['preferredChannel']) => {
-    if (!channel) return null;
-    const channelConfig: Record<NonNullable<Customer['preferredChannel']>, { label: string; color: 'primary' | 'success' | 'warning' | 'secondary'; icon: React.ReactElement }> = {
-      email: { label: t('common.email'), color: 'primary', icon: <EmailIcon sx={{ fontSize: 16 }} /> },
-      sms: { label: 'SMS', color: 'warning', icon: <SmsIcon sx={{ fontSize: 16 }} /> },
-      whatsapp: { label: 'WhatsApp', color: 'success', icon: <WhatsAppIcon sx={{ fontSize: 16 }} /> },
-      call_task: { label: t('common.voiceCall'), color: 'secondary', icon: <CallIcon sx={{ fontSize: 16 }} /> },
-    };
-    const config = channelConfig[channel];
-    return <Chip size="small" icon={config.icon} label={config.label} color={config.color} variant="outlined" />;
-  };
-
-  // Get language chip
-  const getLanguageChip = (lang: Customer['preferredLanguage']) => {
-    if (!lang) return null;
-    const langLabels: Record<NonNullable<Customer['preferredLanguage']>, string> = {
-      en: 'EN',
-      he: 'HE',
-      ar: 'AR',
-    };
-    return <Chip size="small" label={langLabels[lang]} variant="outlined" sx={{ minWidth: 40 }} />;
-  };
 
   const clearSelection = useCallback(() => {
     setSelectedCustomerIds(new Set());
@@ -689,14 +648,6 @@ export default function CustomersPage() {
     }
     // Reset to first page when sorting changes
     setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   // Dialog handlers

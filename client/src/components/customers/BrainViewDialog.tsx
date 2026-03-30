@@ -260,7 +260,7 @@ function SummaryMetric({
 function StepQueueList({
   title,
   steps,
-  language,
+  language: _language,
   emptyMessage,
   stepStatusLabels,
   dateLabelFn,
@@ -450,7 +450,7 @@ export default function BrainViewDialog({
   const channelLabel = t(`brainView.channels.${getChannelKey(currentChannel)}`);
   const toneLabel = t(`brainView.tones.${getToneKey(currentStep?.state.tone ?? fallbackTone)}`);
 
-  const stepStatusLabels = useMemo(() => ({
+  const stepStatusLabels: Record<string, string> = useMemo(() => ({
     completed: t('brainView.stepStatuses.completed'),
     waiting: t('brainView.stepStatuses.waiting'),
     failed: t('brainView.stepStatuses.failed'),
