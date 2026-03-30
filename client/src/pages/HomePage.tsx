@@ -4,18 +4,12 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
-  FormControl,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Snackbar,
   Stack,
   Typography,
 } from '@mui/material';
-import { AutoAwesome as SparkleIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import AiKpiRail from '../components/home/AiKpiRail';
 import CardDetailDrawer from '../components/home/CardDetailDrawer';
@@ -178,96 +172,6 @@ export default function HomePage() {
 
   return (
     <Box sx={{ px: { xs: 2, md: 3 }, py: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: 3,
-          borderRadius: 4,
-          border: '1px solid',
-          borderColor: 'divider',
-          background: 'linear-gradient(135deg, rgba(30,58,95,0.04), rgba(79,195,247,0.08))',
-        }}
-      >
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
-          <Box>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-              <Typography
-                sx={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.12em', color: 'text.secondary' }}
-              >
-                PAYDAY AI
-              </Typography>
-              <SparkleIcon sx={{ fontSize: 16, color: 'primary.main' }} />
-            </Stack>
-            <Typography variant="h4" sx={{ fontWeight: 800, mb: 0.75 }}>
-              {plan?.dashboard.title || t('home.welcome')}
-            </Typography>
-            <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 760 }}>
-              {plan?.dashboard.subtitle || plan?.reasoningSummary || t('home.subtitle')}
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={1} alignItems="flex-start" useFlexGap flexWrap="wrap">
-            <Chip label={`${t('homeBrain.mode')}: ${mode}`} />
-            {planState?.cachedAt && (
-              <Chip label={`Cached ${new Date(planState.cachedAt).toLocaleTimeString()}`} variant="outlined" />
-            )}
-            <Button
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={() => void fetchPlan(true)}
-              disabled={loading}
-            >
-              {t('common.refresh')}
-            </Button>
-            <Button variant="contained" onClick={() => setFlowPromptOpen(true)}>
-              {locale === 'he' ? 'צור תהליך מפרומפט' : 'Create flow from prompt'}
-            </Button>
-          </Stack>
-        </Stack>
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mt: 3 }}>
-          <FormControl sx={{ minWidth: 180 }}>
-            <InputLabel>{t('homeBrain.segment')}</InputLabel>
-            <Select
-              label={t('homeBrain.segment')}
-              value={filters?.segment || 'all'}
-              onChange={(event) => updateFilter('segment', event.target.value)}
-            >
-              <MenuItem value="all">{t('common.all')}</MenuItem>
-              <MenuItem value="high_risk">{t('homeBrain.highRisk')}</MenuItem>
-              <MenuItem value="overdue">{t('homeBrain.overdue')}</MenuItem>
-              <MenuItem value="no_response">{t('homeBrain.noResponse')}</MenuItem>
-            </Select>
-          </FormControl>
-
-          <FormControl sx={{ minWidth: 180 }}>
-            <InputLabel>{t('homeBrain.language')}</InputLabel>
-            <Select
-              label={t('homeBrain.language')}
-              value={filters?.language || ''}
-              onChange={(event) => updateFilter('language', event.target.value)}
-            >
-              <MenuItem value="">{t('common.all')}</MenuItem>
-              <MenuItem value="en">English</MenuItem>
-              <MenuItem value="he">Hebrew</MenuItem>
-              <MenuItem value="ar">Arabic</MenuItem>
-            </Select>
-          </FormControl>
-
-          <FormControl sx={{ minWidth: 180 }}>
-            <InputLabel>{t('homeBrain.minOverdueDays')}</InputLabel>
-            <Select
-              label={t('homeBrain.minOverdueDays')}
-              value={filters?.minOverdueDays ? String(filters.minOverdueDays) : '0'}
-              onChange={(event) => updateFilter('minOverdueDays', event.target.value)}
-            >
-              <MenuItem value="0">{t('homeBrain.any')}</MenuItem>
-              <MenuItem value="7">7+</MenuItem>
-              <MenuItem value="14">14+</MenuItem>
-              <MenuItem value="30">30+</MenuItem>
-            </Select>
-          </FormControl>
-        </Stack>
-      </Paper>
 
       {error && <Alert severity="error">{error}</Alert>}
 

@@ -52,7 +52,7 @@ interface Message {
   error?: string;
 }
 
-const DRAWER_WIDTH = 220;
+const DRAWER_WIDTH = 256;
 
 const COLUMN_LABEL_KEYS: Record<string, string> = {
   id: 'chat.resultColumns.id',

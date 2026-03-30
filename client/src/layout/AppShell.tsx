@@ -17,7 +17,7 @@ import SidebarNav from '../components/SidebarNav';
 import ChatPanel from '../components/Chat/ChatPanel';
 import { useChatVisibility } from '../context/ChatVisibilityContext';
 
-const DRAWER_WIDTH = 220;
+const DRAWER_WIDTH = 256;
 
 interface AppShellProps {
   children?: ReactNode;

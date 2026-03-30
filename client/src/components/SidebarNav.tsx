@@ -8,7 +8,6 @@ import {
   ListItemText,
   Typography,
   Avatar,
-  Divider,
   IconButton,
   Tooltip,
 } from '@mui/material';
@@ -27,6 +26,18 @@ import {
   Article as TemplatesIcon,
 } from '@mui/icons-material';
 import { useLanguage } from '../context/LanguageContext';
+import paydayLogo from '../assets/payday-logo.png';
+
+// Lovable sidebar color palette (HSL converted to hex)
+const SIDEBAR = {
+  bg: 'hsl(228, 25%, 12%)',           // --sidebar-background
+  fg: 'hsl(220, 15%, 92%)',           // --sidebar-foreground
+  fgMuted: 'hsla(220, 15%, 92%, 0.7)', // foreground at 70% opacity
+  accent: 'hsl(228, 22%, 18%)',       // --sidebar-accent
+  border: 'hsl(228, 20%, 20%)',       // --sidebar-border
+  brand: 'hsl(225, 38%, 21%)',        // --brand
+  brandFg: '#fff',                     // --brand-foreground
+};
 
 interface NavItem {
   labelKey: string;
@@ -64,55 +75,39 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: '#1e2a3a',
-        color: '#fff',
+        bgcolor: SIDEBAR.bg,
+        color: SIDEBAR.fg,
+        borderRight: isRTL ? 'none' : `1px solid ${SIDEBAR.border}`,
+        borderLeft: isRTL ? `1px solid ${SIDEBAR.border}` : 'none',
       }}
     >
       {/* Logo Header */}
       <Box
         sx={{
-          p: 2,
+          px: 3,
+          py: 2.5,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          borderBottom: `1px solid ${SIDEBAR.border}`,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box
-            sx={{
-              width: 32,
-              height: 32,
-              bgcolor: '#fff',
-              borderRadius: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#1e2a3a',
-              fontWeight: 700,
-              fontSize: '1.2rem',
-            }}
-          >
-            P
-          </Box>
-          <Typography
-            variant="h6"
-            sx={{
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              letterSpacing: '0.5px',
-            }}
-          >
-            PAYDAY
-          </Typography>
+            component="img"
+            src={paydayLogo}
+            alt="PayDay AI"
+            sx={{ height: 48, width: 'auto' }}
+          />
         </Box>
         <Tooltip title={t('nav.settings')}>
           <IconButton
             onClick={() => navigate('/settings')}
             sx={{
-              color: 'rgba(255,255,255,0.7)',
+              color: SIDEBAR.fgMuted,
               '&:hover': {
-                color: '#fff',
-                bgcolor: 'rgba(255,255,255,0.08)',
+                color: SIDEBAR.fg,
+                bgcolor: SIDEBAR.accent,
               },
             }}
             size="small"
@@ -123,7 +118,14 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
       </Box>
 
       {/* Navigation Items */}
-      <List sx={{ flex: 1, px: 1, pt: 1 }}>
+      <List
+        sx={{
+          flex: 1,
+          px: 2,
+          py: 2,
+          overflowY: 'auto',
+        }}
+      >
         {navItems.map((item) => {
           const Icon = item.icon;
           const isSelected = location.pathname === item.path;
@@ -132,31 +134,40 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
               key={item.path}
               selected={isSelected}
               onClick={() => navigate(item.path)}
+              dense
               sx={{
-                borderRadius: 1,
-                mb: 0.5,
-                py: 1,
-                color: isSelected ? '#4fc3f7' : 'rgba(255,255,255,0.85)',
+                borderRadius: 2,
+                px: 2,
+                height: 48,
+                minHeight: 0,
+                transition: 'all 0.2s ease',
+                color: isSelected ? 'red' : '#c4c9cf',
                 '&.Mui-selected': {
-                  bgcolor: 'rgba(79, 195, 247, 0.12)',
-                  color: '#4fc3f7',
+                  bgcolor: SIDEBAR.accent,
+                  color: '#fdfeff',
+                  fontWeight: 500,
                   '&:hover': {
-                    bgcolor: 'rgba(79, 195, 247, 0.18)',
+                    bgcolor: SIDEBAR.accent,
                   },
                 },
                 '&:hover': {
-                  bgcolor: 'rgba(255,255,255,0.08)',
+                  bgcolor: SIDEBAR.accent,
+                  color: '#fdfeff',
                 },
               }}
             >
-              <ListItemIcon sx={{ color: 'inherit', minWidth: 36 }}>
-                <Icon sx={{ fontSize: 20 }} />
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 36, mr: 0 }}>
+                <Icon sx={{ fontSize: 22 }} />
               </ListItemIcon>
               <ListItemText
                 primary={t(item.labelKey)}
+                sx={{ my: 0 }}
                 primaryTypographyProps={{
-                  fontSize: '0.875rem',
-                  fontWeight: isSelected ? 500 : 400,
+                  fontSize: '16px',
+                  fontWeight: isSelected ? 600 : 400,
+                  lineHeight: 1.3,
+                  fontFamily: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
+                  color: 'inherit',
                 }}
               />
             </ListItemButton>
@@ -165,14 +176,22 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
       </List>
 
       {/* User Section */}
-      <Box sx={{ mt: 'auto' }}>
+      <Box
+        sx={{
+          mt: 'auto',
+          p: 2,
+          borderTop: `1px solid ${SIDEBAR.border}`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
+        }}
+      >
         <Box
           sx={{
-            mx: 1,
-            mb: 1,
-            p: 1.5,
-            bgcolor: '#2c6b8f',
-            borderRadius: 1,
+            px: 2,
+            py: 1.5,
+            bgcolor: SIDEBAR.accent,
+            borderRadius: 2,
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
@@ -183,17 +202,21 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
             sx={{
               width: 32,
               height: 32,
-              bgcolor: '#4fc3f7',
+              bgcolor: SIDEBAR.brand,
+              color: SIDEBAR.brandFg,
               fontSize: '0.875rem',
+              fontWeight: 500,
+              flexShrink: 0,
             }}
           >
-            L
+            G
           </Avatar>
           <Typography
             variant="body2"
             sx={{
-              fontSize: '0.813rem',
-              color: '#fff',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: SIDEBAR.fg,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -205,19 +228,25 @@ export default function SidebarNav({ drawerWidth }: SidebarNavProps) {
           </Typography>
         </Box>
 
-        <Divider sx={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-
         <ListItemButton
           sx={{
-            py: 1.5,
-            color: 'rgba(255,255,255,0.7)',
+            borderRadius: 2,
+            py: 1,
+            color: SIDEBAR.fgMuted,
             '&:hover': {
-              bgcolor: 'rgba(255,255,255,0.08)',
+              bgcolor: SIDEBAR.accent,
+              color: SIDEBAR.fg,
             },
           }}
         >
-          <ListItemIcon sx={{ color: 'inherit', minWidth: 36 }}>
-            <LogoutIcon sx={{ fontSize: 20 }} />
+          <ListItemIcon
+            sx={{
+              color: 'inherit',
+              minWidth: 32,
+              ...(isRTL ? { ml: 1 } : { mr: 1 }),
+            }}
+          >
+            <LogoutIcon sx={{ fontSize: 18 }} />
           </ListItemIcon>
           <ListItemText
             primary={t('nav.signOut')}
