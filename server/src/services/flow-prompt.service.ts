@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { genAI, GEMINI_MODEL, withRetry } from '../config/gemini';
 import { TemplateLanguage, TemplateTone } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '../config/database';
@@ -11,8 +11,6 @@ import smsService from './sms.service';
 import whatsappService from './whatsapp.service';
 import kolKasherService from './kol-kasher.service';
 import systemSettingsService from './system-settings.service';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 const promptFlowStepSchema = z.object({
   stepKey: z.string().min(1),
@@ -108,9 +106,9 @@ function actionTypeToChannel(actionType: PromptActionType): SupportedChannel {
 
 function parseToneFromText(text: string): TemplateTone | undefined {
   const normalized = text.toLowerCase();
-  if (/(escalated|heavy|urgent|final|strong|strict|legal)/.test(normalized)) return 'heavy';
-  if (/(medium|firm)/.test(normalized)) return 'medium';
-  if (/(calm|soft|gentle|friendly)/.test(normalized)) return 'calm';
+  if (/(escalated|heavy|urgent|final|strong|strict|legal|תקיפ|חזק|נחרצ|קשה|אגרסיבי)/.test(normalized)) return 'heavy';
+  if (/(medium|firm|בינוני|רגיל)/.test(normalized)) return 'medium';
+  if (/(calm|soft|gentle|friendly|רך|נינוח|עדין)/.test(normalized)) return 'calm';
   return undefined;
 }
 
@@ -124,10 +122,10 @@ function parseLanguageFromText(text: string): TemplateLanguage | undefined {
 
 function detectChannel(text: string): SupportedChannel | null {
   const normalized = text.toLowerCase();
-  if (/(whatsapp|wa\b)/.test(normalized)) return 'whatsapp';
-  if (/(sms|text message|text\b)/.test(normalized)) return 'sms';
-  if (/(email|e-mail|\bmail\b)/.test(normalized)) return 'email';
-  if (/(voice call|phone call|call task)/.test(normalized)) return 'call_task';
+  if (/(whatsapp|wa\b|וואטסאפ|ווטסאפ)/.test(normalized)) return 'whatsapp';
+  if (/(sms|text message|text\b|סמס)/.test(normalized)) return 'sms';
+  if (/(email|e-mail|\bmail\b|אימייל|מייל)/.test(normalized)) return 'email';
+  if (/(voice call|phone call|call task|שיחה|שיחת טלפון)/.test(normalized)) return 'call_task';
   return null;
 }
 
@@ -135,6 +133,8 @@ function extractFlowName(prompt: string): { sanitizedPrompt: string; flowName?: 
   const patterns = [
     /(?:call|name)\s+(?:this\s+)?flow\s+["']?([^"'.\n]+)["']?/i,
     /(?:call|name)\s+it\s+["']?([^"'.\n]+)["']?/i,
+    /תקרא\s+(?:ל(?:תהליך|זה|זרימה))\s+["']?([^"'.\n]+)["']?/,
+    /(?:שם\s+(?:ה)?תהליך|קרא\s+(?:ל(?:תהליך|זה)))\s+["']?([^"'.\n]+)["']?/,
   ];
 
   for (const pattern of patterns) {
@@ -161,16 +161,40 @@ function splitPromptIntoClauses(prompt: string) {
     .replace(/\band then\b/gi, '|then')
     .replace(/,\s*/g, '|');
 
-  return normalized
+  const rawClauses = normalized
     .split('|')
     .map((segment) => segment.trim())
     .filter(Boolean);
+
+  // Merge standalone Hebrew/English delay clauses ("המתן X שעות", "wait 24 hours")
+  // into the NEXT channel clause so buildPromptStep can extract the wait time
+  const merged: string[] = [];
+  for (let i = 0; i < rawClauses.length; i++) {
+    const clause = rawClauses[i];
+    const isDelay = /^(?:המתן|חכה|wait|after)\s+\d+/i.test(clause) && !detectChannel(clause);
+    if (isDelay && i + 1 < rawClauses.length) {
+      rawClauses[i + 1] = `${clause} ${rawClauses[i + 1]}`;
+    } else {
+      merged.push(clause);
+    }
+  }
+  return merged;
 }
 
 function parseWaitSecondsFromText(text: string): number | null {
   const match = text.match(/(?:after|in)(?:\s+another)?\s+(\d+)\s*(seconds?|minutes?|hours?|days?|weeks?)/i);
-  if (!match) return null;
-  return unitToSeconds(Number(match[1]), match[2]);
+  if (match) return unitToSeconds(Number(match[1]), match[2]);
+
+  const hebrewMatch = text.match(/(?:המתן|חכה|אחרי)\s+(\d+)\s*(שניות|שנייה|דקות|דקה|שעות|שעה|ימים|יום|שבועות|שבוע)/);
+  if (!hebrewMatch) return null;
+  const hebrewUnitMap: Record<string, string> = {
+    'שניות': 'seconds', 'שנייה': 'seconds',
+    'דקות': 'minutes', 'דקה': 'minutes',
+    'שעות': 'hours', 'שעה': 'hours',
+    'ימים': 'days', 'יום': 'days',
+    'שבועות': 'weeks', 'שבוע': 'weeks',
+  };
+  return unitToSeconds(Number(hebrewMatch[1]), hebrewUnitMap[hebrewMatch[2]] || 'hours');
 }
 
 function buildPromptStep(
@@ -241,13 +265,20 @@ function summarizeExistingDraft(flow: Awaited<ReturnType<typeof flowDefinitionSe
   };
 }
 
+function stripBuildPrefix(prompt: string): string {
+  return prompt
+    .replace(/^(?:תבנה|צור|בנה)\s+(?:flow|תהליך|זרימה)\s*:?\s*/i, '')
+    .replace(/^(?:create|build|make)\s+(?:a\s+)?flow\s*:?\s*/i, '')
+    .trim();
+}
+
 function buildFallbackCreateBlueprint(
   prompt: string,
   locale: 'en' | 'he',
   flowName?: string
 ): { assistantMessage: string; blueprint: PromptBlueprint } {
   const { sanitizedPrompt } = extractFlowName(prompt);
-  const clauses = splitPromptIntoClauses(sanitizedPrompt);
+  const clauses = splitPromptIntoClauses(stripBuildPrefix(sanitizedPrompt));
   const defaults = {
     language: parseLanguageFromText(sanitizedPrompt),
     tone: parseToneFromText(sanitizedPrompt),
@@ -437,8 +468,10 @@ class FlowPromptService {
       `User locale: ${locale}.`,
       'Create or refine a collection flow draft from the user prompt.',
       'Use conservative behavior only: generate a draft flow; do not publish or assign it.',
+      '',
       'Important platform constraints:',
       '- Only these action types are allowed: assigned_channel, send_email, send_sms, send_whatsapp, voice_call',
+      '- explicitChannel must be one of: email, sms, whatsapp, call_task (NOTE: actionType "voice_call" maps to explicitChannel "call_task")',
       '- Use templateKey "debt_reminder" for every step',
       '- Prefer a simple linear sequence of steps',
       '- Use waitSecondsFromPrevious as the relative delay from the prior step',
@@ -447,6 +480,21 @@ class FlowPromptService {
       '- If tone is not explicitly requested, choose a reasonable explicit tone',
       '- If the user names the flow (for example: "call this flow gil test 3"), set blueprint.name to that exact name',
       '- Do not treat a naming instruction as a voice call step',
+      '',
+      'Hebrew vocabulary reference (the user may use Hebrew):',
+      '  Channels: וואטסאפ/WhatsApp = actionType:send_whatsapp explicitChannel:whatsapp, SMS/סמס = actionType:send_sms explicitChannel:sms, אימייל/מייל = actionType:send_email explicitChannel:email, שיחה/שיחת טלפון = actionType:voice_call explicitChannel:call_task',
+      '  Tones: רך/נינוח/עדין = calm, בינוני/רגיל = medium, תקיף/חזק/נחרץ/קשה/אגרסיבי = heavy',
+      '  Delays: המתן/חכה/אחרי X שעות = wait X hours, המתן/חכה/אחרי X ימים = wait X days',
+      '  Naming: תקרא לתהליך/תקרא לזה/שם התהליך = set blueprint.name',
+      '  Building: תבנה/צור/בנה Flow/תהליך = create a new flow with the specified steps',
+      '',
+      'CRITICAL: When the user prompt contains a list of channels with tones and delays, each item is a SEPARATE STEP.',
+      'For example: "וואטסאפ רך, המתן 24 שעות, SMS בינוני, המתן 24 שעות, שיחה תקיפה" means:',
+      '  Step 1: send_whatsapp, tone=calm, waitSecondsFromPrevious=0',
+      '  Step 2: send_sms, tone=medium, waitSecondsFromPrevious=86400 (24 hours)',
+      '  Step 3: actionType=voice_call, explicitChannel=call_task, tone=heavy, waitSecondsFromPrevious=86400 (24 hours)',
+      'Delay clauses (e.g. "המתן 24 שעות") apply to the NEXT step, not as separate steps.',
+      '',
       `Available channels now: ${availability.availableChannels.join(', ') || 'none'}`,
       `Available debt_reminder templates: ${JSON.stringify(availability.templates)}`,
       existingDraft ? `Current draft being refined: ${JSON.stringify(existingDraft)}` : 'No existing draft yet.',
@@ -468,6 +516,16 @@ class FlowPromptService {
               tone: 'medium',
               templateKey: 'debt_reminder',
             },
+            {
+              stepKey: 'day1_voice_call',
+              waitSecondsFromPrevious: 86400,
+              actionType: 'voice_call',
+              explicitChannel: 'call_task',
+              languageMode: 'preferred',
+              toneMode: 'explicit',
+              tone: 'heavy',
+              templateKey: 'debt_reminder',
+            },
           ],
         },
       }),
@@ -480,7 +538,7 @@ class FlowPromptService {
     existingDraft: ExistingDraftSummary | null
   ) {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: GEMINI_MODEL,
       generationConfig: {
         temperature: 0.2,
         maxOutputTokens: 2048,
@@ -488,14 +546,64 @@ class FlowPromptService {
       },
     });
 
-    const result = await model.generateContent(
-      this.buildPrompt(input.prompt, input.locale, availability, existingDraft)
-    );
+    const builtPrompt = this.buildPrompt(input.prompt, input.locale, availability, existingDraft);
+    const result = await withRetry(() => model.generateContent(builtPrompt));
     const responseText = result.response.text();
     if (!responseText) {
       throw new AppError('AI service unavailable', 502);
     }
-    return cleanJsonResponse(responseText);
+    const parsed = cleanJsonResponse(responseText);
+
+    const resp = parsed as {
+      assistantMessage?: string;
+      blueprint?: {
+        name?: string;
+        description?: string;
+        steps?: Array<{
+          stepKey: string;
+          waitSecondsFromPrevious: number;
+          actionType: string;
+          explicitChannel?: string;
+          languageMode: string;
+          language?: string;
+          toneMode: string;
+          tone?: string;
+          templateKey: string;
+        }>;
+      };
+    };
+    const bp = resp.blueprint;
+    const steps = bp?.steps || [];
+    const formatDelay = (seconds: number) => {
+      if (seconds === 0) return 'immediately';
+      if (seconds < 60) return `${seconds}s`;
+      if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+      if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+      return `${Math.round(seconds / 86400)}d`;
+    };
+    const stepDetails = steps.map((s, i) =>
+      `    Step ${i + 1} [${s.stepKey}]: ${s.actionType}` +
+      (s.explicitChannel ? ` via ${s.explicitChannel}` : '') +
+      ` | delay: ${formatDelay(s.waitSecondsFromPrevious)}` +
+      ` | lang: ${s.languageMode}${s.language ? `(${s.language})` : ''}` +
+      ` | tone: ${s.toneMode}${s.tone ? `(${s.tone})` : ''}` +
+      ` | template: ${s.templateKey}`
+    ).join('\n');
+    console.log(
+      `\n[LLM Understanding] Flow Prompt Generation` +
+      `\n  User prompt: "${input.prompt}"` +
+      `\n  Locale: ${input.locale}` +
+      `\n  Editing existing draft: ${existingDraft ? `yes (id: ${existingDraft.id}, name: "${existingDraft.name}")` : 'no (new flow)'}` +
+      `\n  Assistant message: ${resp.assistantMessage || '(none)'}` +
+      `\n  Generated flow: "${bp?.name || '(unnamed)'}"` +
+      `\n  Description: ${bp?.description || '(none)'}` +
+      `\n  Steps (${steps.length}):` +
+      `\n${stepDetails}` +
+      `\n  Raw model output:\n  ${JSON.stringify(parsed, null, 2).split('\n').join('\n  ')}` +
+      `\n`
+    );
+
+    return parsed;
   }
 
   private shouldUseFallback() {

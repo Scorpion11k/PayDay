@@ -1,9 +1,7 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { Prisma } from '@prisma/client';
 import prisma from '../config/database';
+import { genAI, GEMINI_MODEL, withRetry } from '../config/gemini';
 import { AppError } from '../types';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export interface DashboardStatsResult {
   totalDebt: number;
@@ -229,7 +227,7 @@ class DashboardsService {
     }
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: GEMINI_MODEL,
       generationConfig: {
         temperature: 0.2,
         maxOutputTokens: 1024,
@@ -254,7 +252,7 @@ class DashboardsService {
       ],
     });
 
-    const result = await chat.sendMessage(prompt);
+    const result = await withRetry(() => chat.sendMessage(prompt));
     const responseText = result.response.text();
 
     if (!responseText) {
@@ -263,6 +261,15 @@ class DashboardsService {
 
     try {
       const parsed = JSON.parse(responseText) as GeneratedDashboardConfig;
+
+      console.log(
+        `\n[LLM Understanding] Dashboard Generation` +
+        `\n  User prompt: "${prompt}"` +
+        `\n  Generated widget: "${parsed.title}" (${parsed.chart_type})` +
+        `\n  Metric: ${parsed.chart_config?.metric || '(none)'}, Data source: ${parsed.chart_config?.data_source || '(none)'}` +
+        `\n  Description: ${parsed.description || '(none)'}` +
+        `\n`
+      );
 
       const validChartTypes = [
         'circular-gauge',

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { genAI, GEMINI_MODEL, withRetry } from '../../config/gemini';
 import { Prisma, PrismaClient, type TemplateLanguage, type TemplateTone } from '@prisma/client';
 import prisma from '../../config/database';
 import { AppError, NotFoundError, ValidationError } from '../../types';
@@ -22,7 +22,6 @@ import {
   type RecommendationCard,
 } from './plan-validator';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const db = prisma as unknown as PrismaClient;
 
 const PROMPT_VERSION = 'home-brain-v1';
@@ -594,7 +593,7 @@ class HomeBrainService {
 
   private async generateWithAi(context: HomeBrainContext, locale: SupportedLocale, maxCards: number): Promise<HomeBrainPlan> {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: GEMINI_MODEL,
       generationConfig: {
         temperature: 0.2,
         maxOutputTokens: 4096,
@@ -602,12 +601,24 @@ class HomeBrainService {
       },
     });
 
-    const result = await model.generateContent(this.buildPrompt(context, locale, maxCards));
+    const result = await withRetry(() => model.generateContent(this.buildPrompt(context, locale, maxCards)));
     const responseText = result.response.text();
     if (!responseText) {
       throw new AppError('AI service unavailable', 502);
     }
-    return cleanJsonResponse(responseText) as HomeBrainPlan;
+    const plan = cleanJsonResponse(responseText) as HomeBrainPlan;
+
+    console.log(
+      `\n[LLM Understanding] Home Brain Plan` +
+      `\n  Locale: ${locale}, Max cards: ${maxCards}` +
+      `\n  Context: ${context.metrics.totalCustomers} customers, ${context.metrics.overdueCustomers} overdue, balance: ${context.metrics.totalOverdueBalance}` +
+      `\n  Reasoning: ${plan.reasoningSummary}` +
+      `\n  Generated: ${plan.cards.length} cards, ${plan.flowBlueprints.length} flow blueprints, ${plan.actionIntents.length} action intents` +
+      `\n  Card titles: ${plan.cards.map((c) => c.title).join(', ') || '(none)'}` +
+      `\n`
+    );
+
+    return plan;
   }
 
   private shouldUseMockPlanner(): boolean {

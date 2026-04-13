@@ -1,10 +1,7 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { randomUUID } from 'crypto';
 import prisma from '../config/database';
+import { genAI, GEMINI_MODEL, withRetry } from '../config/gemini';
 import { AppError } from '../types';
-
-// Initialize Gemini client
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 type SupportedLanguage = 'en' | 'he';
 
@@ -291,6 +288,17 @@ Response:
   "explanation": "Finds customers whose total outstanding balance exceeds 5000"
 }
 
+User: "Show all customers with debt over 200 and overdue by more than 50 days"
+Response:
+{
+  "model": "customer",
+  "operation": "rawQuery",
+  "args": {
+    "sql": "SELECT DISTINCT c.id, c.full_name, c.phone, c.email, c.status, c.created_at, c.updated_at, COALESCE(SUM(d.current_balance), 0) as total_balance FROM customers c JOIN debts d ON d.customer_id = c.id AND d.status IN ('open', 'in_collection') JOIN installments i ON i.debt_id = d.id AND i.status = 'overdue' AND i.due_date <= NOW() - INTERVAL '50 days' GROUP BY c.id HAVING COALESCE(SUM(d.current_balance), 0) > 200 ORDER BY total_balance DESC LIMIT 100"
+  },
+  "explanation": "Finds customers with total outstanding debt over 200 who also have installments overdue by more than 50 days"
+}
+
 User: "Update the preferred channel of customers under age 30 to be sms"
 Response:
 {
@@ -474,17 +482,15 @@ User question: "${naturalLanguageQuery}"
 Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
 
     try {
-      // Get the Gemini model
       const model = genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash',
+        model: GEMINI_MODEL,
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 1500,
+          maxOutputTokens: 4096,
           responseMimeType: 'application/json',
         },
       });
 
-      // Start chat with system context
       const chat = model.startChat({
         history: [
           {
@@ -498,8 +504,7 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
         ],
       });
 
-      // Send the user's query
-      const result = await chat.sendMessage(userPrompt);
+      const result = await withRetry(() => chat.sendMessage(userPrompt));
       const responseText = result.response.text();
 
       if (!responseText) {
@@ -530,6 +535,15 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
       if (!queryConfig.model || !queryConfig.operation || !queryConfig.args) {
         throw new AppError('Invalid query structure from AI', 500);
       }
+
+      console.log(
+        `\n[LLM Understanding] AI Query` +
+        `\n  User prompt: "${naturalLanguageQuery}"` +
+        `\n  Interpreted as: ${queryConfig.operation} on "${queryConfig.model}"` +
+        `\n  Filters/args: ${JSON.stringify(queryConfig.args, null, 2).split('\n').join('\n  ')}` +
+        `\n  Explanation: ${queryConfig.explanation || '(none)'}` +
+        `\n`
+      );
 
       // Validate and restrict write operations
       this.validateWriteQuery(queryConfig);
@@ -584,7 +598,11 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError(`Failed to process query: ${(error as Error).message}`, 500);
+      const msg = (error as Error).message || '';
+      if (/503|429|high demand|overloaded|resource exhausted/i.test(msg)) {
+        throw new AppError('The AI model is temporarily unavailable due to high demand. Please try again in a few moments.', 503);
+      }
+      throw new AppError(`Failed to process query: ${msg}`, 500);
     }
   }
 
@@ -815,7 +833,7 @@ Generate the Prisma query JSON (return ONLY valid JSON, no markdown):`;
   private async translateText(text: string, targetLanguage: SupportedLanguage): Promise<string> {
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash',
+        model: GEMINI_MODEL,
         generationConfig: {
           temperature: 0,
           maxOutputTokens: 256,
@@ -827,7 +845,7 @@ Return only the translated text, with no quotes, no markdown, and no extra comme
 
 Text: "${text}"`;
 
-      const result = await model.generateContent(prompt);
+      const result = await withRetry(() => model.generateContent(prompt));
       let responseText = result.response.text();
       if (!responseText) return text;
       responseText = responseText.trim();
@@ -1021,20 +1039,20 @@ Map semantically. Any language. Only matched fields. productColumns must be an a
 
     try {
       const model = genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash',
+        model: GEMINI_MODEL,
         generationConfig: {
           temperature: 0.1,
           maxOutputTokens: 1024,
           responseMimeType: 'application/json',
           // @ts-expect-error - thinkingConfig is valid for Gemini 2.5 models
-          thinkingConfig: { thinkingBudget: 0 }, // Disable thinking mode for faster response
+          thinkingConfig: { thinkingBudget: 0 },
         },
       });
 
-      const result = await model.generateContent(prompt);
+      const result = await withRetry(() => model.generateContent(prompt));
       const responseText = result.response.text();
 
-      console.log(`AI mapping completed in ${Date.now() - startTime}ms`); // Performance log
+      console.log(`AI mapping completed in ${Date.now() - startTime}ms`);
 
       if (!responseText) {
         throw new AppError('No response from AI model', 500);
@@ -1059,6 +1077,15 @@ Map semantically. Any language. Only matched fields. productColumns must be an a
         console.error('Failed to parse AI response:', cleanedResponse);
         throw new AppError(`Failed to parse AI response as valid JSON: ${cleanedResponse.substring(0, 500)}`, 500);
       }
+
+      console.log(
+        `\n[LLM Understanding] Detect Column Mapping` +
+        `\n  Input headers: ${JSON.stringify(headers)}` +
+        `\n  Mapped fields: ${JSON.stringify(mappingResult.mapping, null, 2).split('\n').join('\n  ')}` +
+        `\n  Confidence: ${JSON.stringify(mappingResult.confidence || {})}` +
+        `\n  Explanation: ${mappingResult.explanation || '(none)'}` +
+        `\n`
+      );
 
       // Validate mapped headers exist in input
       if (mappingResult.mapping) {
